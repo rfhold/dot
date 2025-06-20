@@ -1,0 +1,7 @@
+customCommands:
+  - key: 'p'
+    context: 'global'
+    command: "git fetch && git pull"
+git:
+  autoFetch: false
+

@@ -1,0 +1,7 @@
+[memory_usage]
+disabled = false
+threshold = -1
+format = "with $symbol[${ram}]($style) "
+
+[status]
+disabled = true
