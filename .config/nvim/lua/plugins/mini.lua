@@ -153,10 +153,10 @@ return {
 		require("mini.completion").setup()
 
 		require("mini.hues").setup({
-			background = "#19213a",
-			foreground = "#c4c6cd",
-			n_hues = 4,
-			saturation = "medium",
+			background = "#1a1b26",
+			foreground = "#c0caf5",
+			n_hues = 8,
+			saturation = "high",
 			plugins = { default = true },
 		})
 
