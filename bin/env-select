@@ -1,0 +1,108 @@
+#!/bin/bash
+
+# Configuration
+DOTFILES_DIR="$HOME/dot"
+ENV_DIR="$DOTFILES_DIR/env"
+ENV_ENCRYPTED_DIR="$ENV_DIR/encrypted"
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Function to get list of existing env groups
+get_env_groups() {
+    find "$ENV_ENCRYPTED_DIR" -name "*.gpg" -type f 2>/dev/null | \
+        xargs -I {} basename {} .gpg | sort
+}
+
+# Function to decrypt and output env vars
+decrypt_and_output() {
+    local group_name="$1"
+    local format="$2"
+    local encrypted_file="$ENV_ENCRYPTED_DIR/${group_name}.gpg"
+    
+    if [ ! -f "$encrypted_file" ]; then
+        echo "Error: Environment group '$group_name' not found." >&2
+        exit 1
+    fi
+    
+    # Decrypt the file and process based on format
+    case "$format" in
+        "fish")
+            gpg --decrypt --quiet "$encrypted_file" 2>/dev/null | while IFS='=' read -r key value; do
+                # Skip empty lines and comments
+                [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+                # Output Fish set commands
+                echo "set -gx $key $value"
+            done
+            ;;
+        "list")
+            echo -e "${GREEN}Environment variables in group '${group_name}':${NC}" >&2
+            gpg --decrypt --quiet "$encrypted_file" 2>/dev/null | while IFS='=' read -r key value; do
+                [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+                echo -e "${YELLOW}$key${NC}=***" >&2
+            done
+            ;;
+        *)
+            gpg --decrypt --quiet "$encrypted_file" 2>/dev/null
+            ;;
+    esac
+}
+
+# Main script
+main() {
+    # Get existing groups
+    existing_groups=$(get_env_groups)
+    
+    if [ -z "$existing_groups" ]; then
+        echo -e "${RED}No environment groups found.${NC}" >&2
+        echo "Run 'env-add' to create your first group." >&2
+        exit 1
+    fi
+    
+    # Parse command line arguments
+    if [ "$1" = "--fish-output" ] && [ -n "$2" ]; then
+        # Direct call with group name for Fish function
+        decrypt_and_output "$2" "fish"
+    elif [ "$1" = "--list" ] && [ -n "$2" ]; then
+        # Show variables in a group
+        decrypt_and_output "$2" "list"
+    else
+        # Interactive mode
+        echo -e "${GREEN}Environment Variable Loader${NC}" >&2
+        echo "===========================" >&2
+        
+        # Let user choose a group
+        group_name=$(echo "$existing_groups" | gum choose --header "Select environment group to load:")
+        
+        if [ -z "$group_name" ]; then
+            echo -e "${RED}No group selected.${NC}" >&2
+            exit 1
+        fi
+        
+        # Ask what to do
+        action=$(echo -e "Load into session\nShow variables\nExport to file" | gum choose --header "What would you like to do?")
+        
+        case "$action" in
+            "Load into session")
+                echo -e "${YELLOW}Run this command to load the variables:${NC}" >&2
+                echo -e "${GREEN}env-load ${group_name}${NC}" >&2
+                ;;
+            "Show variables")
+                decrypt_and_output "$group_name" "list"
+                ;;
+            "Export to file")
+                output_file=$(gum input --prompt "Enter output filename: " --placeholder "export.env")
+                if [ -n "$output_file" ]; then
+                    decrypt_and_output "$group_name" "raw" > "$output_file"
+                    echo -e "${GREEN}✓ Exported to: ${output_file}${NC}" >&2
+                fi
+                ;;
+        esac
+    fi
+}
+
+# Run main function
+main "$@"

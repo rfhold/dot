@@ -1,0 +1,191 @@
+#!/bin/bash
+
+# Configuration
+DOTFILES_DIR="$HOME/dot"
+ENV_DIR="$DOTFILES_DIR/env"
+ENV_ENCRYPTED_DIR="$ENV_DIR/encrypted"
+ENV_TEMP_DIR="$ENV_DIR/.temp"
+
+# Create necessary directories
+mkdir -p "$ENV_ENCRYPTED_DIR" "$ENV_TEMP_DIR"
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Function to get GPG key ID
+get_gpg_key() {
+    local keys=$(gpg --list-secret-keys --keyid-format=long | grep -E "^sec" | awk '{print $2}' | cut -d'/' -f2)
+    if [ -z "$keys" ]; then
+        echo -e "${RED}No GPG keys found. Please create one first.${NC}" >&2
+        exit 1
+    fi
+    
+    # If multiple keys, let user choose
+    local key_count=$(echo "$keys" | wc -l)
+    if [ "$key_count" -gt 1 ]; then
+        echo "$keys" | gum choose --header "Select GPG key to use:"
+    else
+        echo "$keys"
+    fi
+}
+
+# Function to get list of existing env groups
+get_env_groups() {
+    find "$ENV_ENCRYPTED_DIR" -name "*.gpg" -type f 2>/dev/null | \
+        xargs -I {} basename {} .gpg | sort
+}
+
+# Function to decrypt env file
+decrypt_env_file() {
+    local group_name="$1"
+    local encrypted_file="$ENV_ENCRYPTED_DIR/${group_name}.gpg"
+    local temp_file="$ENV_TEMP_DIR/${group_name}.env"
+    
+    if [ -f "$encrypted_file" ]; then
+        gpg --decrypt --quiet "$encrypted_file" > "$temp_file" 2>/dev/null
+        echo "$temp_file"
+    else
+        # Create empty temp file for new group
+        touch "$temp_file"
+        echo "$temp_file"
+    fi
+}
+
+# Function to encrypt env file
+encrypt_env_file() {
+    local group_name="$1"
+    local temp_file="$2"
+    local gpg_key="$3"
+    local encrypted_file="$ENV_ENCRYPTED_DIR/${group_name}.gpg"
+    
+    gpg --encrypt --recipient "$gpg_key" --armor --output "$encrypted_file" "$temp_file"
+    rm -f "$temp_file"
+}
+
+# Function to add/update environment variable
+add_env_var() {
+    local temp_file="$1"
+    local var_name="$2"
+    local var_value="$3"
+    
+    # Remove existing variable if present
+    if [ -f "$temp_file" ]; then
+        grep -v "^${var_name}=" "$temp_file" > "${temp_file}.tmp" || true
+        mv "${temp_file}.tmp" "$temp_file"
+    fi
+    
+    # Add new variable
+    echo "${var_name}=${var_value}" >> "$temp_file"
+}
+
+# Main script
+main() {
+    echo -e "${GREEN}Environment Variable Manager${NC}"
+    echo "=============================="
+    
+    # Get GPG key
+    GPG_KEY=$(get_gpg_key)
+    echo -e "${YELLOW}Using GPG key: ${NC}$GPG_KEY"
+    
+    # Get existing groups
+    existing_groups=$(get_env_groups)
+    
+    # Choose action
+    if [ -z "$existing_groups" ]; then
+        action="create"
+        echo -e "${YELLOW}No existing environment groups found.${NC}"
+    else
+        options="Create new group"
+        while IFS= read -r group; do
+            options="$options\n$group"
+        done <<< "$existing_groups"
+        
+        choice=$(echo -e "$options" | gum choose --header "Select environment group to edit or create new:")
+        
+        if [ "$choice" = "Create new group" ]; then
+            action="create"
+        else
+            action="edit"
+            group_name="$choice"
+        fi
+    fi
+    
+    # Get or create group name
+    if [ "$action" = "create" ]; then
+        group_name=$(gum input --prompt "Enter new group name (e.g., aws, openai): " --placeholder "my-secrets")
+        if [ -z "$group_name" ]; then
+            echo -e "${RED}Group name cannot be empty.${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Decrypt existing file or create new
+    temp_file=$(decrypt_env_file "$group_name")
+    
+    # Show existing variables if editing
+    if [ "$action" = "edit" ] && [ -s "$temp_file" ]; then
+        echo -e "\n${YELLOW}Existing variables in ${group_name}:${NC}"
+        cat "$temp_file" | sed 's/=.*/=***/' | gum format
+    fi
+    
+    # Loop to add/update variables
+    while true; do
+        echo -e "\n${GREEN}Adding/updating environment variable${NC}"
+        
+        # Get variable name
+        var_name=$(gum input --prompt "Enter variable name: " --placeholder "API_KEY")
+        if [ -z "$var_name" ]; then
+            echo -e "${RED}Variable name cannot be empty.${NC}"
+            continue
+        fi
+        
+        # Check if variable exists
+        existing_value=""
+        if grep -q "^${var_name}=" "$temp_file" 2>/dev/null; then
+            existing_value=$(grep "^${var_name}=" "$temp_file" | cut -d'=' -f2-)
+            echo -e "${YELLOW}Variable already exists. Current value will be replaced.${NC}"
+        fi
+        
+        # Get variable value
+        if [ -n "$existing_value" ]; then
+            var_value=$(gum input --prompt "Enter new value: " --placeholder "Enter new value" --password)
+        else
+            var_value=$(gum input --prompt "Enter value: " --placeholder "Enter value" --password)
+        fi
+        
+        if [ -z "$var_value" ]; then
+            echo -e "${RED}Variable value cannot be empty.${NC}"
+            continue
+        fi
+        
+        # Add/update the variable
+        add_env_var "$temp_file" "$var_name" "$var_value"
+        echo -e "${GREEN}✓ Added/updated: ${NC}${var_name}"
+        
+        # Ask if want to add more
+        if ! gum confirm "Add another variable?"; then
+            break
+        fi
+    done
+    
+    # Encrypt the file
+    echo -e "\n${YELLOW}Encrypting environment file...${NC}"
+    encrypt_env_file "$group_name" "$temp_file" "$GPG_KEY"
+    
+    echo -e "${GREEN}✓ Environment group '${group_name}' has been saved and encrypted.${NC}"
+    echo -e "${YELLOW}Location: ${NC}$ENV_ENCRYPTED_DIR/${group_name}.gpg"
+}
+
+# Cleanup function
+cleanup() {
+    rm -rf "$ENV_TEMP_DIR"
+}
+
+# Set trap to cleanup on exit
+trap cleanup EXIT
+
+# Run main function
+main
