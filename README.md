@@ -24,7 +24,7 @@ This project automates the setup and configuration of a complete development env
 ## Prerequisites
 
 - macOS (tested on macOS 15.5)
-- Python 3.13+
+- Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
 
 ## Installation
@@ -49,9 +49,9 @@ This project automates the setup and configuration of a complete development env
 
 ### Development Tools
 - **Languages**: Go, Node.js, Bun
-- **Editors**: Neovim with vim-tmux-navigator integration
+- **Editors**: Neovim with LSP support, format-on-save, and vim-tmux-navigator integration
 - **Version Control**: Git with GPG signing, Lazygit, GitHub CLI
-- **Search & Navigation**: ripgrep, fd
+- **Search & Navigation**: ripgrep, fd with custom ignore patterns
 - **Infrastructure**: Pulumi, k9s (Kubernetes)
 
 ### Terminal Environment
@@ -91,8 +91,10 @@ This includes configurations for:
 - Alacritty terminal
 - tmux with custom theme
 - Starship prompt
+- Neovim with LSP, formatting, and completion
 - k9s, lazygit, lazydocker
 - Git with GPG signing
+- fd search tool ignore patterns
 
 ## Project Structure
 
