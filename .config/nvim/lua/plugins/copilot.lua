@@ -17,7 +17,7 @@ return {
         dismiss = "<C-]>",
       },
     },
-    panel = { enabled = false },
+    panel = { enabled = true },
     filetypes = {
       markdown = true,
       help = true,
@@ -38,7 +38,7 @@ return {
       css = true,
     },
   },
-  config = function()
-    require("copilot").setup({})
+  config = function(opts)
+    require("copilot").setup(opts)
   end,
 }

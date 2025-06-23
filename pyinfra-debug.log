@@ -1,9 +1,0 @@
-  File "/Users/rfhold/dot/.venv/lib/python3.12/site-packages/pyinfra_cli/main.py", line 225, in cli
-    _main(*args, **kwargs)
-  File "/Users/rfhold/dot/.venv/lib/python3.12/site-packages/pyinfra_cli/main.py", line 388, in _main
-    and not _do_confirm("Detected changes displayed above, skip this step with -y")
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/rfhold/dot/.venv/lib/python3.12/site-packages/pyinfra_cli/main.py", line 414, in _do_confirm
-    v = input()
-        ^^^^^^^
-EOFError: EOF when reading a line
