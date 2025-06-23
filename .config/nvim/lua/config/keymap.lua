@@ -26,6 +26,11 @@ vim.keymap.set('n', '<leader>fh', '<cmd>Telescope help_tags<cr>', { desc = 'Find
 vim.keymap.set('n', '<leader>fc', '<cmd>Telescope commands<cr>', { desc = 'Find commands' })
 vim.keymap.set('n', '<leader>fk', '<cmd>Telescope keymaps<cr>', { desc = 'Find keymaps' })
 
+-- open the file explorer with <leader>e
+vim.keymap.set("n", "<leader>e", function()
+    require("mini.files").open(vim.fn.expand("%:p:h"))
+end, { desc = "Open file explorer" })
+
 -- Diagnostic keybindings
 vim.keymap.set('n', '<leader>dd', function() MiniExtra.pickers.diagnostic({ scope = 'current' }) end, { desc = 'Buffer diagnostics' })
 -- vim.keymap.set('n', '<leader>dD', function() MiniExtra.pickers.diagnostic({ scope = 'all' }) end, { desc = 'All diagnostics' })
@@ -63,16 +68,6 @@ vim.keymap.set('n', '<leader>lc', function() MiniExtra.pickers.list({ scope = 'c
 
 -- File explorer
 vim.keymap.set('n', '<leader>fe', MiniExtra.pickers.explorer, { desc = 'File explorer' })
-
--- Visit paths (if you use mini.visits)
-vim.keymap.set('n', '<leader>fv', function()
-  local ok, _ = pcall(require, 'mini.visits')
-  if ok then
-    MiniExtra.pickers.visit_paths()
-  else
-    vim.notify('mini.visits not installed', vim.log.levels.WARN)
-  end
-end, { desc = 'Visit paths' })
 
 -- Additional LSP functionality without mini.extra
 vim.keymap.set('n', 'K', vim.lsp.buf.hover, { desc = 'Hover documentation' })

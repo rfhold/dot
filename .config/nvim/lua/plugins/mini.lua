@@ -94,11 +94,6 @@ return {
 
         require('mini.extra').setup()
 
-        -- file picker on \\
-        vim.keymap.set("n", "\\\\", function()
-            require("mini.pick").builtin.files({ tool = "rg" })
-        end, { desc = "Open file explorer" })
-
         require("mini.files").setup({
             -- Customization of shown content
             content = {
@@ -150,11 +145,6 @@ return {
                 width_preview = 25,
             },
         })
-
-        -- open the file explorer with <leader>e
-        vim.keymap.set("n", "<leader>e", function()
-            require("mini.files").open(vim.fn.expand("%:p:h"))
-        end, { desc = "Open file explorer" })
 
         require("mini.completion").setup({
             window = {

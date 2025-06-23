@@ -1,167 +1,127 @@
-# Dotfiles Configuration
+# Dotfiles
 
-An automated dotfiles management system using [PyInfra](https://pyinfra.com/) to configure development environments on macOS.
+A comprehensive dotfiles management system using PyInfra for automated setup and configuration of macOS development environment.
 
 ## Overview
 
-This project automates the setup and configuration of a complete development environment, including:
+This repository contains dotfiles and configuration management for a complete development environment setup. It automates the installation and configuration of development tools, shell environments, and applications using PyInfra deployment automation.
 
-- **Shell Configuration**: Fish shell with Starship prompt
-- **Terminal Setup**: Alacritty terminal with tmux
-- **Development Tools**: Go, Node.js, Bun, Neovim, and various CLI utilities
-- **GUI Applications**: Slack, Spotify, Obsidian, and other productivity apps
-- **Configuration Management**: Automated symlinking of dotfiles and config directories
+## Quick Start
 
-## Features
+```bash
+./bin/update.sh
+```
 
-- 🔗 **Automatic Symlinking**: Links configuration files from `.config/` and `home/` directories
-- 📦 **Package Management**: Installs and manages Homebrew packages and casks
-- 🛠️ **Development Environment**: Sets up complete toolchain for Go, JavaScript, and general development
-- 🔐 **Security Tools**: Configures GPG and password management with commit signing
-- ⚡ **Modern CLI Tools**: Includes ripgrep, fd, lazygit, k9s, and more
-- 🎨 **Themed Environment**: TokyoNight color scheme for tmux and terminal
+This single command will:
+1. Install Homebrew (if not present)
+2. Install rustup (if not present) 
+3. Install uv Python package manager (if not present)
+4. Run the PyInfra deployment to configure your system
 
-## Prerequisites
+## How It Works
 
-- macOS (tested on macOS 15.5)
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) package manager
+### Installation Process
 
-## Installation
+1. **`/bin/update.sh`** - Bootstrap script that:
+   - Installs Homebrew package manager
+   - Installs rustup (Rust toolchain manager)
+   - Installs uv (fast Python package manager)
+   - Calls the install script
 
-1. Clone this repository to `~/dot`:
-   ```bash
-   git clone <repository-url> ~/dot
-   cd ~/dot
-   ```
-
-2. Install dependencies:
-   ```bash
-   uv sync
-   ```
-
-3. Run the configuration:
+2. **`/bin/install.sh`** - Runs the PyInfra deployment:
    ```bash
    uv run pyinfra @local configure.py
    ```
 
-## What Gets Installed
+3. **`configure.py`** - PyInfra deployment script that:
+   - Links `.config/` directory to `~/.config/`
+   - Links `home/` directory contents to `~/`
+   - Installs and configures all development tools
+
+### Directory Structure
+
+- `.config/` - Configuration files that get linked to `~/.config/`
+- `home/` - Files that get linked to your home directory (`~`)
+- `bin/` - Installation and update scripts
+- `configure.py` - PyInfra deployment configuration
+
+## Installed Tools
 
 ### Development Tools
-- **Languages**: Go, Node.js, Bun
-- **Editors**: Neovim with LSP support, format-on-save, and vim-tmux-navigator integration
-- **Version Control**: Git with GPG signing, Lazygit, GitHub CLI
-- **Search & Navigation**: ripgrep, fd with custom ignore patterns
-- **Infrastructure**: Pulumi, k9s (Kubernetes)
+- **Go** - Programming language
+- **Bun** - JavaScript runtime
+- **Rust** (via rustup) - Systems programming language
 
-### Terminal Environment
-- **Shell**: Fish with Fisher plugin manager
-- **Prompt**: Starship
-- **Multiplexer**: tmux with TokyoNight theme and smart pane switching
-- **Terminal**: Alacritty
+### Terminal & Shell
+- **Fish** - Modern shell with autocompletion
+- **Starship** - Cross-shell prompt
+- **Fisher** - Fish plugin manager
+- **Tmux** - Terminal multiplexer
 
-### GUI Applications
-- Slack (communication)
-- Spotify (music)
-- Obsidian (notes)
-- Bitwarden (password manager)
-- LinearMouse (mouse customization)
+### Text Editor
+- **Neovim** - Modern Vim-based editor with full configuration
 
-### Configuration Highlights
+### CLI Utilities
+- **ripgrep** - Fast text search
+- **fd** - Fast file finder
+- **fzf** - Fuzzy finder
+- **gum** - Glamorous shell scripts
 
-**Git Configuration**:
-- GPG commit and tag signing enabled
-- SSH URLs for GitHub/GitLab
-- Custom global gitignore
+### Developer Tools
+- **K9s** - Kubernetes TUI
+- **Pulumi** - Infrastructure as Code
+- **GitHub CLI** - GitHub command line
+- **Lazygit** - Git TUI
+- **Lazydocker** - Docker TUI
 
-**tmux Configuration**:
-- TokyoNight color scheme
-- Vim-tmux-navigator for seamless pane switching
-- Custom status bar with session info and system details
-- Smart Ctrl+C handling for ESP-IDF development
+### Security & GPG
+- **GnuPG** - Encryption and signing
+- **pinentry-mac** - macOS GPG passphrase entry
 
-### Configuration Files
+### Applications (GUI)
+- **Alacritty** - GPU-accelerated terminal
+- **Slack** - Team communication
+- **Spotify** - Music streaming
+- **Obsidian** - Note-taking and knowledge management
+- **LinearMouse** - Mouse customization
+- **Bitwarden** - Password manager
 
-The system automatically symlinks:
-- All files in `.config/` → `~/.config/`
-- All files in `home/` → `~/`
+## Configuration
 
-This includes configurations for:
-- Fish shell and functions
-- Alacritty terminal
-- tmux with custom theme
-- Starship prompt
-- Neovim with LSP, formatting, and completion
-- k9s, lazygit, lazydocker
-- Git with GPG signing
-- fd search tool ignore patterns
+All tools come pre-configured through the linked configuration directories:
 
-## Project Structure
+- **Neovim**: Full IDE setup with LSP, plugins, and keybindings
+- **Fish**: Shell configuration with aliases and functions  
+- **Tmux**: Terminal multiplexer configuration
+- **Git**: Version control settings
+- **And more**: All configurations are automatically linked and ready to use
 
-```
-.
-├── .config/           # Application configurations
-│   ├── alacritty/     # Terminal configuration
-│   ├── fish/          # Shell configuration and functions
-│   ├── k9s/           # Kubernetes TUI config
-│   ├── lazygit/       # Git TUI config
-│   ├── starship.toml  # Shell prompt config
-│   └── ...
-├── home/              # Home directory dotfiles
-│   ├── .gitconfig     # Git with GPG signing
-│   ├── .tmux.conf     # tmux with TokyoNight theme
-│   └── .gitignore     # Global git ignore patterns
-├── bin/               # Utility scripts
-├── configure.py       # Main PyInfra configuration
-├── pyproject.toml     # Python project configuration
-└── README.md          # This file
-```
+## Additional Tools
 
-## Key Features
+This dotfiles system includes several custom utilities for configuration and environment management:
 
-### Smart Terminal Navigation
-- Seamless switching between tmux panes and Vim splits using Ctrl+h/j/k/l
-- Custom Ctrl+C handling for ESP-IDF development workflows
+### Configuration Management
+- **`adopt-dot`** - Interactive tool to adopt existing config files from `~` or `~/.config` into your dotfiles repository
+- **`edit-env`** - Create and edit encrypted environment variable groups using GPG encryption
 
-### Security & Git Integration
-- Automatic GPG signing for commits and tags
-- SSH URL rewriting for GitHub and GitLab
-- Secure credential management with Bitwarden
+### Environment Variable Management
+- **`env-load`** - Fish function to load encrypted environment variables into your shell session
+  - Includes aliases: `envl`, `envs`, `envls`
+  - Provides tab completion for environment group names
+  - Calls `env-select` internally to decrypt and load variables
+- **`env-select`** - Decrypt and select environment variable groups from encrypted storage
 
-### Modern Development Workflow
-- Fish shell with intelligent completions
-- Starship prompt with git status and environment info
-- Integrated terminal multiplexing with tmux
+These tools work together to provide secure, encrypted storage of sensitive environment variables with easy loading into shell sessions.
 
-## Customization
+## Updating
 
-To customize the setup:
+Run `./bin/update.sh` anytime to:
+- Update all package managers (Homebrew, rustup, uv)
+- Re-run the deployment to catch any new configurations
+- Upgrade all installed Homebrew packages
 
-1. **Add/Remove Packages**: Edit the `brew.packages()` calls in `configure.py`
-2. **Modify Configurations**: Update files in `.config/` and `home/` directories
-3. **Add New Configurations**: Place new config files in appropriate directories
-4. **Theme Changes**: Modify color schemes in tmux.conf and terminal configs
+## Requirements
 
-## Running
-
-After initial setup, you can re-run the configuration anytime:
-
-```bash
-cd ~/dot
-uv run pyinfra @local configure.py
-```
-
-This will:
-- Update symlinks for any new configuration files
-- Install any newly added packages
-- Skip already-installed components
-
-## Dependencies
-
-- **PyInfra**: Infrastructure automation framework
-- **Homebrew**: Package manager for macOS
-- **uv**: Fast Python package manager
-
-## License
-
-This project is for personal use. Feel free to fork and adapt for your own dotfiles setup.
+- macOS (tested on recent versions)
+- Internet connection for downloading tools
+- Admin privileges for some installations

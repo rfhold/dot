@@ -68,6 +68,8 @@ brew.packages(
         "tmux",  # terminal multiplexer
         "neovim",  # text editor
         "ripgrep",  # search tool
+        "fd",  # file finder
+        "fzf",  # fuzzy finder
         "gum",  # shell scripts
     ],
 )
