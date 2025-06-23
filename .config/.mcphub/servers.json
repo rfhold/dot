@@ -11,6 +11,14 @@
         "mcp-searxng"
       ],
       "command": "uvx"
+    },
+    "context7": {
+      "command": "npx",
+      "disabled": false,
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
     }
   }
 }

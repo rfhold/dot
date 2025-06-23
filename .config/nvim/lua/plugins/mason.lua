@@ -1,6 +1,22 @@
 return {
   {
-    "mason-org/mason-lspconfig.nvim",
+    "mason-lspconfig.nvim",
+    dependencies = {
+      {
+        "mason-org/mason.nvim",
+        opts = {
+          ui = {
+            border = "rounded",
+            icons = {
+              package_installed = "✓",
+              package_pending = "➜",
+              package_uninstalled = "✗",
+            },
+          },
+        }
+      },
+      "neovim/nvim-lspconfig",
+    },
     opts = {
       ensure_installed = {
         "bashls",
@@ -15,10 +31,6 @@ return {
         "rust_analyzer",
       },
       automatic_enable = true,
-    },
-    dependencies = {
-      { "mason-org/mason.nvim", opts = {} },
-      "neovim/nvim-lspconfig",
     },
   },
 }
