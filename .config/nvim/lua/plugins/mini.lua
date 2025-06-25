@@ -49,7 +49,7 @@ return {
     local diff = require("mini.diff")
     diff.setup({
       -- Disabled by default
-      source = diff.gen_source.none(),
+      -- source = diff.gen_source.none(),
     })
     require("mini.icons").setup()
     require("mini.snippets").setup()
