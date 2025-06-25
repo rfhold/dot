@@ -83,3 +83,39 @@ vim.keymap.set({ "n", "v" }, "<C-a>", "<cmd>CodeCompanionActions<cr>", { noremap
 -- Chat Toggle - works in both normal and visual mode
 vim.keymap.set({ "n", "v" }, "<leader>a", "<cmd>CodeCompanionChat Toggle<cr>", { noremap = true, silent = true, desc = "Chat Toggle" })
 
+-- Lua code evaluation function
+local function eval_lua_selection()
+  -- Get visual selection
+  local start_pos = vim.fn.getpos("'<")
+  local end_pos = vim.fn.getpos("'>")
+  local lines = vim.fn.getline(start_pos[2], end_pos[2])
+
+  -- Handle partial line selection
+  if #lines == 1 then
+    lines[1] = string.sub(lines[1], start_pos[3], end_pos[3])
+  elseif #lines > 1 then
+    lines[1] = string.sub(lines[1], start_pos[3])
+    lines[#lines] = string.sub(lines[#lines], 1, end_pos[3])
+  end
+
+  local code = table.concat(lines, '\n')
+
+  -- Execute the code safely
+  local func, err = loadstring(code)
+  if func then
+    local success, result = pcall(func)
+    if success and result ~= nil then
+      print(vim.inspect(result))
+    elseif success then
+      print("✓ Code executed successfully")
+    else
+      vim.notify("Runtime error: " .. tostring(result), vim.log.levels.ERROR)
+    end
+  else
+    vim.notify("Syntax error: " .. tostring(err), vim.log.levels.ERROR)
+  end
+end
+
+-- Lua evaluation keybind for visual mode
+vim.keymap.set("v", "<leader>el", eval_lua_selection, { noremap = true, silent = true, desc = "Evaluate Lua selection" })
+
