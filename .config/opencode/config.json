@@ -24,6 +24,9 @@
         },
         "moonshotai/kimi-k2:free": {
           "name": "Kimi K2 Free"
+        },
+        "qwen/qwen3-coder": {
+          "name": "Qwen3 Coder"
         }
       }
     }
