@@ -3,6 +3,7 @@ return {
     "nvim-treesitter/nvim-treesitter",
     branch = "master",
     lazy = false,
+    priority = 50,
     build = ":TSUpdate",
     opts = {
       ensure_installed = {

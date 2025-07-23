@@ -4,7 +4,7 @@ vim.diagnostic.config({ virtual_text = true })
 -- Configure diagnostic floating windows with borders
 vim.diagnostic.config({
   float = {
-    border = "rounded",  -- Options: "none", "single", "double", "rounded", "solid", "shadow"
+    border = "rounded", -- Options: "none", "single", "double", "rounded", "solid", "shadow"
     -- You can also customize other float options:
     -- header = "Diagnostics",
     -- source = "if_many",  -- Show source if multiple sources
@@ -23,4 +23,3 @@ vim.lsp.handlers["textDocument/signatureHelp"] = vim.lsp.with(
     border = "rounded"
   }
 )
-
