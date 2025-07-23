@@ -1,4 +1,4 @@
-function env-load --description "Load encrypted environment variables into current session"
+function envl --description "Load encrypted environment variables into current session"
     set -l dotfiles_dir "$HOME/dot"
     set -l env_script "$dotfiles_dir/bin/env-select"
     
@@ -14,13 +14,13 @@ function env-load --description "Load encrypted environment variables into curre
         set -l temp_file (mktemp)
         $env_script 2>$temp_file
         
-        # Check if user was instructed to run env-load with a group name
-        set -l instruction (grep "env-load" $temp_file | sed -E 's/.*env-load[[:space:]]+([^[:space:]]+).*/\1/')
+        # Check if user was instructed to run envl with a group name
+        set -l instruction (grep "envl\|env-load" $temp_file | sed -E 's/.*(envl|env-load)[[:space:]]+([^[:space:]]+).*/\2/')
         rm -f $temp_file
         
         if test -n "$instruction"
             # Recursively call with the group name
-            env-load $instruction
+            envl $instruction
         end
         return
     end
@@ -48,8 +48,7 @@ function env-load --description "Load encrypted environment variables into curre
     echo "✓ Loaded $loaded_count environment variables from '$group_name'" >&2
 end
 
-# Optional: Create an alias for quick access
-alias envl='env-load'
+
 
 function env-show --description "Show variables in an encrypted environment group"
     set -l dotfiles_dir "$HOME/dot"

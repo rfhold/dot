@@ -9,8 +9,7 @@ function __fish_env_groups
     end
 end
 
-complete -c env-load -f -a "(__fish_env_groups)" -d "Environment group"
-complete -c env-show -f -a "(__fish_env_groups)" -d "Environment group"
 complete -c envl -f -a "(__fish_env_groups)" -d "Environment group"
 complete -c envs -f -a "(__fish_env_groups)" -d "Environment group"
+complete -c envls -f -a "(__fish_env_groups)" -d "Environment group"
 
