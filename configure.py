@@ -87,6 +87,7 @@ brew.packages(
         "gh",  # GitHub CLI
         "lazygit",  # Git TUI
         "lazydocker",  # Docker TUI
+        "argon2",  # Password hashing library
     ],
 )
 
