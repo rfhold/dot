@@ -3,6 +3,10 @@
   "theme": "user",
   "model": "anthropic/claude-sonnet-4-20250514",
   "layout": "stretch",
+  "keybinds": {
+    "input_newline": "alt+j"
+  },
+  "mode": {},
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",
@@ -27,6 +31,12 @@
         },
         "qwen/qwen3-coder": {
           "name": "Qwen3 Coder"
+        },
+        "z-ai/glm-4.5": {
+          "name": "GLM 4.5"
+        },
+        "z-ai/glm-4.5-air": {
+          "name": "GLM 4.5 Air"
         }
       }
     }
