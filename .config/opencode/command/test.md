@@ -1,0 +1,8 @@
+---
+description: Run tests with coverage
+agent: plan
+---
+
+Run the full test suite with coverage report and show any failures.
+Focus on the failing tests and suggest fixes.
+Look for a Maskfile or similar to run tests.

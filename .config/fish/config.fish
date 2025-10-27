@@ -19,3 +19,8 @@ bind --preset \cC 'cancel-commandline'
 
 starship init fish | source
 
+
+# Added by LM Studio CLI (lms)
+set -gx PATH $PATH /Users/rfhold/.lmstudio/bin
+# End of LM Studio CLI section
+
