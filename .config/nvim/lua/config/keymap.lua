@@ -28,11 +28,12 @@ vim.keymap.set('n', '<leader>fk', '<cmd>Telescope keymaps<cr>', { desc = 'Find k
 
 -- open the file explorer with <leader>e
 vim.keymap.set("n", "<leader>e", function()
-    require("mini.files").open(vim.fn.expand("%:p:h"))
+  require("mini.files").open(vim.fn.expand("%:p:h"))
 end, { desc = "Open file explorer" })
 
 -- Diagnostic keybindings
-vim.keymap.set('n', '<leader>dd', function() MiniExtra.pickers.diagnostic({ scope = 'current' }) end, { desc = 'Buffer diagnostics' })
+vim.keymap.set('n', '<leader>dd', function() MiniExtra.pickers.diagnostic({ scope = 'current' }) end,
+  { desc = 'Buffer diagnostics' })
 -- vim.keymap.set('n', '<leader>dD', function() MiniExtra.pickers.diagnostic({ scope = 'all' }) end, { desc = 'All diagnostics' })
 vim.keymap.set('n', '<leader>dD', '<cmd>Telescope diagnostics<cr>', { desc = 'All diagnostics' })
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = 'Previous diagnostic' })
@@ -56,13 +57,16 @@ vim.keymap.set('n', '<leader>gs', '<cmd>Telescope git_status<cr>', { desc = 'Git
 vim.keymap.set('n', '<leader>gl', '<cmd>Telescope git_commits<cr>', { desc = 'Git log' })
 
 -- History pickers
-vim.keymap.set('n', '<leader>f:', function() MiniExtra.pickers.history({ scope = 'cmd' }) end, { desc = 'Command history' })
-vim.keymap.set('n', '<leader>f/', function() MiniExtra.pickers.history({ scope = 'search' }) end, { desc = 'Search history' })
+vim.keymap.set('n', '<leader>f:', function() MiniExtra.pickers.history({ scope = 'cmd' }) end,
+  { desc = 'Command history' })
+vim.keymap.set('n', '<leader>f/', function() MiniExtra.pickers.history({ scope = 'search' }) end,
+  { desc = 'Search history' })
 
 -- List pickers
 -- vim.keymap.set('n', '<leader>lq', function() MiniExtra.pickers.list({ scope = 'quickfix' }) end, { desc = 'Quickfix list' })
 vim.keymap.set('n', '<leader>lq', '<cmd>Telescope quickfix<cr>', { desc = 'Quickfix list' })
-vim.keymap.set('n', '<leader>ll', function() MiniExtra.pickers.list({ scope = 'location' }) end, { desc = 'Location list' })
+vim.keymap.set('n', '<leader>ll', function() MiniExtra.pickers.list({ scope = 'location' }) end,
+  { desc = 'Location list' })
 vim.keymap.set('n', '<leader>lj', function() MiniExtra.pickers.list({ scope = 'jump' }) end, { desc = 'Jump list' })
 vim.keymap.set('n', '<leader>lc', function() MiniExtra.pickers.list({ scope = 'change' }) end, { desc = 'Change list' })
 
@@ -77,11 +81,15 @@ vim.keymap.set('i', '<C-k>', vim.lsp.buf.signature_help, { desc = 'Signature hel
 -- Format
 vim.keymap.set({ 'n', 'v' }, '<leader>cf', vim.lsp.buf.format, { desc = 'Format' })
 
+-- CodeCompanion keybindings
+-- CodeCompanion keybindings
 -- Action Palette (launch actions) - works in both normal and visual mode
-vim.keymap.set({ "n", "v" }, "<C-a>", "<cmd>CodeCompanionActions<cr>", { noremap = true, silent = true, desc = "Action Palette" })
+vim.keymap.set({ "n", "v" }, "<C-a>", "<cmd>CodeCompanionActions<cr>",
+  { noremap = true, silent = true, desc = "CC: Action Palette" })
 
--- Chat Toggle - works in both normal and visual mode
-vim.keymap.set({ "n", "v" }, "<leader>a", "<cmd>CodeCompanionChat Toggle<cr>", { noremap = true, silent = true, desc = "Chat Toggle" })
+-- Inline assistant
+vim.keymap.set({ "n", "v" }, "<leader>ai", "<cmd>CodeCompanion<cr>",
+  { noremap = true, silent = true, desc = "CC: Inline" })
 
 -- Lua code evaluation function
 local function eval_lua_selection()
@@ -118,4 +126,3 @@ end
 
 -- Lua evaluation keybind for visual mode
 vim.keymap.set("v", "<leader>el", eval_lua_selection, { noremap = true, silent = true, desc = "Evaluate Lua selection" })
-
