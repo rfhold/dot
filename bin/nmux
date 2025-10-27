@@ -35,13 +35,6 @@ session_exists() {
     tmux has-session -t "$session_name" 2>/dev/null
 }
 
-# Function to check if window exists in session
-window_exists() {
-    local session_name="$1"
-    local window_name="$2"
-    tmux list-windows -t "$session_name" -F "#{window_name}" 2>/dev/null | grep -q "^${window_name}$"
-}
-
 # Function to create or get session
 ensure_session() {
     local category="$1"
@@ -60,41 +53,32 @@ ensure_session() {
     echo "$session_name"
 }
 
-# Function to create window with neovim setup
-create_window() {
-    local session_name="$1"
-    local window_name="$2"
-    local repo_path="$3"
+# Function to clone GitHub repository via SSH
+clone_github_repo() {
+    local repo_path="$1"
+    local category=$(echo "$repo_path" | cut -d'/' -f1)
+    local repo_name=$(echo "$repo_path" | cut -d'/' -f2)
+    local category_dir="$REPOS_DIR/$category"
+    local full_path="$REPOS_DIR/$repo_path"
+    local github_url="git@github.com:${repo_path}.git"
     
-    echo -e "${BLUE}Creating window: $window_name${NC}" >&2
+    echo -e "${YELLOW}Repository '$repo_path' not found locally.${NC}" >&2
+    echo -e "${BLUE}Attempting to clone from GitHub: $github_url${NC}" >&2
     
-    # Create new window
-    tmux new-window -t "$session_name" -n "$window_name" -c "$repo_path"
+    # Create category directory if it doesn't exist
+    if [ ! -d "$category_dir" ]; then
+        echo -e "${BLUE}Creating category directory: $category_dir${NC}" >&2
+        mkdir -p "$category_dir"
+    fi
     
-    # Split window vertically (top and bottom panes)
-    tmux split-window -t "$session_name:$window_name" -v -c "$repo_path"
-    
-    # Small delay to ensure panes are ready
-    sleep 0.1
-    
-    # Start neovim in the top pane (pane 0)
-    tmux send-keys -t "$session_name:$window_name.0" 'nvim' Enter
-    
-    # Focus on the top pane with neovim
-    tmux select-pane -t "$session_name:$window_name.0"
-}
-
-# Function to attach to session and select window
-attach_session() {
-    local session_name="$1"
-    local window_name="$2"
-    
-    if [ -n "$TMUX" ]; then
-        # We're already in tmux, switch to the session/window
-        tmux switch-client -t "$session_name:$window_name"
+    # Clone the repository
+    if git clone "$github_url" "$full_path"; then
+        echo -e "${GREEN}Successfully cloned $repo_path${NC}" >&2
+        return 0
     else
-        # Not in tmux, attach to session
-        tmux attach-session -t "$session_name:$window_name"
+        echo -e "${RED}Failed to clone repository from $github_url${NC}" >&2
+        echo -e "${YELLOW}Make sure the repository exists and you have SSH access.${NC}" >&2
+        return 1
     fi
 }
 
@@ -103,17 +87,19 @@ validate_repo() {
     local repo_path="$1"
     local full_path="$REPOS_DIR/$repo_path"
     
-    if [ ! -d "$full_path" ]; then
-        echo -e "${RED}Error: Repository '$repo_path' not found at '$full_path'${NC}" >&2
-        echo -e "${YELLOW}Available repositories:${NC}" >&2
-        get_repos | sed 's/^/  /' >&2
-        exit 1
-    fi
-    
     # Check if it follows category/repo structure
     if [[ ! "$repo_path" =~ ^[^/]+/[^/]+$ ]]; then
         echo -e "${RED}Error: Repository path must be in format 'category/repo-name'${NC}" >&2
         exit 1
+    fi
+    
+    if [ ! -d "$full_path" ]; then
+        # Try to clone from GitHub if it doesn't exist
+        if ! clone_github_repo "$repo_path"; then
+            echo -e "${YELLOW}Available repositories:${NC}" >&2
+            get_repos | sed 's/^/  /' >&2
+            exit 1
+        fi
     fi
 }
 
@@ -161,15 +147,17 @@ main() {
     # Ensure session exists for the category
     session_name=$(ensure_session "$category")
     
-    # Check if window already exists
-    if window_exists "$session_name" "$repo_name"; then
-        echo -e "${GREEN}Window '$repo_name' already exists in session '$session_name'${NC}" >&2
-        attach_session "$session_name" "$repo_name"
-    else
-        # Create new window with neovim setup
-        create_window "$session_name" "$repo_name" "$repo_path"
-        attach_session "$session_name" "$repo_name"
+    # Use tmux-window script to create/switch to window
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    if [ ! -x "$script_dir/tmux-window" ]; then
+        echo -e "${RED}Error: tmux-window script not found or not executable${NC}" >&2
+        echo -e "${YELLOW}Expected at: $script_dir/tmux-window${NC}" >&2
+        exit 1
     fi
+    
+    "$script_dir/tmux-window" "$session_name" "$repo_name" "$repo_path"
 }
 
 # Run main function
