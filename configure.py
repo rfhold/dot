@@ -2,6 +2,7 @@ from pyinfra.context import host
 from pyinfra.operations import files, brew, git
 from pyinfra.facts.files import FindFiles, FindDirectories
 from pyinfra.facts.server import Home
+from pyinfra_fisher import operations as fisher
 
 
 def link_config_dir(source, target):
@@ -114,4 +115,14 @@ git.repo(
     name="Clone Tmux Plugin Manager (TPM)",
     src="https://github.com/tmux-plugins/tpm",
     dest=f"{home}/.tmux/plugins/tpm",
+)
+
+# Fisher Plugin Manager and fish-ai Setup
+fisher.packages(
+    name="Install Fish plugins",
+    packages=[
+        "jorgebucaran/fisher",  # Fisher plugin manager itself
+        "realiserad/fish-ai",  # AI-powered shell assistant
+    ],
+    present=True,
 )
