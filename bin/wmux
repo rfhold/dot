@@ -215,20 +215,65 @@ $new_option"
         exit 1
     fi
     
+    # Check for uncommitted changes before switching
+    local has_changes=false
+    if ! git diff-index --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+        has_changes=true
+    fi
+    
     # Handle selection
     local worktree_path
     local worktree_name
     local window_name
+    local stash_name=""
     
     if [ "$selected" = "$new_option" ]; then
+        # Ask about stashing changes before creating new worktree
+        if [ "$has_changes" = true ]; then
+            echo -e "${YELLOW}You have uncommitted changes.${NC}" >&2
+            local take_changes
+            take_changes=$(gum choose --header "Take changes to new worktree?" "Yes" "No")
+            
+            if [ "$take_changes" = "Yes" ]; then
+                stash_name="wmux-temp-$(date +%s)"
+                echo -e "${BLUE}Stashing changes as: $stash_name${NC}" >&2
+                git stash push -u -m "$stash_name" >&2
+            fi
+        fi
+        
         # Create new worktree
         worktree_path=$(create_new_worktree "$owner" "$repo")
         worktree_name=$(get_worktree_name "$worktree_path")
     else
+        # Ask about stashing changes before switching to existing worktree
+        if [ "$has_changes" = true ]; then
+            echo -e "${YELLOW}You have uncommitted changes.${NC}" >&2
+            local take_changes
+            take_changes=$(gum choose --header "Take changes to selected worktree?" "Yes" "No")
+            
+            if [ "$take_changes" = "Yes" ]; then
+                stash_name="wmux-temp-$(date +%s)"
+                echo -e "${BLUE}Stashing changes as: $stash_name${NC}" >&2
+                git stash push -u -m "$stash_name" >&2
+            fi
+        fi
+        
         # Use existing worktree - extract path from menu items
         worktree_path=$(echo "$menu_items" | grep -F "$selected|||" | sed 's/.*|||//')
         worktree_name=$(get_worktree_name "$worktree_path")
         echo -e "${GREEN}Selected worktree: $worktree_name${NC}" >&2
+    fi
+    
+    # Apply stash in the new worktree if we stashed changes
+    if [ -n "$stash_name" ]; then
+        echo -e "${BLUE}Applying stash in new worktree...${NC}" >&2
+        (cd "$worktree_path" && git stash apply "stash^{/$stash_name}" && git stash drop "stash^{/$stash_name}") >&2
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}Successfully applied changes to new worktree${NC}" >&2
+        else
+            echo -e "${YELLOW}Warning: Could not apply stash automatically. You may need to resolve conflicts.${NC}" >&2
+            echo -e "${YELLOW}Stash preserved as: $stash_name${NC}" >&2
+        fi
     fi
     
     # Create window name in format: repo|feature
