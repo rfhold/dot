@@ -45,9 +45,13 @@
       "kubectl api-resources": "allow",
       "kubectl *": "ask",
       "pyinfra *": "ask",
+      "uv run pyinfra *": "ask",
       "pulumi *": "ask",
       "helm *": "ask",
+      "ssh *": "ask",
       "aws *": "ask",
+      "az *": "ask",
+      "gcp *": "ask",
       "*": "allow"
     }
   },

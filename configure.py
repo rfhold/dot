@@ -1,5 +1,5 @@
 from pyinfra.context import host
-from pyinfra.operations import files, brew
+from pyinfra.operations import files, brew, git
 from pyinfra.facts.files import FindFiles, FindDirectories
 from pyinfra.facts.server import Home
 
@@ -101,4 +101,17 @@ brew.casks(
         "linearmouse",  # mouse customization
         "bitwarden",  # password manager
     ],
+)
+
+# Tmux Plugin Manager (TPM) Setup
+files.directory(
+    name="Ensure tmux plugins directory exists",
+    path=f"{home}/.tmux/plugins",
+    present=True,
+)
+
+git.repo(
+    name="Clone Tmux Plugin Manager (TPM)",
+    src="https://github.com/tmux-plugins/tpm",
+    dest=f"{home}/.tmux/plugins/tpm",
 )

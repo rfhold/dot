@@ -57,6 +57,8 @@ This single command will:
 - **Starship** - Cross-shell prompt
 - **Fisher** - Fish plugin manager
 - **Tmux** - Terminal multiplexer
+  - **TPM** (Tmux Plugin Manager) - Auto-installed for plugin management
+  - **tmux-fzf** - Fuzzy finder for sessions, windows, panes (prefix + Ctrl-f)
 
 ### Text Editor
 - **Neovim** - Modern Vim-based editor with full configuration
@@ -113,12 +115,29 @@ This dotfiles system includes several custom utilities for configuration and env
 
 These tools work together to provide secure, encrypted storage of sensitive environment variables with easy loading into shell sessions.
 
+## Tmux Plugin Manager
+
+TPM (Tmux Plugin Manager) is automatically installed by the dotfiles. On first setup, you'll need to install the configured plugins:
+
+1. Start tmux: `tmux`
+2. Press `prefix + I` (capital i) to install plugins
+3. Use `prefix + Ctrl-f` to launch the tmux-fzf fuzzy finder for sessions/windows/panes
+
+### tmux-fzf Features
+
+Press `prefix + Ctrl-f` to access:
+- **Session switching** - Fuzzy find across all tmux sessions
+- **Window switching** - Jump to any window in any session
+- **Pane switching** - Navigate to any pane
+- **Additional tools** - Commands, keybindings, clipboard, and process management
+
 ## Updating
 
 Run `./bin/update.sh` anytime to:
 - Update all package managers (Homebrew, rustup, uv)
 - Re-run the deployment to catch any new configurations
 - Upgrade all installed Homebrew packages
+- Update TPM and tmux plugins (run `prefix + U` in tmux)
 
 ## Requirements
 
