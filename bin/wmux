@@ -7,7 +7,7 @@
 #   - List existing worktrees
 #   - Create new worktrees
 #   - Open worktrees in organized tmux windows
-#   - Store worktrees in ~/worktrees/OWNER/REPO/name
+#   - Store worktrees in ~/worktrees/OWNER-REPO-name
 
 # Configuration
 WORKTREES_DIR="$HOME/worktrees"
@@ -95,7 +95,6 @@ get_worktree_name() {
 create_new_worktree() {
     local owner="$1"
     local repo="$2"
-    local worktree_base="$WORKTREES_DIR/$owner/$repo"
     
     echo -e "${BLUE}Creating new worktree${NC}" >&2
     
@@ -111,7 +110,7 @@ create_new_worktree() {
     # Sanitize worktree name (replace spaces with hyphens, lowercase)
     worktree_name=$(echo "$worktree_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
     
-    local worktree_path="$worktree_base/$worktree_name"
+    local worktree_path="$WORKTREES_DIR/$owner-$repo-$worktree_name"
     
     # Check if worktree directory already exists
     if [ -d "$worktree_path" ]; then
@@ -133,8 +132,8 @@ create_new_worktree() {
         base_branch="$default_branch"
     fi
     
-    # Create worktree directory structure
-    mkdir -p "$worktree_base"
+    # Create worktrees directory if it doesn't exist
+    mkdir -p "$WORKTREES_DIR"
     
     echo -e "${BLUE}Creating worktree at: $worktree_path${NC}" >&2
     echo -e "${BLUE}From branch: $base_branch${NC}" >&2
@@ -244,6 +243,7 @@ $new_option"
         # Create new worktree
         worktree_path=$(create_new_worktree "$owner" "$repo")
         worktree_name=$(get_worktree_name "$worktree_path")
+        feature_name="${worktree_name#$owner-$repo-}"
     else
         # Ask about stashing changes before switching to existing worktree
         if [ "$has_changes" = true ]; then
@@ -261,6 +261,7 @@ $new_option"
         # Use existing worktree - extract path from menu items
         worktree_path=$(echo "$menu_items" | grep -F "$selected|||" | sed 's/.*|||//')
         worktree_name=$(get_worktree_name "$worktree_path")
+        feature_name="${worktree_name#$owner-$repo-}"
         echo -e "${GREEN}Selected worktree: $worktree_name${NC}" >&2
     fi
     
@@ -277,11 +278,11 @@ $new_option"
     fi
     
     # Create window name in format: repo|feature
-    window_name="$repo|$worktree_name"
+    window_name="$repo|$feature_name"
     
     # Ensure session exists (use owner as session name)
     local session_name="$owner"
-    ensure_session "$session_name" "$WORKTREES_DIR/$owner"
+    ensure_session "$session_name" "$WORKTREES_DIR"
     
     # Use tmux-window script to create/switch to window
     local script_dir
