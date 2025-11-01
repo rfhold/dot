@@ -11,3 +11,4 @@ wheels/
 
 env/
 .aider*
+node_modules/

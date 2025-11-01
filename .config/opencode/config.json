@@ -4,6 +4,9 @@
   "layout": "stretch",
   "keybinds": {},
   "mode": {},
+  "tools": {
+    "test_agent": false
+  },
   "mcp": {
     "context7": {
       "type": "local",
