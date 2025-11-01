@@ -1,13 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "theme": "user",
-  "model": "anthropic/claude-sonnet-4-5-20250929",
+  "theme": "aura",
   "layout": "stretch",
-  "keybinds": {
-    "input_newline": "alt+j",
-    "session_child_cycle": "<leader>right",
-    "session_child_cycle_reverse": "<leader>left"
-  },
+  "keybinds": {},
   "mode": {},
   "mcp": {
     "context7": {

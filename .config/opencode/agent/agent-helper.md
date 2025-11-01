@@ -59,3 +59,23 @@ tools:
 - **Redundancy**: Duplicating existing agent capabilities
 - **Jargon Overload**: Technical terms without clear purpose
 
+## Testing Agents
+
+After creating or modifying an agent, use the **agent-tester** subagent to validate behavior:
+
+```
+@agent-tester validate the new-agent-name subagent
+```
+
+The agent-tester will:
+1. Design test cases based on the agent's focus areas
+2. Execute tests using `opencode run --agent AGENT_NAME`
+3. Compare outputs against expected behavior
+4. Provide XML-formatted test report with recommendations
+
+**When to Test**:
+- After creating a new agent
+- After significant modifications to existing agents
+- When agent behavior seems inconsistent
+- Before recommending an agent for production use
+

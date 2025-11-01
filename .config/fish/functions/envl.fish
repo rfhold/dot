@@ -31,19 +31,25 @@ function envl --description "Load encrypted environment variables into current s
     echo "Loading environment group: $group_name" >&2
     
     # Get the Fish commands from the script
-    set -l commands ($env_script --fish-output "$group_name" 2>/dev/null)
+    set -l temp_output (mktemp)
+    $env_script --fish-output "$group_name" > $temp_output 2>/dev/null
     
     if test $status -ne 0
+        rm -f $temp_output
         echo "Error: Failed to load environment group '$group_name'" >&2
         return 1
     end
     
-    # Execute each set command
+    # Execute each set command line by line
     set -l loaded_count 0
-    for cmd in $commands
-        eval $cmd
-        set loaded_count (math $loaded_count + 1)
-    end
+    while read -l cmd
+        if test -n "$cmd"
+            eval $cmd
+            set loaded_count (math $loaded_count + 1)
+        end
+    end < $temp_output
+    
+    rm -f $temp_output
     
     echo "✓ Loaded $loaded_count environment variables from '$group_name'" >&2
 end
