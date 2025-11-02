@@ -5,7 +5,9 @@
   "keybinds": {},
   "mode": {},
   "tools": {
-    "test_agent": false
+    "test_agent": false,
+    "list_sessions": false,
+    "export_session": false
   },
   "mcp": {
     "context7": {
