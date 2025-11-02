@@ -1,0 +1,7 @@
+# Ignore all runtime files
+*
+
+# Keep the config directory and file
+!default/
+!default/colima.yaml
+!.gitignore

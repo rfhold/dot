@@ -113,37 +113,93 @@ export default tool({
         message_id: lastMessage.info.id
       }
       
-      // If we have an assistant message, extract full details
-      if (lastMessage.info.role === 'assistant') {
-        const tokens = lastMessage.info.tokens
-        const cacheRead = tokens.cache?.read || 0
-        const cacheWrite = tokens.cache?.write || 0
-        const apiTokens = tokens.input + tokens.output
-        const totalTokens = apiTokens + cacheRead + cacheWrite
+      // Aggregate data from ALL assistant messages (there may be multiple)
+      const assistantMessages = messages.filter(m => m.info.role === 'assistant')
+      
+      if (assistantMessages.length > 0) {
+        // Sum up tokens from all assistant messages
+        let totalInput = 0
+        let totalOutput = 0
+        let totalCacheRead = 0
+        let totalCacheWrite = 0
+        let totalCost = 0
         
-        // Extract output text from message parts
+        assistantMessages.forEach(msg => {
+          if (msg.info.role === 'assistant') {
+            const tokens = msg.info.tokens
+            totalInput += tokens.input
+            totalOutput += tokens.output
+            totalCacheRead += tokens.cache?.read || 0
+            totalCacheWrite += tokens.cache?.write || 0
+            totalCost += msg.info.cost || 0
+          }
+        })
+        
+        const apiTokens = totalInput + totalOutput
+        const totalTokens = apiTokens + totalCacheRead + totalCacheWrite
+        
+        // Collect ALL tool uses from ALL assistant messages
+        const allToolParts: any[] = []
+        assistantMessages.forEach(msg => {
+          const toolParts = msg.parts.filter(p => p.type === 'tool')
+          allToolParts.push(...toolParts)
+        })
+        
+        // Extract output text from the last assistant message
         const outputParts = lastMessage.parts.filter(p => p.type === 'text')
         const output = outputParts.map(p => p.text).join('\n')
         
-        // Count tool uses (steps)
-        const toolParts = lastMessage.parts.filter(p => p.type === 'tool')
-        const steps = toolParts.length
-        
         result.output = output
         result.tokens = {
-          input_tokens: tokens.input,
-          output_tokens: tokens.output,
-          cache_read_tokens: cacheRead,
-          cache_write_tokens: cacheWrite,
+          input_tokens: totalInput,
+          output_tokens: totalOutput,
+          cache_read_tokens: totalCacheRead,
+          cache_write_tokens: totalCacheWrite,
           api_tokens: apiTokens,
           total_tokens: totalTokens
         }
-        result.steps = steps
-        result.cost = lastMessage.info.cost
-        result.tool_uses = toolParts.map(t => ({
-          name: t.tool,
-          status: t.state.status
-        }))
+        result.steps = allToolParts.length
+        result.cost = totalCost
+        result.tool_uses = allToolParts.map(t => {
+          const toolData: any = {
+            name: t.tool,
+            status: t.state.status,
+            call_id: t.callID
+          }
+          
+          // Access state properties that exist on all state types
+          const state: any = t.state
+          
+          // Include input parameters if available
+          if (state.input !== undefined) {
+            toolData.input = state.input
+          }
+          
+          // Include execution time if available
+          if (state.time !== undefined) {
+            const duration = state.time.end - state.time.start
+            toolData.execution_time_ms = duration
+          }
+          
+          // Include output summary (not full output to avoid huge JSON)
+          if (state.output !== undefined) {
+            const output = state.output
+            if (typeof output === 'string') {
+              // Truncate long outputs for summary
+              toolData.output_length = output.length
+              toolData.output_preview = output.substring(0, 200) + (output.length > 200 ? '...' : '')
+            } else {
+              toolData.output_type = typeof output
+            }
+          }
+          
+          // Include metadata if available
+          if (state.metadata !== undefined) {
+            toolData.metadata = state.metadata
+          }
+          
+          return toolData
+        })
       } else {
         // If no assistant message yet, just record what we have
         result.output = "No response generated (timeout occurred before completion)"
@@ -161,23 +217,24 @@ export default tool({
         }
       }
       
-      // Clean up session
-      await client.session.delete({ path: { id: sessionId } })
+      // Add note about session preservation for inspection
+      result._note = `Session preserved for inspection. Use export_session tool with session_id: ${sessionId}`
+      
+      // Clean up server (but keep session for inspection)
       await server.close()
       
       return JSON.stringify(result, null, 2)
       
     } catch (error) {
-      // Attempt cleanup even on error
-      if (sessionId) {
-        try {
-          await client.session.delete({ path: { id: sessionId } })
-        } catch (cleanupError) {
-          // Ignore cleanup errors
-        }
-      }
+      // Clean up server on error (session preserved for debugging)
       await server.close()
-      throw new Error(`Agent test failed: ${error.message}`)
+      
+      // Include session ID in error for debugging
+      const errorMsg = sessionId 
+        ? `Agent test failed: ${error.message} (session_id: ${sessionId} preserved for inspection)`
+        : `Agent test failed: ${error.message}`
+      
+      throw new Error(errorMsg)
     }
   }
 })
