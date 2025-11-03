@@ -13,15 +13,15 @@ export default tool({
     // Use port 0 to let the OS assign a random available port
     // This prevents conflicts when test_agent is called within an active OpenCode session
     const { client, server } = await createOpencode({ port: 0 })
-    
+
     // Set timeout (default: 5 minutes, 0 means no timeout)
     const timeoutMs = args.timeout !== undefined ? args.timeout : 300000
-    
+
     // Store session info for cleanup and timeout handling
     let sessionId: string | null = null
     let finalPrompt: string = ''
     let agentName: string = ''
-    
+
     try {
       // Construct the final prompt
       if (args.subagent) {
@@ -35,19 +35,19 @@ export default tool({
         const match = args.prompt.match(/^@([\w-]+)\s/)
         agentName = match ? match[1] : (args.agent || 'default')
       }
-      
+
       // Create session
       const sessionResponse = await client.session.create({
         body: { title: "Agent Test" }
       })
-      
+
       if (!sessionResponse.data) {
         throw new Error("Failed to create session")
       }
-      
+
       const session = sessionResponse.data
       sessionId = session.id
-      
+
       // Wrap the prompt execution in timeout logic
       const executePrompt = async () => {
         // Run agent with prompt (agent parameter specifies main agent, subagent is in prompt)
@@ -58,14 +58,14 @@ export default tool({
             parts: [{ type: "text", text: finalPrompt }]
           }
         })
-        
+
         if (!promptResponse.data) {
           throw new Error("Failed to get prompt response")
         }
-        
+
         return promptResponse.data
       }
-      
+
       // Execute with or without timeout
       let timedOut = false
       if (timeoutMs > 0) {
@@ -75,7 +75,7 @@ export default tool({
             reject(new Error('TIMEOUT'))
           }, timeoutMs)
         })
-        
+
         try {
           await Promise.race([executePrompt(), timeoutPromise])
         } catch (error) {
@@ -88,19 +88,19 @@ export default tool({
       } else {
         await executePrompt()
       }
-      
+
       // Get messages to extract complete information (works even if timed out)
       const messagesResponse = await client.session.messages({
         path: { id: sessionId }
       })
-      
+
       if (!messagesResponse.data || messagesResponse.data.length === 0) {
         throw new Error("Failed to get messages")
       }
-      
+
       const messages = messagesResponse.data
       const lastMessage = messages[messages.length - 1]
-      
+
       // Build result object from whatever we have
       let result: any = {
         agent_name: agentName,
@@ -112,10 +112,10 @@ export default tool({
         session_id: sessionId,
         message_id: lastMessage.info.id
       }
-      
+
       // Aggregate data from ALL assistant messages (there may be multiple)
       const assistantMessages = messages.filter(m => m.info.role === 'assistant')
-      
+
       if (assistantMessages.length > 0) {
         // Sum up tokens from all assistant messages
         let totalInput = 0
@@ -123,7 +123,7 @@ export default tool({
         let totalCacheRead = 0
         let totalCacheWrite = 0
         let totalCost = 0
-        
+
         assistantMessages.forEach(msg => {
           if (msg.info.role === 'assistant') {
             const tokens = msg.info.tokens
@@ -134,21 +134,126 @@ export default tool({
             totalCost += msg.info.cost || 0
           }
         })
-        
-        const apiTokens = totalInput + totalOutput
-        const totalTokens = apiTokens + totalCacheRead + totalCacheWrite
-        
+
         // Collect ALL tool uses from ALL assistant messages
         const allToolParts: any[] = []
         assistantMessages.forEach(msg => {
           const toolParts = msg.parts.filter(p => p.type === 'tool')
           allToolParts.push(...toolParts)
         })
-        
+
+        // Recursively aggregate tokens from nested task/test_agent executions
+        // This handles cases where agents spawn sub-agents via the task tool or test_agent tool
+        const extractNestedTokens = async (toolPart: any): Promise<any> => {
+          const state: any = toolPart.state
+          let nestedTokens = {
+            input: 0,
+            output: 0,
+            cache_read: 0,
+            cache_write: 0,
+            cost: 0
+          }
+
+          // Check if this is a task or test_agent tool
+          if (toolPart.tool === 'task' || toolPart.tool === 'test_agent') {
+            // For task tool: extract sessionId from metadata and fetch the nested session
+            // The task tool doesn't return token data in output, only a session reference
+            if (toolPart.tool === 'task' && state.metadata?.sessionId) {
+              try {
+                const nestedSessionId = state.metadata.sessionId
+                const nestedMessagesResponse = await client.session.messages({
+                  path: { id: nestedSessionId }
+                })
+                
+                if (nestedMessagesResponse.data) {
+                  // Aggregate tokens from all assistant messages in the nested session
+                  for (const msg of nestedMessagesResponse.data) {
+                    if (msg.info.role === 'assistant') {
+                      const tokens = msg.info.tokens
+                      nestedTokens.input += tokens.input || 0
+                      nestedTokens.output += tokens.output || 0
+                      nestedTokens.cache_read += tokens.cache?.read || 0
+                      nestedTokens.cache_write += tokens.cache?.write || 0
+                      nestedTokens.cost += msg.info.cost || 0
+                    }
+                  }
+                }
+              } catch (e) {
+                // If we can't fetch the nested session, skip it
+              }
+            }
+            
+            // For test_agent tool: extract token data from JSON output
+            // The test_agent tool returns structured token information in its output
+            if (toolPart.tool === 'test_agent' && state.output) {
+              try {
+                // Try to parse the tool output as JSON
+                let outputData: any
+                if (typeof state.output === 'string') {
+                  outputData = JSON.parse(state.output)
+                } else {
+                  outputData = state.output
+                }
+
+                // If the output has token information, extract it
+                if (outputData.tokens) {
+                  nestedTokens.input += outputData.tokens.input_tokens || 0
+                  nestedTokens.output += outputData.tokens.output_tokens || 0
+                  nestedTokens.cache_read += outputData.tokens.cache_read_tokens || 0
+                  nestedTokens.cache_write += outputData.tokens.cache_write_tokens || 0
+                  nestedTokens.cost += outputData.cost || 0
+                }
+
+                // Recursively check for nested tool uses
+                if (outputData.tool_uses && Array.isArray(outputData.tool_uses)) {
+                  for (const nestedTool of outputData.tool_uses) {
+                    const deeperTokens = await extractNestedTokens(nestedTool)
+                    nestedTokens.input += deeperTokens.input
+                    nestedTokens.output += deeperTokens.output
+                    nestedTokens.cache_read += deeperTokens.cache_read
+                    nestedTokens.cache_write += deeperTokens.cache_write
+                    nestedTokens.cost += deeperTokens.cost
+                  }
+                }
+              } catch (e) {
+                // If output is not JSON or doesn't have expected structure, skip
+              }
+            }
+          }
+
+          return nestedTokens
+        }
+
+        // Sum up nested tokens from all tool parts (now async)
+        let nestedInput = 0
+        let nestedOutput = 0
+        let nestedCacheRead = 0
+        let nestedCacheWrite = 0
+        let nestedCost = 0
+
+        for (const toolPart of allToolParts) {
+          const nested = await extractNestedTokens(toolPart)
+          nestedInput += nested.input
+          nestedOutput += nested.output
+          nestedCacheRead += nested.cache_read
+          nestedCacheWrite += nested.cache_write
+          nestedCost += nested.cost
+        }
+
+        // Add nested tokens to totals
+        totalInput += nestedInput
+        totalOutput += nestedOutput
+        totalCacheRead += nestedCacheRead
+        totalCacheWrite += nestedCacheWrite
+        totalCost += nestedCost
+
+        const apiTokens = totalInput + totalOutput
+        const totalTokens = apiTokens + totalCacheRead + totalCacheWrite
+
         // Extract output text from the last assistant message
         const outputParts = lastMessage.parts.filter(p => p.type === 'text')
         const output = outputParts.map(p => p.text).join('\n')
-        
+
         result.output = output
         result.tokens = {
           input_tokens: totalInput,
@@ -156,7 +261,16 @@ export default tool({
           cache_read_tokens: totalCacheRead,
           cache_write_tokens: totalCacheWrite,
           api_tokens: apiTokens,
-          total_tokens: totalTokens
+          total_tokens: totalTokens,
+          // Include breakdown of nested vs direct tokens
+          nested_tokens: {
+            input: nestedInput,
+            output: nestedOutput,
+            cache_read: nestedCacheRead,
+            cache_write: nestedCacheWrite,
+            api_tokens: nestedInput + nestedOutput,
+            cost: nestedCost
+          }
         }
         result.steps = allToolParts.length
         result.cost = totalCost
@@ -166,21 +280,21 @@ export default tool({
             status: t.state.status,
             call_id: t.callID
           }
-          
+
           // Access state properties that exist on all state types
           const state: any = t.state
-          
+
           // Include input parameters if available
           if (state.input !== undefined) {
             toolData.input = state.input
           }
-          
+
           // Include execution time if available
           if (state.time !== undefined) {
             const duration = state.time.end - state.time.start
             toolData.execution_time_ms = duration
           }
-          
+
           // Include output summary (not full output to avoid huge JSON)
           if (state.output !== undefined) {
             const output = state.output
@@ -192,12 +306,12 @@ export default tool({
               toolData.output_type = typeof output
             }
           }
-          
+
           // Include metadata if available
           if (state.metadata !== undefined) {
             toolData.metadata = state.metadata
           }
-          
+
           return toolData
         })
       } else {
@@ -208,7 +322,7 @@ export default tool({
           tool_count: m.parts.filter(p => p.type === 'tool').length
         }))
       }
-      
+
       // Add timeout warning if applicable
       if (timedOut) {
         result.timeout_info = {
@@ -216,24 +330,24 @@ export default tool({
           message: `Agent execution timed out after ${timeoutMs}ms. Returning partial results.`
         }
       }
-      
+
       // Add note about session preservation for inspection
       result._note = `Session preserved for inspection. Use export_session tool with session_id: ${sessionId}`
-      
+
       // Clean up server (but keep session for inspection)
       await server.close()
-      
+
       return JSON.stringify(result, null, 2)
-      
+
     } catch (error) {
       // Clean up server on error (session preserved for debugging)
       await server.close()
-      
+
       // Include session ID in error for debugging
-      const errorMsg = sessionId 
+      const errorMsg = sessionId
         ? `Agent test failed: ${error.message} (session_id: ${sessionId} preserved for inspection)`
         : `Agent test failed: ${error.message}`
-      
+
       throw new Error(errorMsg)
     }
   }

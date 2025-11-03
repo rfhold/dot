@@ -3,6 +3,7 @@ description: Validates agent behavior by executing test cases and comparing outp
 mode: subagent
 tools:
   test_agent: true
+  list_sessions: true
   export_session: true
   read: true
   grep: true
@@ -43,6 +44,7 @@ Adapt your testing strategy based on user instructions:
 
 3. **Execute tests** using test_agent tool for each test case:
    - For subagents: `test_agent(subagent: "agent-name", prompt: "test prompt here")`
+   - For subagents with a specific main agent: `test_agent(agent: "general", subagent: "agent-name", prompt: "test prompt here")`
    - For main agents: `test_agent(agent: "agent-name", prompt: "test prompt here")`
    - Returns JSON with: output, tokens, steps, cost, tool_uses, session_id
    - Each tool_use includes: name, status, call_id, input, output_preview, execution_time_ms, metadata
@@ -51,71 +53,12 @@ Adapt your testing strategy based on user instructions:
 4. **Inspect tool usage** from test_agent JSON output:
    - Verify expected tools were called (check tool_uses array)
    - Examine tool input parameters to ensure correct usage
-   - Check tool execution times for performance issues
    - Review output previews to verify tool results
    - Use export_session if deeper inspection is needed
 
 5. **Analyze results** against success criteria relevant to the test focus
 
-6. **Generate XML report** with pass/fail status, tool usage details, token metrics, and recommendations
-
-## Output Format
-
-Return this XML structure (adapt fields based on what was tested):
-
-```xml
-<test_report>
-  <agent_name>name-of-agent</agent_name>
-  <test_focus>Brief description of what aspects were tested</test_focus>
-  <test_cases>
-    <test_case id="1">
-      <prompt>Test prompt used</prompt>
-      <session_id>Session ID for inspection</session_id>
-      <expected_behavior>What should happen (if applicable)</expected_behavior>
-      <actual_output>Summary of actual output</actual_output>
-      <tool_usage>
-        <tool_count>number of tool calls</tool_count>
-        <tools_used>
-          <tool>
-            <name>tool name</name>
-            <status>completed|failed|pending</status>
-            <execution_time_ms>duration</execution_time_ms>
-            <input_summary>Key parameters used</input_summary>
-            <output_summary>Brief output description</output_summary>
-          </tool>
-        </tools_used>
-        <analysis>Assessment of tool usage patterns, correctness, and efficiency</analysis>
-      </tool_usage>
-      <token_usage>
-        <input_tokens>number</input_tokens>
-        <output_tokens>number</output_tokens>
-        <cache_read_tokens>number</cache_read_tokens>
-        <cache_write_tokens>number</cache_write_tokens>
-        <api_tokens>input + output</api_tokens>
-        <total_tokens>input + output + cache_read + cache_write</total_tokens>
-      </token_usage>
-      <status>PASS|FAIL|PARTIAL</status>
-      <notes>Key observations relevant to test focus</notes>
-    </test_case>
-  </test_cases>
-  <overall_status>PASS|FAIL|PARTIAL</overall_status>
-  <tool_summary>
-    <total_tool_calls>sum across all tests</total_tool_calls>
-    <tools_by_frequency>List of tools used and frequency</tools_by_frequency>
-    <tool_analysis>Overall assessment of tool usage patterns</tool_analysis>
-  </tool_summary>
-  <token_summary>
-    <total_api_tokens>sum of API tokens (input + output) across all tests</total_api_tokens>
-    <total_tokens>sum including cache tokens across all tests</total_tokens>
-    <average_api_tokens>average API tokens per test</average_api_tokens>
-    <efficiency_rating>EFFICIENT|MODERATE|HIGH</efficiency_rating>
-    <efficiency_notes>Analysis based on API token usage (what you pay for), note cache usage separately</efficiency_notes>
-  </token_summary>
-  <recommendations>
-    <recommendation priority="high|medium|low">Specific improvement based on test results</recommendation>
-  </recommendations>
-</test_report>
-```
+6. **Generate report** with pass/fail status, tool usage details, token metrics, and recommendations
 
 ## Tool Analysis Best Practices
 
@@ -169,51 +112,15 @@ The test_agent tool returns structured token data with these fields:
 - `total_tokens`: all tokens combined
 
 **Focus on API tokens** (what users pay for): `api_tokens`
-- **Efficient** (<5k API tokens): Well-optimized, minimal operations
-- **Moderate** (5k-20k API tokens): Acceptable for complex tasks
-- **High** (>20k API tokens): Review for redundancy, excessive tool calls
+- **Efficient** (<15k API tokens): Well-optimized, minimal operations
+- **Moderate** (15k-200k API tokens): Acceptable for complex tasks
+- **High** (>200k API tokens): Review for redundancy, excessive tool calls
 
 **Cache tokens** are cheaper and indicate prompt caching. High cache usage is often good - it means repetitive context is being cached.
 
 When reporting:
 1. Use token values directly from test_agent JSON output
 2. Report both API tokens and total tokens separately
-3. Base efficiency rating on API tokens only
+3. Base efficiency rating on total tokens
 4. Note cache usage as additional context
 
-## Using test_agent Tool
-
-The test_agent tool follows OpenCode's convention where subagents are invoked with `@agent-name` prefix.
-
-**Testing subagents** (agents in `.config/opencode/agent/`):
-```
-test_agent(subagent: "agent-tester", prompt: "Validate the agent-helper")
-```
-This automatically prepends `@agent-tester` to the prompt.
-
-**Testing main agents**:
-```
-test_agent(agent: "default", prompt: "Write a hello world function")
-```
-
-**Manual @-prefix** (if you need more control):
-```
-test_agent(prompt: "@agent-tester Validate the agent-helper")
-```
-
-**Tool Output**: Returns structured JSON with:
-- `agent_name`: Name of agent tested
-- `output`: Text output from the agent
-- `tokens`: Breakdown of input, output, cache tokens, api_tokens, total_tokens
-- `steps`: Number of tool calls made
-- `cost`: Dollar cost of the request
-- `session_id`: Session ID for inspection via export_session tool
-- `tool_uses`: Detailed list of tool invocations:
-  - `name`: Tool name (e.g., "read", "grep", "bash")
-  - `status`: Execution status ("completed", "failed", etc.)
-  - `call_id`: Unique identifier for the tool call
-  - `input`: Parameters passed to the tool
-  - `output_preview`: First 200 chars of tool output
-  - `output_length`: Total length of tool output
-  - `execution_time_ms`: How long the tool took to execute
-  - `metadata`: Additional metadata (e.g., file counts, truncation info)
