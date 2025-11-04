@@ -8,7 +8,8 @@
   },
   "mode": {},
   "tools": {
-    "test_agent": false,
+    "execute_agent": false,
+    "execute_tool": false,
     "list_sessions": false,
     "export_session": false
   },

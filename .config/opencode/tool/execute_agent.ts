@@ -2,16 +2,21 @@ import { tool } from "@opencode-ai/plugin"
 import { createOpencode } from "@opencode-ai/sdk"
 
 export default tool({
-  description: "Execute an agent with a test prompt and return tokens, steps, and results",
+  description: "Execute an agent with a test prompt, subagent invocation, or slash command, and return comprehensive metrics including tokens, steps, costs, and results. Use when testing agent behavior, subagent interactions, slash command functionality, or measuring performance.",
   args: {
     agent: tool.schema.string().optional().describe("Name of the main agent to use (e.g., 'default'). If not specified, uses default agent."),
-    prompt: tool.schema.string().describe("Test prompt to send. For subagents, use @agent-name prefix (e.g., '@agent-tester test this')"),
+    prompt: tool.schema.string().optional().describe("Test prompt to send. For subagents, use @agent-name prefix (e.g., '@agent-tester test this'). Not required when using 'command' parameter."),
     subagent: tool.schema.string().optional().describe("Name of subagent to test (without .md). If provided, automatically prepends @subagent-name to prompt."),
+    command: tool.schema.string().optional().describe("Name of slash command to test (without / prefix, e.g., 'backwards' not '/backwards'). Command takes precedence over subagent if both are specified."),
+    commandArgs: tool.schema.union([
+      tool.schema.string(),
+      tool.schema.array(tool.schema.string())
+    ]).optional().describe("Arguments to pass to the slash command. Can be a single string or array of strings. If array, arguments will be joined with spaces."),
     timeout: tool.schema.number().optional().describe("Maximum execution time in milliseconds (default: 300000ms / 5 minutes). Set to 0 for no timeout."),
   },
   async execute(args) {
     // Use port 0 to let the OS assign a random available port
-    // This prevents conflicts when test_agent is called within an active OpenCode session
+    // This prevents conflicts when execute_agent is called within an active OpenCode session
     const { client, server } = await createOpencode({ port: 0 })
 
     // Set timeout (default: 5 minutes, 0 means no timeout)
@@ -23,13 +28,26 @@ export default tool({
     let agentName: string = ''
 
     try {
-      // Construct the final prompt
-      if (args.subagent) {
+      // Construct the final prompt (priority: command > subagent > plain prompt)
+      if (args.command) {
+        // If command is specified, construct slash command invocation
+        const commandArgsStr = args.commandArgs 
+          ? (Array.isArray(args.commandArgs) ? args.commandArgs.join(' ') : args.commandArgs)
+          : ''
+        finalPrompt = `/${args.command}${commandArgsStr ? ' ' + commandArgsStr : ''}`
+        agentName = `command:${args.command}`
+      } else if (args.subagent) {
         // If subagent is specified, prepend @subagent-name to the prompt
+        if (!args.prompt) {
+          throw new Error("prompt parameter is required when using subagent")
+        }
         finalPrompt = `@${args.subagent} ${args.prompt}`
         agentName = args.subagent
       } else {
         // Use prompt as-is (may already have @agent-name prefix)
+        if (!args.prompt) {
+          throw new Error("prompt parameter is required when not using command or subagent")
+        }
         finalPrompt = args.prompt
         // Try to extract agent name from @agent-name prefix if present
         const match = args.prompt.match(/^@([\w-]+)\s/)
@@ -106,11 +124,20 @@ export default tool({
         agent_name: agentName,
         main_agent: args.agent || 'default',
         is_subagent: !!args.subagent,
+        is_command: !!args.command,
         original_prompt: args.prompt,
         final_prompt: finalPrompt,
         timed_out: timedOut,
         session_id: sessionId,
         message_id: lastMessage.info.id
+      }
+
+      // Add command-specific metadata if applicable
+      if (args.command) {
+        result.command_name = args.command
+        if (args.commandArgs) {
+          result.command_args = args.commandArgs
+        }
       }
 
       // Aggregate data from ALL assistant messages (there may be multiple)
@@ -142,8 +169,8 @@ export default tool({
           allToolParts.push(...toolParts)
         })
 
-        // Recursively aggregate tokens from nested task/test_agent executions
-        // This handles cases where agents spawn sub-agents via the task tool or test_agent tool
+        // Recursively aggregate tokens from nested task/execute_agent executions
+        // This handles cases where agents spawn sub-agents via the task tool or execute_agent tool
         const extractNestedTokens = async (toolPart: any): Promise<any> => {
           const state: any = toolPart.state
           let nestedTokens = {
@@ -154,8 +181,8 @@ export default tool({
             cost: 0
           }
 
-          // Check if this is a task or test_agent tool
-          if (toolPart.tool === 'task' || toolPart.tool === 'test_agent') {
+          // Check if this is a task or execute_agent tool
+          if (toolPart.tool === 'task' || toolPart.tool === 'execute_agent') {
             // For task tool: extract sessionId from metadata and fetch the nested session
             // The task tool doesn't return token data in output, only a session reference
             if (toolPart.tool === 'task' && state.metadata?.sessionId) {
@@ -183,9 +210,9 @@ export default tool({
               }
             }
             
-            // For test_agent tool: extract token data from JSON output
-            // The test_agent tool returns structured token information in its output
-            if (toolPart.tool === 'test_agent' && state.output) {
+            // For execute_agent tool: extract token data from JSON output
+            // The execute_agent tool returns structured token information in its output
+            if (toolPart.tool === 'execute_agent' && state.output) {
               try {
                 // Try to parse the tool output as JSON
                 let outputData: any
