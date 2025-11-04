@@ -95,7 +95,7 @@ brew.packages(
 brew.casks(
     name="Install GUI applications",
     casks=[
-        "alacritty",  # terminal
+        "ghostty",  # terminal
         "slack",  # communication tool
         "spotify",  # music streaming
         "obsidian",  # note-taking app

@@ -1,0 +1,77 @@
+# K9s skin matching terminal color scheme
+k9s:
+  # General K9s styles
+  body:
+    fgColor: "#9ca3af"
+    bgColor: "default"
+    logoColor: "#a78bfa"
+
+  # ClusterInfoView styles
+  info:
+    fgColor: "#9ca3af"
+    sectionColor: "#a78bfa"
+
+  # Frame styles
+  frame:
+    # Borders styles
+    border:
+      fgColor: "#6b7280"
+      focusColor: "#c084fc"
+
+    # MenuView attributes and styles
+    menu:
+      fgColor: "#9ca3af"
+      keyColor: "#a78bfa"
+      # Used for favorite namespaces
+      numKeyColor: "#7dd3fc"
+
+    # CrumbView attributes for history navigation
+    crumbs:
+      fgColor: "#9ca3af"
+      bgColor: "#1f2937"
+      activeColor: "#e9d5ff"
+
+    # Resource status and update styles
+    status:
+      newColor: "#6ee7b7"
+      modifyColor: "#fbbf24"
+      addColor: "#7dd3fc"
+      errorColor: "#fca5a1"
+      highlightColor: "#c084fc"
+      killColor: "#4b5563"
+      completedColor: "#6b7280"
+
+    # Border title styles
+    title:
+      fgColor: "#d1d5db"
+      bgColor: "#0f0f0f"
+      highlightColor: "#a78bfa"
+      counterColor: "#c084fc"
+      filterColor: "#7dd3fc"
+
+  # Specific views styles
+  views:
+    # TableView attributes
+    table:
+      fgColor: "#9ca3af"
+      bgColor: "#0f0f0f"
+      cursorColor: "#c084fc"
+      # Header row styles
+      header:
+        fgColor: "#a78bfa"
+        bgColor: "#111827"
+        sorterColor: "#fbbf24"
+
+    # YAML info styles
+    yaml:
+      keyColor: "#7dd3fc"
+      colonColor: "#6b7280"
+      valueColor: "#d1d5db"
+
+    # Logs styles
+    logs:
+      fgColor: "#9ca3af"
+      bgColor: "#0f0f0f"
+      indicator:
+        fgColor: "#6ee7b7"
+        bgColor: "#0f0f0f"

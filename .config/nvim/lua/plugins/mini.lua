@@ -157,22 +157,22 @@ return {
 
     require('mini.base16').setup({
       palette = {
-        base00 = '#0f111a', -- Background
-        base01 = '#0f111a', -- Lighter background (match main bg for line numbers)
-        base02 = '#2d2b40', -- Selection Background
-        base03 = '#6c7086', -- Comments, Invisibles, Line Highlighting
-        base04 = '#9399b2', -- Dark Foreground (Used for status bars - gray not blue)
-        base05 = '#c5cff5', -- Default Foreground, Caret, Delimiters, Operators (slightly darker white)
-        base06 = '#a6a6a6', -- Light Foreground (light grey)
-        base07 = '#f0f0f0', -- Light Background (Vars, Highlighted Code, Markdown Lists)
-        base08 = '#f08fa8', -- Variables, XML Tags, Markup Link Text, Markup Lists, Diff Deleted (softer pink)
-        base09 = '#ffaa5a', -- Integers, Boolean, Constants, XML Attributes, Markup Link Url (brighter orange)
-        base0A = '#ffd766', -- Classes, Constructors, Markup Bold, Search Text Background (brighter yellow)
-        base0B = '#82e070', -- Strings, Inherited Class, Markup Code, Diff Added (brighter green)
-        base0C = '#5ce1ff', -- Support, Regular Expressions, Escape Characters, Markup Quotes (brighter cyan)
-        base0D = '#6db1ff', -- Functions, Methods, Attribute IDs, Headings (brighter blue)
-        base0E = '#d19dff', -- Keywords, Storage, Selector, Markup Italic, Diff Changed (brighter purple)
-        base0F = '#a6a6a6', -- Deprecated, Opening/Closing Embedded Language Tags, Embedded Language Data (light grey)
+        base00 = '#121212', -- Background
+        base01 = '#121212', -- Lighter background (match main bg for line numbers)
+        base02 = '#1f2937', -- Selection Background (dark gray)
+        base03 = '#6b7280', -- Comments, Invisibles, Line Highlighting (medium gray)
+        base04 = '#9ca3af', -- Dark Foreground (Used for status bars)
+        base05 = '#d1d5db', -- Default Foreground, Caret, Delimiters, Operators (light gray)
+        base06 = '#e5e7eb', -- Light Foreground
+        base07 = '#f3f4f6', -- Light Background (Vars, Highlighted Code, Markdown Lists)
+        base08 = '#f88a8a', -- Variables, XML Tags, Markup Link Text, Markup Lists, Diff Deleted (light red)
+        base09 = '#f472b6', -- Integers, Boolean, Constants, XML Attributes, Markup Link Url (hot pink)
+        base0A = '#fbbf24', -- Classes, Constructors, Markup Bold, Search Text Background (yellow)
+        base0B = '#6ee7b7', -- Strings, Inherited Class, Markup Code, Diff Added (emerald/green)
+        base0C = '#c084fc', -- Support, Regular Expressions, Escape Characters, Markup Quotes (purple)
+        base0D = '#7dd3fc', -- Functions, Methods, Attribute IDs, Headings (cyan)
+        base0E = '#a78bfa', -- Keywords, Storage, Selector, Markup Italic, Diff Changed (purple)
+        base0F = '#9ca3af', -- Deprecated, Opening/Closing Embedded Language Tags, Embedded Language Data (gray)
       },
       plugins = {
         default = true,

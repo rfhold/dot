@@ -2,7 +2,10 @@
   "$schema": "https://opencode.ai/config.json",
   "theme": "aura",
   "layout": "stretch",
-  "keybinds": {},
+  "keybinds": {
+    "session_child_cycle": "<leader>+right",
+    "session_child_cycle_reverse": "<leader>+left"
+  },
   "mode": {},
   "tools": {
     "test_agent": false,
@@ -38,6 +41,8 @@
     "bash": {
       "gh *": "ask",
       "git status *": "allow",
+      "git log*": "allow",
+      "git diff*": "allow",
       "git *": "ask",
       "kubectl get *": "allow",
       "kubectl logs *": "allow",
