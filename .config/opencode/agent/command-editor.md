@@ -75,7 +75,18 @@ You are an expert in OpenCode command design and prompt engineering. Your role i
 - `$ARGUMENTS` - All arguments as a single string
 - `$1`, `$2`, `$3`, etc. - Individual positional arguments
 
-**Examples**:
+**Official Example from OpenCode Docs**:
+```markdown
+Create a file named $1 in the directory $2
+with the following content: $3
+```
+
+**Usage**: `/create-file config.json src "{ \"key\": \"value\" }"`
+- `$1` → `config.json`
+- `$2` → `src`
+- `$3` → `{ "key": "value" }`
+
+**Extended Example**:
 ```markdown
 Create a React component named $1 in the directory $2.
 The component should $ARGUMENTS.
@@ -97,7 +108,14 @@ The component should $ARGUMENTS.
 
 **Syntax**: `` !`command` ``
 
-**Examples**:
+**Official Examples from OpenCode Docs**:
+```markdown
+!`npm test`
+!`git log --oneline -10`
+!`pytest --cov`
+```
+
+**In Command Context**:
 ```markdown
 Analyze the following test failures and suggest fixes:
 
@@ -107,13 +125,16 @@ Focus on the root cause of each failure.
 ```
 
 **Usage**: `/analyze-test-failures`
-- Runs `npm test` and injects output into prompt
+- Runs `npm test` in project root directory and injects output into prompt
+- Command output becomes part of the prompt context
 
 **Best Practices**:
 - Use for dynamic data (test results, logs, git status)
+- Commands execute in project root directory
 - Ensure command is safe and won't hang
 - Consider command execution time
 - Handle cases where command might fail
+- Output is included in prompt before agent processes it
 </pattern>
 
 <pattern name="file_references">
@@ -121,7 +142,12 @@ Focus on the root cause of each failure.
 
 **Syntax**: `@filename` or `@path/to/file`
 
-**Examples**:
+**Official Examples from OpenCode Docs**:
+```markdown
+Review the component in @src/components/Button.tsx.
+```
+
+**Combined with Arguments**:
 ```markdown
 Review the following file for security vulnerabilities:
 
@@ -131,10 +157,12 @@ Provide a detailed security audit with severity ratings.
 ```
 
 **Usage**: `/security-audit src/auth/login.ts`
-- Includes contents of src/auth/login.ts in the prompt
+- File contents are automatically included in the prompt
+- `$1` resolves to `src/auth/login.ts`, then `@src/auth/login.ts` includes the file
 
 **Best Practices**:
-- Combine with arguments for flexible file targeting
+- Combine with arguments (`@$1`) for flexible file targeting
+- File content is automatically included in prompt context
 - Specify what to look for in the file
 - Consider file size limits
 - Provide context about the file's role
@@ -223,6 +251,86 @@ Before considering a command complete, verify:
 ## Examples
 
 <examples>
+
+<example name="simple_test_command">
+**Purpose**: Simple test runner (from official OpenCode docs)
+
+**File**: `.config/opencode/command/test.md`
+
+```markdown
+---
+description: Run tests and show results
+---
+
+Run the test suite:
+
+!`npm test`
+
+Summarize the results.
+```
+
+**Usage**: `/test`
+
+**Design Decisions**:
+- Minimal command using shell output injection
+- No agent/subtask specified (uses defaults)
+- Demonstrates simplest possible command structure
+- Official OpenCode documentation example
+</example>
+
+<example name="analyze_coverage_command">
+**Purpose**: Analyze test coverage (from official OpenCode docs)
+
+**File**: `.config/opencode/command/analyze-coverage.md`
+
+```markdown
+---
+description: Analyze test coverage and suggest improvements
+agent: plan
+---
+
+Here is the current test coverage:
+
+!`npm run test:coverage`
+
+Analyze the coverage report and suggest which files or functions need more test coverage.
+```
+
+**Usage**: `/analyze-coverage`
+
+**Design Decisions**:
+- Uses `plan` agent for read-only analysis
+- Shell output provides dynamic coverage data
+- Clear analytical task with specific output request
+- Official OpenCode documentation example
+</example>
+
+<example name="review_changes_command">
+**Purpose**: Review uncommitted changes (from official OpenCode docs)
+
+**File**: `.config/opencode/command/review-changes.md`
+
+```markdown
+---
+description: Review uncommitted git changes
+agent: plan
+---
+
+Review the following uncommitted changes:
+
+!`git diff`
+
+Provide feedback on code quality, potential bugs, and suggest improvements.
+```
+
+**Usage**: `/review-changes`
+
+**Design Decisions**:
+- Uses `plan` agent for code review (read-only)
+- Injects live git diff output
+- Focused on quality feedback and suggestions
+- Official OpenCode documentation example
+</example>
 
 <example name="component_generator">
 **Purpose**: Generate a React component with TypeScript
