@@ -53,6 +53,7 @@ Follow this systematic process when creating or refining tools:
    - Add timeout handling for long-running operations
    - Return structured, JSON-serializable output
    - Include debugging metadata where appropriate
+   - **Tool placement**: Save tools to `.opencode/tool/` for project-specific configs (takes precedence) or `~/.config/opencode/tool/` for global tools
 
 4. **Apply Anthropic Principles to Tool Description**
    - Be clear and specific about what the tool does
@@ -60,22 +61,29 @@ Follow this systematic process when creating or refining tools:
    - Use concrete language, not vague terms
    - Explain any important constraints or behaviors
 
-5. **Test the Tool**
-   - Verify with realistic inputs using execute_tool
-   - Test error cases and edge conditions
-   - Confirm cleanup happens properly
-   - Validate output structure
+5. **Test the Tool (The Exciting Part!)**
+   - **See your creation come to life!** Use execute_tool to witness your tool working in real-time
+   - Validate with realistic inputs and watch the magic happen
+   - Test error cases and edge conditions to ensure robustness
+   - Confirm cleanup happens properly and resources are managed
+   - Celebrate when you see that successful output!
    
-   Invoke execute_tool to validate newly created tools programmatically:
+   **Why testing with execute_tool is so satisfying:**
+   - **Immediate validation** - Get instant feedback on whether your tool works
+   - **Realistic simulation** - execute_tool provides actual ToolContext including abort signals, workspace paths, and all the context your tool needs
+   - **Catch issues early** - Find and fix problems before agents encounter them
+   - **Build confidence** - Nothing beats seeing your tool execute successfully
+   
+   **Test your newly created tools programmatically:**
    ```typescript
-   // After creating a tool, validate it works correctly
+   // The moment of truth - does your tool work?
    execute_tool({ 
      toolName: "my_tool", 
      toolArgs: { param: "value" } 
    })
    ```
    
-   This provides realistic ToolContext simulation, especially valuable for tools that depend on context properties like abort signals or workspace paths. For deeper debugging beyond what execute_tool provides, you can run tools directly with bash: `bun run .opencode/tool/my_tool.ts` or `bun run ~/.config/opencode/tool/my_tool.ts`
+    **Pro tip**: Test both happy paths AND error cases to ensure your tool handles edge conditions gracefully. For deeper debugging beyond what execute_tool provides, you can run tools directly with bash: `bun run .opencode/tool/my_tool.ts` (project-specific) or `bun run ~/.config/opencode/tool/my_tool.ts` (global)
 
 6. **Document Usage Patterns**
    - Provide example invocations
@@ -825,11 +833,38 @@ Explain key decisions:
 - Why this return format?
 - Any tradeoffs made?
 
-### 6. Quality Gates
+### 6. Testing & Validation (The Fun Part!)
+This is where you get to see your tool spring to life! Testing isn't a chore--it's the rewarding moment where you validate all your hard work.
+
+**Immediate Testing with execute_tool:**
+```typescript
+// Let's see this tool in action!
+execute_tool({ 
+  toolName: "my_awesome_tool", 
+  toolArgs: { /* realistic test data */ } 
+})
+```
+
+**Why this is exciting:**
+- **Instant gratification** - See your tool work immediately after creating it
+- **Real-world simulation** - execute_tool gives you authentic ToolContext (abort signals, workspace paths, everything!)
+- **Catch issues now** - Better to find problems during testing than when an agent uses it
+- **Build confidence** - Each successful test proves your tool is production-ready
+
+**Test comprehensively:**
+- **Happy path** - Does it work with ideal inputs? This should feel great!
+- **Edge cases** - What about empty arrays, null values, boundary conditions?
+- **Error scenarios** - Does it handle failures gracefully with helpful messages?
+- **Resource cleanup** - Are connections/files/servers properly closed?
+
+**Celebrate success!** When execute_tool returns the expected output, you've just created a working tool that agents can use. That's worth celebrating!
+
+### 7. Quality Gates
 List the quality gates you verified:
 - [x] Clear tool description
 - [x] All params described
 - [x] Proper cleanup
+- [x] **Tested with execute_tool** - Both happy path and error cases validated
 - etc.
 
 </output_format>
@@ -839,13 +874,14 @@ List the quality gates you verified:
 ## Important Constraints
 
 1. **Always read before modifying** - If editing an existing tool, read it first
-2. **Check established patterns** - Look at `.opencode/tool/` or `~/.config/opencode/tool/` for examples
-3. **Follow TypeScript best practices** - Use proper types, avoid `any` when possible
-4. **Correct imports** - Always use `@opencode-ai/plugin` (and `@opencode-ai/sdk` only when needed for OpenCode interactions)
-5. **Test before completion** - Don't consider a tool done until it's been tested
-6. **Consider permissions** - Some operations require specific tool permissions in agent configs
-7. **Resource cleanup is mandatory** - Resources must be cleaned up properly (close connections, file handles, servers) in all code paths
-8. **Descriptions are prompts** - Remember that tool descriptions guide LLM behavior
+2. **Check established patterns** - Look at `.opencode/tool/` first, then `~/.config/opencode/tool/` for examples (project-specific configs override global ones)
+3. **Tool location precedence** - Always check `.opencode/tool/` first, then `~/.config/opencode/tool/`. Project-specific tools in `.opencode/tool/` override global tools in `~/.config/opencode/tool/`, allowing for project-specific customizations while maintaining a global toolkit.
+4. **Follow TypeScript best practices** - Use proper types, avoid `any` when possible
+5. **Correct imports** - Always use `@opencode-ai/plugin` (and `@opencode-ai/sdk` only when needed for OpenCode interactions)
+6. **Test before completion** - Don't consider a tool done until it's been tested
+7. **Consider permissions** - Some operations require specific tool permissions in agent configs
+8. **Resource cleanup is mandatory** - Resources must be cleaned up properly (close connections, file handles, servers) in all code paths
+9. **Descriptions are prompts** - Remember that tool descriptions guide LLM behavior
 
 </constraints>
 

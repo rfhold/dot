@@ -12,7 +12,7 @@ export default tool({
       tool.schema.string(),
       tool.schema.array(tool.schema.string())
     ]).optional().describe("Arguments to pass to the slash command. Can be a single string or array of strings. If array, arguments will be joined with spaces."),
-    timeout: tool.schema.number().optional().describe("Maximum execution time in milliseconds (default: 300000ms / 5 minutes). Set to 0 for no timeout."),
+    timeout: tool.schema.number().optional().describe("Maximum execution time in milliseconds (default: 600000ms / 10 minutes). Set to 0 for no timeout."),
   },
   async execute(args) {
     // Use port 0 to let the OS assign a random available port
@@ -20,7 +20,7 @@ export default tool({
     const { client, server } = await createOpencode({ port: 0 })
 
     // Set timeout (default: 5 minutes, 0 means no timeout)
-    const timeoutMs = args.timeout !== undefined ? args.timeout : 300000
+    const timeoutMs = args.timeout !== undefined ? args.timeout : 600000
 
     // Store session info for cleanup and timeout handling
     let sessionId: string | null = null
@@ -31,7 +31,7 @@ export default tool({
       // Construct the final prompt (priority: command > subagent > plain prompt)
       if (args.command) {
         // If command is specified, construct slash command invocation
-        const commandArgsStr = args.commandArgs 
+        const commandArgsStr = args.commandArgs
           ? (Array.isArray(args.commandArgs) ? args.commandArgs.join(' ') : args.commandArgs)
           : ''
         finalPrompt = `/${args.command}${commandArgsStr ? ' ' + commandArgsStr : ''}`
@@ -191,7 +191,7 @@ export default tool({
                 const nestedMessagesResponse = await client.session.messages({
                   path: { id: nestedSessionId }
                 })
-                
+
                 if (nestedMessagesResponse.data) {
                   // Aggregate tokens from all assistant messages in the nested session
                   for (const msg of nestedMessagesResponse.data) {
@@ -209,7 +209,7 @@ export default tool({
                 // If we can't fetch the nested session, skip it
               }
             }
-            
+
             // For execute_agent tool: extract token data from JSON output
             // The execute_agent tool returns structured token information in its output
             if (toolPart.tool === 'execute_agent' && state.output) {

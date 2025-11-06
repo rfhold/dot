@@ -43,6 +43,7 @@
       "gh *": "ask",
       "git status *": "allow",
       "git log*": "allow",
+      "git show*": "allow",
       "git diff*": "allow",
       "git *": "ask",
       "kubectl get *": "allow",
