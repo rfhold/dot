@@ -2,7 +2,7 @@ import { tool } from "@opencode-ai/plugin"
 import { createOpencode } from "@opencode-ai/sdk"
 
 export default tool({
-  description: "Execute an agent with a test prompt, subagent invocation, or slash command, and return comprehensive metrics including tokens, steps, costs, and results. Use when testing agent behavior, subagent interactions, slash command functionality, or measuring performance.",
+  description: "Execute an agent with a test prompt, subagent invocation, or slash command, and return comprehensive metrics including tokens, steps, costs, and results. Use when testing agent behavior, subagent interactions, slash command functionality, or measuring performance. Supports summary_mode to reduce token usage when only tool usage patterns are needed.",
   args: {
     agent: tool.schema.string().optional().describe("Name of the main agent to use (e.g., 'default'). If not specified, uses default agent."),
     prompt: tool.schema.string().optional().describe("Test prompt to send. For subagents, use @agent-name prefix (e.g., '@agent-tester test this'). Not required when using 'command' parameter."),
@@ -13,6 +13,7 @@ export default tool({
       tool.schema.array(tool.schema.string())
     ]).optional().describe("Arguments to pass to the slash command. Can be a single string or array of strings. If array, arguments will be joined with spaces."),
     timeout: tool.schema.number().optional().describe("Maximum execution time in milliseconds (default: 600000ms / 10 minutes). Set to 0 for no timeout."),
+    summary_mode: tool.schema.boolean().optional().describe("When true, strips tool output data (output_preview, output_length, output_type) from tool_uses to dramatically reduce token usage. Use this when you need to see tool usage patterns, tool names, inputs, and execution times without loading massive tool outputs into context. Preserves: tool names, status, call_id, input parameters, execution_time_ms, metadata. Removes: output_preview, output_length, output_type. LLM text outputs and all metrics are unaffected. Default: false."),
   },
   async execute(args) {
     // Use port 0 to let the OS assign a random available port
@@ -241,6 +242,17 @@ export default tool({
                     nestedTokens.cache_write += deeperTokens.cache_write
                     nestedTokens.cost += deeperTokens.cost
                   }
+                  
+                  // If summary_mode is enabled, strip output fields from nested tool_uses too
+                  if (args.summary_mode && outputData.tool_uses) {
+                    outputData.tool_uses = outputData.tool_uses.map((tu: any) => {
+                      const { output_preview, output_length, output_type, ...rest } = tu
+                      return {
+                        ...rest,
+                        _note: rest._note || "Output stripped in summary mode"
+                      }
+                    })
+                  }
                 }
               } catch (e) {
                 // If output is not JSON or doesn't have expected structure, skip
@@ -323,7 +335,8 @@ export default tool({
           }
 
           // Include output summary (not full output to avoid huge JSON)
-          if (state.output !== undefined) {
+          // Skip output fields entirely if summary_mode is enabled
+          if (!args.summary_mode && state.output !== undefined) {
             const output = state.output
             if (typeof output === 'string') {
               // Truncate long outputs for summary
@@ -336,7 +349,43 @@ export default tool({
 
           // Include metadata if available
           if (state.metadata !== undefined) {
-            toolData.metadata = state.metadata
+            // If summary_mode is enabled and metadata contains a summary array (nested tool calls),
+            // strip output data from those nested calls too
+            if (args.summary_mode && state.metadata.summary && Array.isArray(state.metadata.summary)) {
+              toolData.metadata = {
+                ...state.metadata,
+                summary: state.metadata.summary.map((item: any) => {
+                  if (item.state) {
+                    // Remove output data from nested tool calls (both state.output and state.metadata.output)
+                    const { output, title, ...stateWithoutOutput } = item.state
+                    
+                    // Also strip output from nested metadata if present
+                    let cleanedMetadata = stateWithoutOutput.metadata
+                    if (cleanedMetadata && cleanedMetadata.output !== undefined) {
+                      const { output: metaOutput, preview, ...metaWithoutOutput } = cleanedMetadata
+                      cleanedMetadata = metaWithoutOutput
+                    }
+                    
+                    return {
+                      ...item,
+                      state: {
+                        ...stateWithoutOutput,
+                        metadata: cleanedMetadata,
+                        _note: "Output stripped in summary mode"
+                      }
+                    }
+                  }
+                  return item
+                })
+              }
+            } else {
+              toolData.metadata = state.metadata
+            }
+          }
+
+          // Add note when summary mode is active
+          if (args.summary_mode) {
+            toolData._note = "Output stripped in summary mode"
           }
 
           return toolData

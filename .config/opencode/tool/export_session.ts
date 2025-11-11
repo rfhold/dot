@@ -2,10 +2,11 @@ import { tool } from "@opencode-ai/plugin"
 import { createOpencode } from "@opencode-ai/sdk"
 
 export default tool({
-  description: "Export complete session details including all messages, tool uses, and metadata",
+  description: "Export complete session details including all messages, tool uses, and metadata. Supports summary mode to drastically reduce token usage for debugging while preserving structure and metrics.",
   args: {
     session_id: tool.schema.string().describe("ID of the session to export (e.g., 'ses_5bdea460dffei6gMMYvZZcrJ91')"),
     include_tool_results: tool.schema.boolean().optional().describe("Include synthetic tool result parts (default: false for readability)"),
+    summary_mode: tool.schema.boolean().optional().describe("Truncate message content to first 200 chars to reduce token usage (default: false). Preserves structure, token metrics, and debugging metadata while making large sessions practical to analyze."),
   },
   async execute(args) {
     // Use port 0 to let the OS assign a random available port
@@ -36,6 +37,7 @@ export default tool({
       
       const messages = messagesResponse.data
       const includeToolResults = args.include_tool_results === true
+      const summaryMode = args.summary_mode === true
       
       // Format messages with detailed information
       const formattedMessages = messages.map((message, index) => {
@@ -71,17 +73,28 @@ export default tool({
           
           // Handle different part types
           if (part.type === 'text') {
-            partData.text = part.text
+            const fullText = part.text || ''
+            if (summaryMode && fullText.length > 200) {
+              partData.text = fullText.substring(0, 200) + '...'
+              partData.char_count = fullText.length
+              partData._note = 'Content truncated in summary mode'
+            } else {
+              partData.text = fullText
+            }
             partData.is_synthetic = part.synthetic || false
           } else if (part.type === 'tool') {
             partData.tool = part.tool
             partData.status = part.state.status
+            if (summaryMode) {
+              partData._note = 'Tool details available in full export mode'
+            }
             // Note: input and result are not available in the ToolPart type
             // They would need to be accessed differently or might not be exposed
           } else if (part.type === 'file') {
             partData.filename = part.filename
             partData.mime = part.mime
             partData.url = part.url
+            // File parts already contain metadata only - no truncation needed
           }
           
           return partData
