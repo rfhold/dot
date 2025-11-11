@@ -139,7 +139,7 @@ local function open_floating_terminal(cmd)
     style = 'minimal',
     border = 'none',
   })
-  
+
   vim.fn.termopen(cmd, {
     on_exit = function()
       if vim.api.nvim_win_is_valid(win) then
@@ -150,7 +150,7 @@ local function open_floating_terminal(cmd)
       end
     end,
   })
-  
+
   vim.cmd('startinsert')
 end
 
@@ -168,3 +168,8 @@ end, { desc = 'LazyDocker' })
 vim.keymap.set('n', '<leader>oc', function()
   open_floating_terminal('opencode')
 end, { desc = 'OpenCode' })
+
+-- K9s
+vim.keymap.set('n', '<leader>k9', function()
+  open_floating_terminal('k9s')
+end, { desc = 'K9s' })
