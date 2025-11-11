@@ -16,6 +16,8 @@ export RIPGREP_CONFIG_PATH=$HOME/.ripgreprc
 export EDITOR=nvim
 export KUBE_EDITOR=nvim
 
+export OPENCODE_API=https://opencode-api.holdenitdown.net
+
 # PATH
 export PATH="$PATH:/opt/homebrew/bin"
 export PATH="$PATH:$GOPATH/bin"
