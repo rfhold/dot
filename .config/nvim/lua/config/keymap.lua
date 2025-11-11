@@ -126,3 +126,45 @@ end
 
 -- Lua evaluation keybind for visual mode
 vim.keymap.set("v", "<leader>el", eval_lua_selection, { noremap = true, silent = true, desc = "Evaluate Lua selection" })
+
+-- Terminal floating window helper
+local function open_floating_terminal(cmd)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = 'editor',
+    width = vim.o.columns,
+    height = vim.o.lines,
+    row = 0,
+    col = 0,
+    style = 'minimal',
+    border = 'none',
+  })
+  
+  vim.fn.termopen(cmd, {
+    on_exit = function()
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_close(win, true)
+      end
+      if vim.api.nvim_buf_is_valid(buf) then
+        vim.api.nvim_buf_delete(buf, { force = true })
+      end
+    end,
+  })
+  
+  vim.cmd('startinsert')
+end
+
+-- Lazygit
+vim.keymap.set('n', '<leader>lg', function()
+  open_floating_terminal('lazygit')
+end, { desc = 'LazyGit' })
+
+-- Lazydocker
+vim.keymap.set('n', '<leader>ld', function()
+  open_floating_terminal('lazydocker')
+end, { desc = 'LazyDocker' })
+
+-- OpenCode
+vim.keymap.set('n', '<leader>oc', function()
+  open_floating_terminal('opencode')
+end, { desc = 'OpenCode' })
