@@ -81,3 +81,5 @@ font-size = 16
 
 # macOS option key
 macos-option-as-alt = left
+
+keybind = shift+enter=text:\x1b\r
