@@ -4,12 +4,11 @@
   "layout": "stretch",
   "keybinds": {
     "session_child_cycle": "<leader>+right",
-    "session_child_cycle_reverse": "<leader>+left"
+    "session_child_cycle_reverse": "<leader>+left",
+    "input_newline": "shift+enter",
   },
   "mode": {},
   "tools": {
-    "todoread": false,
-    "todowrite": false,
     "execute_agent": false,
     "execute_tool": false,
     "list_sessions": false,
@@ -30,9 +29,11 @@
       "command": [
         "npx",
         "@playwright/mcp@latest",
-        "--isolated"
+        "--isolated",
+        "--browser",
+        "chromium"
       ],
-      "enabled": false
+      "enabled": true
     }
   },
   "instructions": [
@@ -42,6 +43,8 @@
   ],
   "permission": {
     "bash": {
+      "kill *": "ask",
+      "pkill *": "ask",
       "gh *": "ask",
       "git status *": "allow",
       "git log*": "allow",
@@ -63,6 +66,7 @@
       "uv run pyinfra *": "ask",
       "pulumi *": "ask",
       "helm *": "ask",
+      "scp *": "ask",
       "ssh *": "ask",
       "aws *": "ask",
       "az *": "ask",
