@@ -12,28 +12,33 @@
     "execute_agent": false,
     "execute_tool": false,
     "list_sessions": false,
-    "export_session": false
+    "export_session": false,
+    "firecrawl*": false,
+    "websearch": false
   },
   "mcp": {
-    "context7": {
+    "firecrawl": {
       "type": "local",
       "command": [
-        "npx",
-        "-y",
-        "@upstash/context7-mcp"
+        "bunx",
+        "firecrawl-mcp"
       ],
-      "enabled": false
+      "enabled": true,
+      "environment": {
+        "FIRECRAWL_API_URL": "https://firecrawl.holdenitdown.net",
+        "FIRECRAWL_API_KEY": "no-auth-required"
+      }
     },
     "playwright": {
       "type": "local",
       "command": [
-        "npx",
+        "bunx",
         "@playwright/mcp@latest",
         "--isolated",
         "--browser",
         "chromium"
       ],
-      "enabled": true
+      "enabled": false
     }
   },
   "instructions": [
