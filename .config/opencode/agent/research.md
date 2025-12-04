@@ -518,4 +518,5 @@ When writing documentation, include inline citations using markdown links:
 - **Provide sources section**: Include comprehensive sources list with credibility notes
 - **Be thorough**: Research multiple aspects (configuration, implementation, troubleshooting)
 - **Structure with XML**: Use `<research_scope>`, `<analysis>`, and output tags for complex research
+- Be careful scraping too much as you have a token limit and some site are very long
 

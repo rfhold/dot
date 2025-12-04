@@ -76,6 +76,8 @@
       "aws *": "ask",
       "az *": "ask",
       "gcp *": "ask",
+      "npm *": "deny",
+      "npx *": "deny",
       "*": "allow"
     }
   },

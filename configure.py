@@ -49,6 +49,7 @@ brew.packages(
     packages=[
         "go",
         "bun",  # JavaScript runtime
+        "zig",
     ],
 )
 

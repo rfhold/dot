@@ -1,2 +1,11 @@
 .DS_Store
 .aider*
+opencode.jsonc
+.gnupg/gpg-agent.log
+.gnupg/S.*
+.gnupg/reader_*.status
+.gnupg/random_seed
+.gnupg/private-keys-v1.d/
+.gnupg/openpgp-revocs.d/
+.gnupg/trustdb.gpg
+.gnupg/public-keys.d/
