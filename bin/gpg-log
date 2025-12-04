@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Shows recent GPG key access from gpg-agent log
+
+LOG_FILE="$HOME/.gnupg/gpg-agent.log"
+LINES=${1:-50}
+
+if [ ! -f "$LOG_FILE" ]; then
+    echo "No GPG agent log found at $LOG_FILE"
+    echo "Enable logging by adding to ~/.gnupg/gpg-agent.conf:"
+    echo "  log-file $LOG_FILE"
+    echo "  debug-level basic"
+    exit 1
+fi
+
+# Filter for interesting events (signing, auth, key access)
+grep -E "(sign_request|PKAUTH|PKSIGN|ssh request|PIN Entry|SIGKEY|request_identities)" "$LOG_FILE" | tail -n "$LINES"
