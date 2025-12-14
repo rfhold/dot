@@ -66,7 +66,7 @@ def install_packages(name, key, present=True):
     if pkg_manager == "brew":
         brew.packages(name=name, packages=pkgs, present=present)
     elif pkg_manager == "pacman":
-        pacman.packages(name=name, packages=pkgs, present=present)
+        pacman.packages(name=name, packages=pkgs, present=present, _sudo=True)
 
 
 # -----------------------------------------------------------------------------
