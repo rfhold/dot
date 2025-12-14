@@ -9,6 +9,7 @@
 [core]
 	editor = vim
 	excludesfile = ~/.gitignore
+	hooksPath = ~/.githooks
 [url "git@github.com:"]
 	insteadOf = https://github.com/
 [url "git@gitlab.com:"]

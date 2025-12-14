@@ -1,8 +1,43 @@
 from pyinfra.context import host
-from pyinfra.operations import files, brew, git
+from pyinfra.operations import files, brew, pacman, git
 from pyinfra.facts.files import FindFiles, FindDirectories
-from pyinfra.facts.server import Home
+from pyinfra.facts.server import Home, Os
 from pyinfra_fisher import operations as fisher
+
+# -----------------------------------------------------------------------------
+# Package definitions
+# -----------------------------------------------------------------------------
+
+PACKAGES = {
+    "unwanted": {
+        "brew": ["rust", "rustup", "uv"],
+        "pacman": ["rust", "rustup", "uv"],
+    },
+    "dev": {
+        "brew": ["go", "bun", "zig"],
+        "pacman": ["go", "zig"],  # bun via AUR or npm
+    },
+    "gpg": {
+        "brew": ["gnupg", "pinentry-mac"],
+        "pacman": ["gnupg", "pinentry"],
+    },
+    "terminal": {
+        "brew": ["fish", "starship", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "gum"],
+        "pacman": ["fish", "starship", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "gum"],
+    },
+    "tools": {
+        "brew": ["k9s", "pulumi", "gh", "lazygit", "lazydocker", "argon2"],
+        "pacman": ["k9s", "github-cli", "lazygit", "lazydocker", "argon2"],  # pulumi via AUR
+    },
+}
+
+CASKS = ["ghostty", "slack", "spotify", "obsidian", "linearmouse", "bitwarden"]
+
+BREW_TAPS = ["oven-sh/bun", "pulumi/tap"]
+
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
 
 
 def link_config_dir(source, target):
@@ -10,7 +45,6 @@ def link_config_dir(source, target):
     paths.extend(host.get_fact(FindDirectories, path=source, maxdepth=1))
 
     for path in paths:
-        # filter out the source directory itself
         if path == source:
             continue
 
@@ -24,88 +58,63 @@ def link_config_dir(source, target):
         )
 
 
+def install_packages(name, key, present=True):
+    pkgs = PACKAGES.get(key, {}).get(pkg_manager)
+    if not pkgs:
+        return
+
+    if pkg_manager == "brew":
+        brew.packages(name=name, packages=pkgs, present=present)
+    elif pkg_manager == "pacman":
+        pacman.packages(name=name, packages=pkgs, present=present)
+
+
+# -----------------------------------------------------------------------------
+# Detect OS and package manager
+# -----------------------------------------------------------------------------
+
+os_name = host.get_fact(Os)
+
+if os_name == "Darwin":
+    pkg_manager = "brew"
+elif os_name == "Linux":
+    pkg_manager = "pacman"  # Assuming Arch
+else:
+    raise Exception(f"Unsupported OS: {os_name}")
+
 home = host.get_fact(Home)
+
+# -----------------------------------------------------------------------------
+# Symlink configs
+# -----------------------------------------------------------------------------
 
 link_config_dir(f"{home}/dot/.config", f"{home}/.config")
 link_config_dir(f"{home}/dot/home", home)
 
-brew.packages(
-    name="Remove unwanted packages",
-    packages=[
-        "rust",  # Managed by rustup
-        "rustup",  # Installed via the install script
-        "uv",  # Installed via the install script
-    ],
-    present=False,
-)
+# -----------------------------------------------------------------------------
+# Package management
+# -----------------------------------------------------------------------------
 
-brew.tap(
-    name="Add oven-sh/bun tap",
-    src="oven-sh/bun",  # bun
-)
+install_packages("Remove unwanted packages", "unwanted", present=False)
 
-brew.packages(
-    name="Install dev packages",
-    packages=[
-        "go",
-        "bun",  # JavaScript runtime
-        "zig",
-    ],
-)
+# Brew taps (macOS only)
+if pkg_manager == "brew":
+    for tap in BREW_TAPS:
+        brew.tap(name=f"Add {tap} tap", src=tap)
 
-brew.packages(
-    name="Install GPG packages",
-    packages=[
-        "gnupg",  # GPG
-        "pinentry-mac",  # GPG passphrase entry
-    ],
-)
+install_packages("Install dev packages", "dev")
+install_packages("Install GPG packages", "gpg")
+install_packages("Install terminal packages", "terminal")
+install_packages("Install tools", "tools")
 
-brew.packages(
-    name="Install terminal packages",
-    packages=[
-        "fish",  # shell
-        "starship",  # shell prompt
-        "fisher",  # fish plugin manager
-        "tmux",  # terminal multiplexer
-        "neovim",  # text editor
-        "ripgrep",  # search tool
-        "fd",  # file finder
-        "fzf",  # fuzzy finder
-        "gum",  # shell scripts
-    ],
-)
+# GUI apps (macOS only)
+if pkg_manager == "brew":
+    brew.casks(name="Install GUI applications", casks=CASKS)
 
-brew.tap(
-    name="Add pulumi/tap tap",
-    src="pulumi/tap",  # pulumi
-)
+# -----------------------------------------------------------------------------
+# Tmux Plugin Manager (TPM)
+# -----------------------------------------------------------------------------
 
-brew.packages(
-    name="Install tools",
-    packages=[
-        "k9s",  # Kubernetes TUI
-        "pulumi",  # IaC
-        "gh",  # GitHub CLI
-        "lazygit",  # Git TUI
-        "lazydocker",  # Docker TUI
-        "argon2",  # Password hashing library
-    ],
-)
-
-brew.casks(
-    name="Install GUI applications",
-    casks=[
-        "ghostty",  # terminal
-        "slack",  # communication tool
-        "spotify",  # music streaming
-        "obsidian",  # note-taking app
-        "linearmouse",  # mouse customization
-        "bitwarden",  # password manager
-    ],
-)
-
-# Tmux Plugin Manager (TPM) Setup
 files.directory(
     name="Ensure tmux plugins directory exists",
     path=f"{home}/.tmux/plugins",
@@ -118,12 +127,15 @@ git.repo(
     dest=f"{home}/.tmux/plugins/tpm",
 )
 
-# Fisher Plugin Manager and fish-ai Setup
+# -----------------------------------------------------------------------------
+# Fish plugins
+# -----------------------------------------------------------------------------
+
 fisher.packages(
     name="Install Fish plugins",
     packages=[
-        "jorgebucaran/fisher",  # Fisher plugin manager itself
-        "realiserad/fish-ai",  # AI-powered shell assistant
+        "jorgebucaran/fisher",
+        "realiserad/fish-ai",
     ],
     present=True,
 )
