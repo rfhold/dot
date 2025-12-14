@@ -46,7 +46,7 @@ install_paru() {
     local tmpdir
     tmpdir=$(mktemp -d)
     git clone https://aur.archlinux.org/paru.git "$tmpdir/paru"
-    (cd "$tmpdir/paru" && MAKEFLAGS="-j$(nproc)" makepkg -si --noconfirm --disable-sandbox)
+    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
     rm -rf "$tmpdir"
 }
 
