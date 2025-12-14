@@ -5,8 +5,10 @@ end
 # Fish shell configuration
 set fish_greeting ""
 
-# Load Homebrew environment
-eval "$(/opt/homebrew/bin/brew shellenv)"
+# Load Homebrew environment (macOS only)
+if test (uname) = "Darwin"
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+end
 
 # Connect to GPG agent
 export GPG_TTY="$(tty)"
@@ -19,8 +21,8 @@ bind --preset \cC 'cancel-commandline'
 
 starship init fish | source
 
-
-# Added by LM Studio CLI (lms)
-set -gx PATH $PATH /Users/rfhold/.lmstudio/bin
-# End of LM Studio CLI section
+# LM Studio CLI (macOS only)
+if test (uname) = "Darwin"; and test -d "$HOME/.lmstudio/bin"
+    set -gx PATH $PATH "$HOME/.lmstudio/bin"
+end
 
