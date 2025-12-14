@@ -45,7 +45,7 @@ install_paru() {
     echo "Installing paru..."
     local tmpdir
     tmpdir=$(mktemp -d)
-    git clone https://aur.archlinux.org/paru.git "$tmpdir/paru"
+    git clone https://aur.archlinux.org/paru-git.git "$tmpdir/paru"
     (cd "$tmpdir/paru" && makepkg -si --noconfirm)
     rm -rf "$tmpdir"
 }
