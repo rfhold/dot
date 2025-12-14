@@ -36,17 +36,17 @@ clone_dotfiles() {
 # Distro-specific setup
 # -----------------------------------------------------------------------------
 
-install_paru() {
-    if command -v paru &> /dev/null; then
-        echo "paru found."
+install_aur_helper() {
+    if command -v paru &> /dev/null || command -v yay &> /dev/null; then
+        echo "AUR helper found."
         return
     fi
 
-    echo "Installing paru..."
+    echo "Installing yay..."
     local tmpdir
     tmpdir=$(mktemp -d)
-    git clone https://aur.archlinux.org/paru-bin.git "$tmpdir/paru"
-    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
+    git clone https://aur.archlinux.org/yay.git "$tmpdir/yay"
+    (cd "$tmpdir/yay" && makepkg -si --noconfirm)
     rm -rf "$tmpdir"
 }
 
@@ -55,7 +55,7 @@ setup_arch() {
     sudo pacman -Syu --noconfirm
     sudo pacman -S --needed --noconfirm base-devel git
     install_rustup
-    install_paru
+    install_aur_helper
     install_uv
 }
 
