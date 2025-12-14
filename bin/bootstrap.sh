@@ -53,7 +53,7 @@ install_paru() {
 setup_arch() {
     echo "Detected Arch Linux"
     sudo pacman -Syu --noconfirm
-    sudo pacman -S --needed --noconfirm base-devel git
+    sudo pacman -S --needed --noconfirm base-devel git pkgconf
     install_rustup
     install_paru
     install_uv
