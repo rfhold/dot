@@ -46,14 +46,14 @@ install_paru() {
     local tmpdir
     tmpdir=$(mktemp -d)
     git clone https://aur.archlinux.org/paru.git "$tmpdir/paru"
-    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
+    (cd "$tmpdir/paru" && MAKEFLAGS="-j$(nproc)" makepkg -si --noconfirm --disable-sandbox)
     rm -rf "$tmpdir"
 }
 
 setup_arch() {
     echo "Detected Arch Linux"
     sudo pacman -Syu --noconfirm
-    sudo pacman -S --needed --noconfirm base-devel git pkgconf
+    sudo pacman -S --needed --noconfirm base-devel git
     install_rustup
     install_paru
     install_uv
