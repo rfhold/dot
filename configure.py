@@ -1,8 +1,9 @@
 from pyinfra.context import host
-from pyinfra.operations import files, brew, pacman, git
+from pyinfra.operations import files, brew, pacman, git, systemd
 from pyinfra.facts.files import FindFiles, FindDirectories
 from pyinfra.facts.server import Home, Os
 from pyinfra_fisher import operations as fisher
+from pyinfra_yay import operations as yay
 
 # -----------------------------------------------------------------------------
 # Package definitions
@@ -139,3 +140,60 @@ fisher.packages(
     ],
     present=True,
 )
+
+# -----------------------------------------------------------------------------
+# AUR packages (Arch only)
+# -----------------------------------------------------------------------------
+
+if pkg_manager == "pacman":
+    yay.packages(
+        name="Install AUR packages",
+        packages=[
+            "opencode",
+        ],
+        present=True,
+    )
+
+# -----------------------------------------------------------------------------
+# OpenSSH Server (Arch only)
+# -----------------------------------------------------------------------------
+
+if pkg_manager == "pacman":
+    pacman.packages(
+        name="Install OpenSSH",
+        packages=["openssh"],
+        present=True,
+        _sudo=True,
+    )
+
+    files.put(
+        name="Configure sshd for key-only authentication",
+        src=f"{home}/dot/etc/sshd_config.d/99-key-only.conf",
+        dest="/etc/ssh/sshd_config.d/99-key-only.conf",
+        mode="644",
+        user="root",
+        group="root",
+        _sudo=True,
+    )
+
+    files.directory(
+        name="Ensure .ssh directory exists",
+        path=f"{home}/.ssh",
+        mode="700",
+        present=True,
+    )
+
+    files.download(
+        name="Download GitHub public keys for rfhold",
+        src="https://github.com/rfhold.keys",
+        dest=f"{home}/.ssh/authorized_keys",
+        mode="600",
+    )
+
+    systemd.service(
+        name="Enable and start sshd",
+        service="sshd",
+        running=True,
+        enabled=True,
+        _sudo=True,
+    )
