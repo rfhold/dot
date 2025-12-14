@@ -36,11 +36,26 @@ clone_dotfiles() {
 # Distro-specific setup
 # -----------------------------------------------------------------------------
 
+install_paru() {
+    if command -v paru &> /dev/null; then
+        echo "paru found."
+        return
+    fi
+
+    echo "Installing paru..."
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    git clone https://aur.archlinux.org/paru.git "$tmpdir/paru"
+    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
+    rm -rf "$tmpdir"
+}
+
 setup_arch() {
     echo "Detected Arch Linux"
     sudo pacman -Syu --noconfirm
     sudo pacman -S --needed --noconfirm base-devel git
     install_rustup
+    install_paru
     install_uv
 }
 
