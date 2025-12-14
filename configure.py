@@ -126,6 +126,7 @@ git.repo(
     name="Clone Tmux Plugin Manager (TPM)",
     src="https://github.com/tmux-plugins/tpm",
     dest=f"{home}/.tmux/plugins/tpm",
+    _env={"GIT_CONFIG_GLOBAL": "/dev/null"},
 )
 
 # -----------------------------------------------------------------------------
