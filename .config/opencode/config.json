@@ -1,13 +1,12 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "theme": "aura",
-  "layout": "stretch",
-  "keybinds": {
-    "session_child_cycle": "<leader>+right",
-    "session_child_cycle_reverse": "<leader>+left",
-    "input_newline": "shift+enter",
+  "tui": {
+    "keybinds": {
+      "input_newline": "shift+enter"
+    }
   },
-  "mode": {},
+  "share": "disabled",
   "tools": {
     "execute_agent": false,
     "execute_tool": false,
@@ -48,14 +47,11 @@
   ],
   "permission": {
     "bash": {
-      "kill *": "ask",
-      "pkill *": "ask",
-      "gh *": "ask",
+      "*": "allow",
       "git status *": "allow",
       "git log*": "allow",
       "git show*": "allow",
       "git diff*": "allow",
-      "git *": "ask",
       "kubectl get *": "allow",
       "kubectl describe *": "allow",
       "kubectl logs *": "allow",
@@ -66,6 +62,10 @@
       "kubectl cluster-info *": "allow",
       "kubectl wait *": "allow",
       "kubectl diff *": "allow",
+      "kill *": "ask",
+      "pkill *": "ask",
+      "gh *": "ask",
+      "git *": "ask",
       "kubectl *": "ask",
       "pyinfra *": "ask",
       "uv run pyinfra *": "ask",
@@ -78,7 +78,6 @@
       "gcp *": "ask",
       "npm *": "deny",
       "npx *": "deny",
-      "*": "allow"
     }
   },
   "provider": {
@@ -101,6 +100,5 @@
       }
     }
   },
-  "autoshare": false,
   "autoupdate": false
 }

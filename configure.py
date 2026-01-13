@@ -137,6 +137,7 @@ fisher.packages(
     name="Install Fish plugins",
     packages=[
         "jorgebucaran/fisher",
+        "jorgebucaran/nvm.fish",
         "realiserad/fish-ai",
     ],
     present=True,

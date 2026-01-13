@@ -5,10 +5,6 @@ export GOPATH="$HOME/go"
 export GOPRIVATE="github.com/cfaintl"
 
 # Docker host (colima on macOS, default socket on Linux)
-if test (uname) = "Darwin"
-    export DOCKER_HOST="unix:///$HOME/.config/colima/default/docker.sock"
-    export TESTCONTAINERS_HOST_OVERRIDE="127.0.0.1"
-end
 
 export OLLAMA_API_BASE="https://ollama.holdenitdown.net"
 

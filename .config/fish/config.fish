@@ -19,6 +19,9 @@ gpg-connect-agent /bye
 # Clear line on CTRL + C
 bind --preset \cC 'cancel-commandline'
 
+# Aliases
+alias docker='podman'
+
 starship init fish | source
 
 # LM Studio CLI (macOS only)
