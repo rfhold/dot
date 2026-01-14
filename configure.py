@@ -1,9 +1,27 @@
+import os
+
 from pyinfra.context import host
-from pyinfra.operations import files, brew, pacman, git, systemd
-from pyinfra.facts.files import FindFiles, FindDirectories
-from pyinfra.facts.server import Home, Os
+from pyinfra.operations import (
+    files,
+    brew,
+    pacman,
+    apk,
+    apt,
+    git,
+    systemd,
+    server,
+    cargo,
+)
+from pyinfra.facts.files import FindFiles, FindDirectories, File
+from pyinfra.facts.server import Home, Os, Which
 from pyinfra_fisher import operations as fisher
 from pyinfra_yay import operations as yay
+from pyinfra_bun import operations as bun
+from pyinfra_go import operations as go
+from pyinfra_git.facts import GitSigningConfigCurrent
+
+# Check if we're in upgrade mode
+upgrade_mode = os.environ.get("DOTFILES_UPGRADE", "0") == "1"
 
 # -----------------------------------------------------------------------------
 # Package definitions
@@ -11,30 +29,57 @@ from pyinfra_yay import operations as yay
 
 PACKAGES = {
     "unwanted": {
-        "brew": ["rust", "rustup", "uv"],
-        "pacman": ["rust", "rustup", "uv"],
+        "brew": ["rust", "rustup", "uv", "go"],
+        "pacman": ["rust", "rustup", "uv", "go"],
+        "apk": ["rust", "rustup", "go"],
+        "apt": ["golang", "golang-go"],
     },
     "dev": {
-        "brew": ["go", "bun", "zig"],
-        "pacman": ["go", "zig"],  # bun via AUR or npm
+        "brew": ["zig"],
+        "pacman": ["zig"],
+        "apk": ["zig"],
+        "apt": [],
     },
     "gpg": {
         "brew": ["gnupg", "pinentry-mac"],
         "pacman": ["gnupg", "pinentry"],
+        "apk": ["gnupg", "pinentry"],
+        "apt": ["gnupg", "pinentry-curses"],
     },
     "terminal": {
-        "brew": ["fish", "starship", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "gum"],
-        "pacman": ["fish", "starship", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "gum"],
+        "brew": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf"],
+        "pacman": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf"],
+        "apk": [
+            "fish",
+            "tmux",
+            "neovim",
+            "ripgrep",
+            "fd",
+            "fzf",
+        ],  # fisher installed via curl
+        "apt": ["fish", "tmux", "neovim", "ripgrep", "fd-find", "fzf"],
     },
     "tools": {
-        "brew": ["k9s", "pulumi", "gh", "lazygit", "lazydocker", "argon2"],
-        "pacman": ["k9s", "github-cli", "lazygit", "lazydocker", "argon2"],  # pulumi via AUR
+        "brew": ["pulumi", "gh", "argon2"],
+        "pacman": ["github-cli", "argon2"],  # pulumi via AUR
+        "apk": ["github-cli", "argon2"],
+        "apt": ["gh", "argon2"],
+    },
+    # Packages only installed on bare metal (not in containers)
+    "bare_metal": {
+        "brew": ["podman"],
+        "pacman": ["podman"],
+    },
+    # Packages only installed inside containers
+    "container": {
+        "apk": ["docker-cli", "docker-cli-compose", "docker-cli-buildx"],
+        "apt": ["docker-ce-cli", "docker-buildx-plugin", "docker-compose-plugin"],
     },
 }
 
 CASKS = ["ghostty", "slack", "spotify", "obsidian", "linearmouse", "bitwarden"]
 
-BREW_TAPS = ["oven-sh/bun", "pulumi/tap"]
+BREW_TAPS = ["pulumi/tap"]
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -68,18 +113,48 @@ def install_packages(name, key, present=True):
         brew.packages(name=name, packages=pkgs, present=present)
     elif pkg_manager == "pacman":
         pacman.packages(name=name, packages=pkgs, present=present, _sudo=True)
+    elif pkg_manager == "apk":
+        apk.packages(name=name, packages=pkgs, present=present, _sudo=True)
+    elif pkg_manager == "apt":
+        apt.packages(name=name, packages=pkgs, present=present, _sudo=True)
 
 
 # -----------------------------------------------------------------------------
 # Detect OS and package manager
 # -----------------------------------------------------------------------------
 
+
+def is_alpine():
+    """Check if running on Alpine Linux."""
+    return host.get_fact(File, path="/etc/alpine-release") is not None
+
+
+def is_debian():
+    """Check if running on Debian/Ubuntu."""
+    return host.get_fact(File, path="/etc/debian_version") is not None
+
+
+def is_container():
+    """Check if running inside a container."""
+    # Check for /.dockerenv (Docker) or /run/.containerenv (Podman)
+    if host.get_fact(File, path="/.dockerenv") is not None:
+        return True
+    if host.get_fact(File, path="/run/.containerenv") is not None:
+        return True
+    return False
+
+
 os_name = host.get_fact(Os)
 
 if os_name == "Darwin":
     pkg_manager = "brew"
 elif os_name == "Linux":
-    pkg_manager = "pacman"  # Assuming Arch
+    if is_alpine():
+        pkg_manager = "apk"
+    elif is_debian():
+        pkg_manager = "apt"
+    else:
+        pkg_manager = "pacman"  # Assuming Arch
 else:
     raise Exception(f"Unsupported OS: {os_name}")
 
@@ -108,9 +183,30 @@ install_packages("Install GPG packages", "gpg")
 install_packages("Install terminal packages", "terminal")
 install_packages("Install tools", "tools")
 
+# Environment-specific packages
+if is_container():
+    install_packages("Install container packages", "container")
+else:
+    install_packages("Install bare metal packages", "bare_metal")
+
 # GUI apps (macOS only)
 if pkg_manager == "brew":
     brew.casks(name="Install GUI applications", casks=CASKS)
+
+# -----------------------------------------------------------------------------
+# Git signing configuration
+# -----------------------------------------------------------------------------
+
+git_signing_script = f"{home}/dot/bin/setup-git-signing"
+git_signing_current = host.get_fact(
+    GitSigningConfigCurrent, script_path=git_signing_script
+)
+
+if not git_signing_current:
+    server.shell(
+        name="Configure git signing based on GPG key availability",
+        commands=[git_signing_script],
+    )
 
 # -----------------------------------------------------------------------------
 # Tmux Plugin Manager (TPM)
@@ -126,6 +222,7 @@ git.repo(
     name="Clone Tmux Plugin Manager (TPM)",
     src="https://github.com/tmux-plugins/tpm",
     dest=f"{home}/.tmux/plugins/tpm",
+    pull=upgrade_mode,
     _env={"GIT_CONFIG_GLOBAL": "/dev/null"},
 )
 
@@ -142,6 +239,64 @@ fisher.packages(
     ],
     present=True,
 )
+
+# -----------------------------------------------------------------------------
+# Node.js (via nvm.fish)
+# -----------------------------------------------------------------------------
+
+# Install node and set default (nvm_default_version only activates on interactive shells)
+# Also symlink to ~/.local/bin so node is available in non-fish shells
+if not host.get_fact(Which, command="node"):
+    server.shell(
+        name="Install Node.js LTS via nvm and set as default",
+        commands=[
+            "fish -c 'nvm install lts && set --universal nvm_default_version lts'",
+            f"mkdir -p {home}/.local/bin",
+            f"ln -sf {home}/.local/share/nvm/*/bin/node {home}/.local/bin/node",
+            f"ln -sf {home}/.local/share/nvm/*/bin/npm {home}/.local/bin/npm",
+            f"ln -sf {home}/.local/share/nvm/*/bin/npx {home}/.local/bin/npx",
+        ],
+    )
+
+# -----------------------------------------------------------------------------
+# Bun packages (bun installed via bootstrap.sh)
+# -----------------------------------------------------------------------------
+
+bun.packages(
+    name="Install global Bun packages",
+    packages=[
+        "opencode-ai",
+    ],
+    present=True,
+    update=upgrade_mode,
+)
+
+# -----------------------------------------------------------------------------
+# Cargo packages (installed via cargo for consistency across all platforms)
+# -----------------------------------------------------------------------------
+
+cargo.packages(
+    name="Install cargo packages",
+    packages=["starship"],
+    present=True,
+)
+
+# -----------------------------------------------------------------------------
+# Go packages (installed via go for consistency across all platforms)
+# -----------------------------------------------------------------------------
+
+go.packages(
+    name="Install Go tools",
+    packages=[
+        "github.com/charmbracelet/gum@latest",
+        "github.com/jesseduffield/lazygit@latest",
+        "github.com/jesseduffield/lazydocker@latest",
+        "github.com/derailed/k9s@latest",
+    ],
+    present=True,
+    update=upgrade_mode,
+)
+
 
 # -----------------------------------------------------------------------------
 # AUR packages (Arch only)

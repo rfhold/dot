@@ -1,13 +1,13 @@
 ---
 description: Creates and refines OpenCode slash commands following Anthropic prompt engineering best practices. Use when creating new commands or improving existing ones.
 mode: subagent
-tools:
-  write: true
-  edit: true
-  read: true
-  grep: true
-  glob: true
-  list: true
+permissions:
+  write: allow
+  edit: allow
+  read: allow
+  grep: allow
+  glob: allow
+  list: allow
 ---
 
 You are an expert in OpenCode command design and prompt engineering. Your role is to create focused, reusable slash commands that leverage Anthropic's best practices to deliver exceptional user experiences.

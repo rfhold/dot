@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# gmux - Ensure a repository exists locally, cloning if necessary
+# Usage: gmux <category/repo-name>
+#   gmux rfhold/dot              - Ensures rfhold/dot exists
+#   gmux stablekernel/some-repo  - Ensures stablekernel/some-repo exists
+#
+# Exit codes:
+#   0 - Repository exists (already present or successfully cloned)
+#   1 - Error (invalid path, clone failed, etc.)
+#
+# For rfhold repos: tries git.holdenitdown.net first, then GitHub
+# For other repos: clones from GitHub
+
+# Configuration
+REPOS_DIR="$HOME/repos"
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to clone repository via SSH
+clone_repo() {
+    local repo_path="$1"
+    local category=$(echo "$repo_path" | cut -d'/' -f1)
+    local repo_name=$(echo "$repo_path" | cut -d'/' -f2)
+    local category_dir="$REPOS_DIR/$category"
+    local full_path="$REPOS_DIR/$repo_path"
+    
+    echo -e "${YELLOW}Repository '$repo_path' not found locally.${NC}" >&2
+    
+    # Create category directory if it doesn't exist
+    if [ ! -d "$category_dir" ]; then
+        echo -e "${BLUE}Creating category directory: $category_dir${NC}" >&2
+        mkdir -p "$category_dir"
+    fi
+    
+    # For rfhold repos, try personal git server first
+    if [ "$category" = "rfhold" ]; then
+        local personal_url="git@git.holdenitdown.net:rfhold/${repo_name}.git"
+        echo -e "${BLUE}Attempting to clone from personal server: $personal_url${NC}" >&2
+        
+        if git clone "$personal_url" "$full_path" 2>/dev/null; then
+            echo -e "${GREEN}Successfully cloned $repo_path from personal server${NC}" >&2
+            return 0
+        fi
+        echo -e "${YELLOW}Not found on personal server, trying GitHub...${NC}" >&2
+    fi
+    
+    # Clone from GitHub
+    local github_url="git@github.com:${repo_path}.git"
+    echo -e "${BLUE}Attempting to clone from GitHub: $github_url${NC}" >&2
+    
+    if git clone "$github_url" "$full_path"; then
+        echo -e "${GREEN}Successfully cloned $repo_path from GitHub${NC}" >&2
+        return 0
+    else
+        echo -e "${RED}Failed to clone repository${NC}" >&2
+        echo -e "${YELLOW}Make sure the repository exists and you have SSH access.${NC}" >&2
+        return 1
+    fi
+}
+
+# Main function
+main() {
+    local repo_path="$1"
+    
+    # Require an argument
+    if [ -z "$repo_path" ]; then
+        echo -e "${RED}Usage: gmux <category/repo-name>${NC}" >&2
+        exit 1
+    fi
+    
+    # Check if it follows category/repo structure
+    if [[ ! "$repo_path" =~ ^[^/]+/[^/]+$ ]]; then
+        echo -e "${RED}Error: Repository path must be in format 'category/repo-name'${NC}" >&2
+        exit 1
+    fi
+    
+    # Ensure repos directory exists
+    if [ ! -d "$REPOS_DIR" ]; then
+        echo -e "${BLUE}Creating repos directory: $REPOS_DIR${NC}" >&2
+        mkdir -p "$REPOS_DIR"
+    fi
+    
+    local full_path="$REPOS_DIR/$repo_path"
+    
+    # If repo exists, we're done (nop)
+    if [ -d "$full_path" ]; then
+        exit 0
+    fi
+    
+    # Try to clone
+    if clone_repo "$repo_path"; then
+        exit 0
+    else
+        exit 1
+    fi
+}
+
+main "$@"

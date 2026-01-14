@@ -53,53 +53,16 @@ ensure_session() {
     echo "$session_name"
 }
 
-# Function to clone GitHub repository via SSH
-clone_github_repo() {
+# Function to ensure repo exists (delegates to gmux)
+ensure_repo() {
     local repo_path="$1"
-    local category=$(echo "$repo_path" | cut -d'/' -f1)
-    local repo_name=$(echo "$repo_path" | cut -d'/' -f2)
-    local category_dir="$REPOS_DIR/$category"
-    local full_path="$REPOS_DIR/$repo_path"
-    local github_url="git@github.com:${repo_path}.git"
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
-    echo -e "${YELLOW}Repository '$repo_path' not found locally.${NC}" >&2
-    echo -e "${BLUE}Attempting to clone from GitHub: $github_url${NC}" >&2
-    
-    # Create category directory if it doesn't exist
-    if [ ! -d "$category_dir" ]; then
-        echo -e "${BLUE}Creating category directory: $category_dir${NC}" >&2
-        mkdir -p "$category_dir"
-    fi
-    
-    # Clone the repository
-    if git clone "$github_url" "$full_path"; then
-        echo -e "${GREEN}Successfully cloned $repo_path${NC}" >&2
-        return 0
-    else
-        echo -e "${RED}Failed to clone repository from $github_url${NC}" >&2
-        echo -e "${YELLOW}Make sure the repository exists and you have SSH access.${NC}" >&2
-        return 1
-    fi
-}
-
-# Function to validate repo path
-validate_repo() {
-    local repo_path="$1"
-    local full_path="$REPOS_DIR/$repo_path"
-    
-    # Check if it follows category/repo structure
-    if [[ ! "$repo_path" =~ ^[^/]+/[^/]+$ ]]; then
-        echo -e "${RED}Error: Repository path must be in format 'category/repo-name'${NC}" >&2
+    if ! "$script_dir/gmux" "$repo_path"; then
+        echo -e "${YELLOW}Available repositories:${NC}" >&2
+        get_repos | sed 's/^/  /' >&2
         exit 1
-    fi
-    
-    if [ ! -d "$full_path" ]; then
-        # Try to clone from GitHub if it doesn't exist
-        if ! clone_github_repo "$repo_path"; then
-            echo -e "${YELLOW}Available repositories:${NC}" >&2
-            get_repos | sed 's/^/  /' >&2
-            exit 1
-        fi
     fi
 }
 
@@ -113,7 +76,7 @@ main() {
     if [ -n "$1" ]; then
         # Direct mode - use provided repo path
         selected_repo="$1"
-        validate_repo "$selected_repo"
+        ensure_repo "$selected_repo"
         echo -e "${BLUE}Direct mode: Using repository '$selected_repo'${NC}" >&2
     else
         # Interactive mode - use gum to select

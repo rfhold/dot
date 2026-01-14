@@ -1,0 +1,10 @@
+# GPG signing configuration
+# This file is included by .gitconfig when GPG key is available
+[commit]
+	gpgsign = true
+[tag]
+	gpgSign = true
+[user]
+	signingkey = A33869EE3103EC567EF5FC528D37CEAFACDCC958
+[gpg]
+	program = gpg

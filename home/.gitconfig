@@ -1,11 +1,6 @@
-[commit]
-	gpgsign = true
-[tag]
-	gpgSign = true
 [user]
 	name = rfhold
 	email = rfhold@rholden.dev
-	signingkey = A33869EE3103EC567EF5FC528D37CEAFACDCC958
 [core]
 	editor = vim
 	excludesfile = ~/.gitignore
@@ -14,5 +9,5 @@
 	insteadOf = https://github.com/
 [url "git@gitlab.com:"]
 	insteadOf = https://gitlab.com/
-[gpg]
-	program = /opt/homebrew/bin/gpg
+[include]
+	path = ~/.gitconfig.local

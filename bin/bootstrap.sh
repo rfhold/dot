@@ -25,6 +25,63 @@ install_uv() {
     fi
 }
 
+install_bun() {
+    if command -v bun &> /dev/null; then
+        echo "bun found. Updating..."
+        bun upgrade
+    else
+        echo "Installing bun..."
+        curl -fsSL https://bun.sh/install | bash
+        export PATH="$HOME/.bun/bin:$PATH"
+    fi
+}
+
+install_go() {
+    local GO_VERSION="1.25.5"
+    local GO_INSTALL_DIR="/usr/local/go"
+    
+    # Determine architecture
+    local ARCH
+    case "$(uname -m)" in
+        x86_64) ARCH="amd64" ;;
+        aarch64|arm64) ARCH="arm64" ;;
+        *) echo "Unsupported architecture: $(uname -m)"; return 1 ;;
+    esac
+    
+    # Determine OS
+    local OS
+    case "$(uname -s)" in
+        Linux) OS="linux" ;;
+        Darwin) OS="darwin" ;;
+        *) echo "Unsupported OS: $(uname -s)"; return 1 ;;
+    esac
+    
+    # Check if Go is already installed at the correct version
+    if command -v go &> /dev/null; then
+        local CURRENT_VERSION
+        CURRENT_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+        if [[ "$CURRENT_VERSION" == "$GO_VERSION" ]]; then
+            echo "Go $GO_VERSION already installed."
+            return 0
+        fi
+        echo "Go $CURRENT_VERSION found. Upgrading to $GO_VERSION..."
+    else
+        echo "Installing Go $GO_VERSION..."
+    fi
+    
+    local TARBALL="go${GO_VERSION}.${OS}-${ARCH}.tar.gz"
+    local URL="https://go.dev/dl/${TARBALL}"
+    
+    # Download and extract
+    curl -fsSL "$URL" -o "/tmp/$TARBALL"
+    sudo rm -rf "$GO_INSTALL_DIR"
+    sudo tar -C /usr/local -xzf "/tmp/$TARBALL"
+    rm "/tmp/$TARBALL"
+    
+    export PATH="$GO_INSTALL_DIR/bin:$PATH"
+    echo "Go $GO_VERSION installed successfully."
+}
+
 clone_dotfiles() {
     if [[ ! -d "$HOME/dot" ]]; then
         echo "Cloning dotfiles..."
@@ -50,6 +107,22 @@ install_aur_helper() {
     rm -rf "$tmpdir"
 }
 
+setup_alpine() {
+    echo "Detected Alpine Linux"
+    sudo apk update
+    sudo apk add --no-cache \
+        build-base \
+        git \
+        curl \
+        python3 \
+        py3-pip
+
+    install_rustup
+    install_uv
+    install_go
+    install_bun
+}
+
 setup_arch() {
     echo "Detected Arch Linux"
     sudo pacman -Syu --noconfirm
@@ -57,6 +130,25 @@ setup_arch() {
     install_rustup
     install_aur_helper
     install_uv
+    install_go
+    install_bun
+}
+
+setup_debian() {
+    echo "Detected Debian/Ubuntu"
+    sudo apt-get update
+    sudo apt-get install -y \
+        build-essential \
+        git \
+        curl \
+        python3 \
+        python3-pip \
+        python3-venv
+
+    install_rustup
+    install_uv
+    install_go
+    install_bun
 }
 
 setup_macos() {
@@ -72,6 +164,8 @@ setup_macos() {
 
     install_rustup
     install_uv
+    install_go
+    install_bun
 
     echo "Upgrading Homebrew packages..."
     brew upgrade
@@ -85,6 +179,10 @@ case "$(uname -s)" in
     Linux)
         if [[ -f /etc/arch-release ]]; then
             setup_arch
+        elif [[ -f /etc/alpine-release ]]; then
+            setup_alpine
+        elif [[ -f /etc/debian_version ]]; then
+            setup_debian
         else
             echo "Unsupported Linux distro"
             exit 1
@@ -102,4 +200,4 @@ esac
 clone_dotfiles
 
 echo "Running update script..."
-"$HOME/dot/bin/update.sh"
+"$HOME/dot/bin/update.sh" -y

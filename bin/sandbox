@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Launch an interactive container with the current directory mounted at the same path
+#
+# Usage:
+#   sandbox              # Interactive shell in container
+#   sandbox <command>    # Run a command in the container
+#
+# Options:
+#   -p, --port <port>    Expose a port (can be used multiple times)
+#
+# Mounts:
+#   - Current directory at the same path (e.g., /Users/rfhold/dot)
+#   - ~/.local/share/opencode for shared opencode session data
+
+
+set -euo pipefail
+
+IMAGE="cr.holdenitdown.net/rfhold/dot"
+CURRENT_DIR="$(pwd)"
+OPENCODE_DATA="${HOME}/.local/share/opencode"
+
+# Detect container engine - prefer podman, fall back to docker
+if command -v podman &>/dev/null; then
+    ENGINE=podman
+elif command -v docker &>/dev/null; then
+    ENGINE=docker
+else
+    echo "Error: No container engine found. Install podman or docker." >&2
+    exit 1
+fi
+
+# Parse arguments
+PORTS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -p|--port)
+            PORTS+=(-p "$2:$2")
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+# Build mount arguments
+MOUNTS=(
+    -v "${CURRENT_DIR}:${CURRENT_DIR}"
+    -w "${CURRENT_DIR}"
+)
+
+# Mount opencode data directory (create if doesn't exist)
+if [[ ! -d "$OPENCODE_DATA" ]]; then
+    mkdir -p "$OPENCODE_DATA"
+fi
+MOUNTS+=(-v "${OPENCODE_DATA}:/home/rfhold/.local/share/opencode")
+
+# Determine command to run
+if [[ $# -gt 0 ]]; then
+    CMD=("$@")
+else
+    CMD=(fish)
+fi
+
+exec $ENGINE run --rm -it \
+    ${PORTS[@]+"${PORTS[@]}"} \
+    "${MOUNTS[@]}" \
+    "$IMAGE" \
+    "${CMD[@]}"

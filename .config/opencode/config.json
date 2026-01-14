@@ -7,14 +7,6 @@
     }
   },
   "share": "disabled",
-  "tools": {
-    "execute_agent": false,
-    "execute_tool": false,
-    "list_sessions": false,
-    "export_session": false,
-    "firecrawl*": false,
-    "websearch": false
-  },
   "mcp": {
     "firecrawl": {
       "type": "local",
@@ -46,6 +38,12 @@
     ".cursor/rules/*.md"
   ],
   "permission": {
+    "execute_agent": "deny",
+    "execute_tool": "deny",
+    "list_sessions": "deny",
+    "export_session": "deny",
+    "firecrawl*": "deny",
+    "websearch": "deny",
     "bash": {
       "*": "allow",
       "git status *": "allow",
@@ -77,7 +75,7 @@
       "az *": "ask",
       "gcp *": "ask",
       "npm *": "deny",
-      "npx *": "deny",
+      "npx *": "deny"
     }
   },
   "provider": {
@@ -100,5 +98,10 @@
       }
     }
   },
-  "autoupdate": false
+  "autoupdate": false,
+  "plugin": [
+    "@franlol/opencode-md-table-formatter@0.0.3",
+    "@tarquinen/opencode-dcp@beta",
+    "opencode-anthropic-auth@0.0.9"
+  ]
 }
