@@ -1,0 +1,15 @@
+#!/bin/bash
+# Restart the container by killing PID 1 (entrypoint)
+# K8s will restart the pod automatically
+set -e
+
+echo "Restarting container..."
+echo "K8s will restart the pod automatically."
+echo ""
+
+# Give user a chance to cancel
+read -p "Press Enter to restart (Ctrl+C to cancel)..."
+
+# Kill PID 1 - this will cause the container to exit
+# K8s restartPolicy will bring it back up
+sudo kill 1

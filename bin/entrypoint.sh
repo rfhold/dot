@@ -115,6 +115,12 @@ update_dotfiles() {
             # Convert from bare to normal repo
             git config --local --bool core.bare false
             
+            # Bare clones don't have a fetch refspec - add it so fetch works
+            git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+            
+            # Create remote tracking refs (bare clone doesn't have refs/remotes/*)
+            git fetch origin 2>/dev/null || true
+            
             # Reset index to match HEAD - files already match from Docker build
             git reset HEAD -- . >/dev/null 2>&1 || true
             

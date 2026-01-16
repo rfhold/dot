@@ -1,0 +1,14 @@
+#!/bin/bash
+# View entrypoint/container logs if available
+# In k8s, logs go to stdout which is captured by the kubelet
+
+echo "=== Recent dmesg (if accessible) ==="
+dmesg --time-format iso 2>/dev/null | tail -20 || echo "dmesg not accessible"
+
+echo ""
+echo "=== Journal (if accessible) ==="
+journalctl -n 50 2>/dev/null || echo "journalctl not accessible"
+
+echo ""
+echo "Note: Container stdout/stderr logs are captured by K8s."
+echo "View with: kubectl logs <pod-name> -n <namespace>"

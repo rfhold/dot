@@ -1,0 +1,17 @@
+#!/bin/bash
+# Pull latest dotfiles and run update script
+# Useful for applying changes without full container restart
+set -e
+
+cd ~/dot
+
+echo "=== Pulling latest dotfiles ==="
+git pull --ff-only origin main
+
+echo ""
+echo "=== Running update.sh ==="
+./bin/update.sh
+
+echo ""
+echo "Done! Some changes may require a container restart."
+echo "Run 'container-restart' to restart the container."

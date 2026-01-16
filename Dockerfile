@@ -64,7 +64,7 @@ RUN sudo chsh -s /usr/bin/fish $USERNAME
 SHELL ["/usr/bin/fish", "-c"]
 
 # Add go, bun, cargo, and local bin to PATH for all users
-ENV PATH="/home/rfhold/.local/bin:/usr/local/go/bin:/home/rfhold/.bun/bin:/home/rfhold/.cargo/bin:/home/rfhold/go/bin:${PATH}"
+ENV PATH="/home/rfhold/dot/bin/container:/home/rfhold/.local/bin:/usr/local/go/bin:/home/rfhold/.bun/bin:/home/rfhold/.cargo/bin:/home/rfhold/go/bin:${PATH}"
 
 # SSH access - mount authorized_keys at runtime:
 #   -v ~/.ssh/id_ed25519.pub:/home/$USERNAME/.ssh/authorized_keys:ro
