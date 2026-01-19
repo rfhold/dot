@@ -13,7 +13,7 @@ from pyinfra.operations import (
     cargo,
 )
 from pyinfra.facts.files import FindFiles, FindDirectories, File
-from pyinfra.facts.server import Home, Os, Which
+from pyinfra.facts.server import Command, Home, Os, Which
 from pyinfra_fisher import operations as fisher
 from pyinfra_yay import operations as yay
 from pyinfra_bun import operations as bun
@@ -71,9 +71,11 @@ PACKAGES = {
         "pacman": ["podman"],
     },
     # Packages only installed inside containers
+    # Note: apt packages require adding Docker/Kubernetes repos first (see container section below)
     "container": {
-        "apk": ["docker-cli", "docker-cli-compose", "docker-cli-buildx"],
-        "apt": ["docker-ce-cli", "docker-buildx-plugin", "docker-compose-plugin"],
+        "apk": ["docker-cli", "docker-cli-compose", "docker-cli-buildx", "kubectl"],
+        "pacman": ["docker", "docker-buildx", "docker-compose", "kubectl"],
+        "apt": [],  # Added via add_apt_repo() below
     },
 }
 
@@ -117,6 +119,54 @@ def install_packages(name, key, present=True):
         apk.packages(name=name, packages=pkgs, present=present, _sudo=True)
     elif pkg_manager == "apt":
         apt.packages(name=name, packages=pkgs, present=present, _sudo=True)
+
+
+def add_apt_repo(name, key_url, keyring_name, repo_line, filename):
+    """Add an apt repository with modern keyring approach (Debian only)."""
+    keyring_dir = "/etc/apt/keyrings"
+    keyring_path = f"{keyring_dir}/{keyring_name}"
+
+    # Ensure keyrings directory exists
+    files.directory(
+        name=f"[{name}] Create keyrings directory",
+        path=keyring_dir,
+        present=True,
+        mode="0755",
+        user="root",
+        group="root",
+        _sudo=True,
+    )
+
+    # Download and convert GPG key if not present
+    keyring_exists = host.get_fact(File, path=keyring_path)
+    if not keyring_exists:
+        server.shell(
+            name=f"[{name}] Download and convert GPG key",
+            commands=[
+                f"curl -fsSL '{key_url}' | gpg --dearmor -o '{keyring_path}'",
+            ],
+            _sudo=True,
+        )
+
+    # Ensure correct permissions on keyring
+    files.file(
+        name=f"[{name}] Set keyring permissions",
+        path=keyring_path,
+        present=True,
+        mode="0644",
+        user="root",
+        group="root",
+        _sudo=True,
+    )
+
+    # Add repository
+    apt.repo(
+        name=f"[{name}] Add apt repository",
+        src=repo_line,
+        filename=filename,
+        present=True,
+        _sudo=True,
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -185,6 +235,45 @@ install_packages("Install tools", "tools")
 
 # Environment-specific packages
 if is_container():
+    # Add Docker and Kubernetes repos for Debian (apt requires adding repos first)
+    if pkg_manager == "apt":
+        arch = host.get_fact(Command, command="dpkg --print-architecture").strip()
+
+        add_apt_repo(
+            name="Docker",
+            key_url="https://download.docker.com/linux/debian/gpg",
+            keyring_name="docker.gpg",
+            repo_line=f"deb [arch={arch} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable",
+            filename="docker",
+        )
+
+        add_apt_repo(
+            name="Kubernetes",
+            key_url="https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key",
+            keyring_name="kubernetes-apt-keyring.gpg",
+            repo_line=f"deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /",
+            filename="kubernetes",
+        )
+
+        # Update apt cache after adding repos
+        apt.update(
+            name="Update apt cache after adding repos",
+            _sudo=True,
+        )
+
+        # Install Docker and Kubernetes packages
+        apt.packages(
+            name="Install Docker CLI and kubectl",
+            packages=[
+                "docker-ce-cli",
+                "docker-buildx-plugin",
+                "docker-compose-plugin",
+                "kubectl",
+            ],
+            present=True,
+            _sudo=True,
+        )
+
     install_packages("Install container packages", "container")
 else:
     install_packages("Install bare metal packages", "bare_metal")

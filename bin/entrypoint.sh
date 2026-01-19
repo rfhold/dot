@@ -230,10 +230,107 @@ setup_known_hosts() {
 }
 
 # -----------------------------------------------------------------------------
+# Setup container engine access (Docker socket, DinD, Kubernetes)
+# -----------------------------------------------------------------------------
+setup_container_access() {
+    # Docker socket mounted from host
+    if [[ -S /var/run/docker.sock ]]; then
+        echo "[entrypoint] Docker socket detected at /var/run/docker.sock"
+        # Get the GID of the docker socket
+        # Use stat -c for Linux, stat -f for macOS/BSD
+        local docker_gid
+        if docker_gid=$(stat -c '%g' /var/run/docker.sock 2>/dev/null); then
+            : # Linux stat succeeded
+        elif docker_gid=$(stat -f '%g' /var/run/docker.sock 2>/dev/null); then
+            : # BSD stat succeeded
+        else
+            echo "[entrypoint] WARNING: Could not determine docker socket GID"
+            docker_gid=""
+        fi
+        
+        if [[ -n "$docker_gid" ]]; then
+            # Create docker group with matching GID if it doesn't exist
+            if ! getent group "$docker_gid" >/dev/null 2>&1; then
+                sudo groupadd -g "$docker_gid" docker 2>/dev/null || true
+            fi
+            # Add current user to the docker group
+            sudo usermod -aG "$docker_gid" "$(whoami)" 2>/dev/null || true
+            echo "[entrypoint] Added user to docker group (gid $docker_gid)"
+        fi
+    fi
+
+    # DinD via DOCKER_HOST environment variable
+    if [[ -n "${DOCKER_HOST:-}" ]]; then
+        echo "[entrypoint] DOCKER_HOST is set: $DOCKER_HOST"
+        # Verify connectivity
+        if docker info &>/dev/null; then
+            echo "[entrypoint] Docker daemon reachable via DOCKER_HOST"
+        else
+            echo "[entrypoint] WARNING: DOCKER_HOST set but cannot connect to daemon"
+        fi
+    fi
+
+    # Kubernetes in-cluster configuration
+    if [[ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]]; then
+        echo "[entrypoint] Kubernetes service account detected"
+        local kube_token kube_ca kube_ns
+        kube_token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        kube_ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        kube_ns=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace 2>/dev/null || echo "default")
+        
+        mkdir -p ~/.kube
+        
+        # Configure kubectl for in-cluster access
+        kubectl config set-cluster in-cluster \
+            --server=https://kubernetes.default.svc \
+            --certificate-authority="$kube_ca" \
+            --embed-certs=true 2>/dev/null || true
+        kubectl config set-credentials serviceaccount \
+            --token="$kube_token" 2>/dev/null || true
+        kubectl config set-context default \
+            --cluster=in-cluster \
+            --user=serviceaccount \
+            --namespace="$kube_ns" 2>/dev/null || true
+        kubectl config use-context default 2>/dev/null || true
+        
+        echo "[entrypoint] Kubernetes config written to ~/.kube/config (namespace: $kube_ns)"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Run bootstrap if not already done (for bootstrap-on-start images)
+# -----------------------------------------------------------------------------
+run_bootstrap_if_needed() {
+    local bootstrap_marker="$HOME/.bootstrap-complete"
+    local bootstrap_script="$HOME/dot/bin/bootstrap.sh"
+    
+    if [[ -f "$bootstrap_marker" ]]; then
+        echo "[entrypoint] Bootstrap already completed"
+        return 0
+    fi
+    
+    if [[ ! -x "$bootstrap_script" ]]; then
+        echo "[entrypoint] WARNING: Bootstrap script not found at $bootstrap_script"
+        return 1
+    fi
+    
+    echo "[entrypoint] Running first-time bootstrap (this may take a few minutes)..."
+    if "$bootstrap_script"; then
+        touch "$bootstrap_marker"
+        echo "[entrypoint] Bootstrap completed successfully"
+    else
+        echo "[entrypoint] WARNING: Bootstrap failed, will retry on next start"
+        return 1
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Start sshd
 # -----------------------------------------------------------------------------
 start_sshd() {
     echo "[entrypoint] Starting sshd..."
+    # Create privilege separation directory (required for sshd, tmpfs wipes it)
+    sudo mkdir -p /run/sshd
     sudo /usr/sbin/sshd -e
     echo "[entrypoint] sshd started on port 22"
 }
@@ -245,9 +342,15 @@ main() {
     setup_ssh_dir
     generate_host_keys
     setup_known_hosts
+    setup_container_access
+    run_bootstrap_if_needed
     update_dotfiles
     setup_runtime_env
     start_sshd
+    
+    # Supervisor loop variables
+    local PID_FILE="/tmp/app.pid"
+    local RESTART_FLAG="/tmp/app-restart-requested"
     
     # If no command provided, just keep the container alive
     # (user can SSH in to interact)
@@ -258,8 +361,34 @@ main() {
         exec sleep infinity
     fi
     
-    echo "[entrypoint] Executing: $*"
-    exec "$@"
+    # Supervisor loop with flag-based restart support
+    # Use app-restart to signal a restart without restarting the container
+    echo "[entrypoint] Starting supervised app: $*"
+    echo "[entrypoint] Use 'app-restart' to restart the app without container restart"
+    
+    while true; do
+        "$@" &
+        local APP_PID=$!
+        echo $APP_PID > "$PID_FILE"
+        echo "[entrypoint] App started with PID $APP_PID"
+        
+        # Wait for the app to exit
+        wait $APP_PID || true
+        local EXIT_CODE=$?
+        
+        # Check if restart was requested via app-restart
+        if [[ -f "$RESTART_FLAG" ]]; then
+            rm -f "$RESTART_FLAG"
+            echo "[entrypoint] Restart requested, restarting app..."
+            sleep 1
+            continue
+        fi
+        
+        # Natural exit - clean up and propagate exit code
+        rm -f "$PID_FILE"
+        echo "[entrypoint] App exited with code $EXIT_CODE"
+        exit $EXIT_CODE
+    done
 }
 
 main "$@"

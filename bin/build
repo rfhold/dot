@@ -2,9 +2,26 @@
 # Build the dotfiles Docker image
 #
 # Usage:
-#   build              # Build the image
-#   build --push       # Build and push to registry
-#   build --no-cache   # Build without cache
+#   build                           # Build debian target (default)
+#   build --target debian-bootstrap # Build debian-bootstrap target
+#   build --target arch             # Build arch target
+#   build --target arch-bootstrap   # Build arch-bootstrap target
+#   build --push                    # Build and push to registry
+#   build --no-cache                # Build without cache
+#   build --all                     # Build all targets
+#   build --platform linux/arm64    # Build for specific platform
+#   build --multi-arch              # Build multi-arch manifest (amd64 + arm64)
+#
+# Targets:
+#   debian           - Prebaked Debian image (default, recommended)
+#   debian-bootstrap - Debian with bootstrap-on-start
+#   arch             - Prebaked Arch Linux image (amd64 only)
+#   arch-bootstrap   - Arch Linux with bootstrap-on-start (amd64 only)
+#
+# Notes:
+#   - Arch targets are amd64-only (archlinux base image limitation)
+#   - Docker uses buildx for native multi-arch builds via remote builders
+#   - Podman uses manifest workflow with QEMU emulation
 
 set -euo pipefail
 
@@ -15,14 +32,20 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 # Detect container engine - prefer podman, fall back to docker
 if command -v podman &>/dev/null; then
     ENGINE=podman
+    USE_BUILDX=false
 elif command -v docker &>/dev/null; then
     ENGINE=docker
+    USE_BUILDX=true
 else
     echo "Error: No container engine found. Install podman or docker." >&2
     exit 1
 fi
 
 PUSH=false
+BUILD_ALL=false
+MULTI_ARCH=false
+TARGET="debian"
+PLATFORM=""
 BUILD_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -35,6 +58,22 @@ while [[ $# -gt 0 ]]; do
             BUILD_ARGS+=("--no-cache")
             shift
             ;;
+        --target)
+            TARGET="$2"
+            shift 2
+            ;;
+        --all)
+            BUILD_ALL=true
+            shift
+            ;;
+        --platform)
+            PLATFORM="$2"
+            shift 2
+            ;;
+        --multi-arch)
+            MULTI_ARCH=true
+            shift
+            ;;
         *)
             BUILD_ARGS+=("$1")
             shift
@@ -42,12 +81,157 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "Building $IMAGE with $ENGINE..."
-$ENGINE build "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}" -t "$IMAGE" "$REPO_DIR"
+# Map target to image tag
+get_tag_for_target() {
+    local target="$1"
+    case "$target" in
+        debian)
+            echo "latest"
+            ;;
+        *)
+            echo "$target"
+            ;;
+    esac
+}
 
-if [[ "$PUSH" == true ]]; then
-    echo "Pushing $IMAGE..."
-    $ENGINE push "$IMAGE"
+# Check if target supports multi-arch (arch targets are amd64-only)
+supports_multi_arch() {
+    local target="$1"
+    case "$target" in
+        arch|arch-bootstrap)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+# Build a single target for a single platform
+build_target() {
+    local target="$1"
+    local platform="${2:-}"
+    local tag
+    tag=$(get_tag_for_target "$target")
+    local full_image="$IMAGE:$tag"
+    
+    local platform_args=()
+    if [[ -n "$platform" ]]; then
+        platform_args=(--platform "$platform")
+        echo "Building $full_image (target: $target, platform: $platform) with $ENGINE..."
+    else
+        echo "Building $full_image (target: $target) with $ENGINE..."
+    fi
+    
+    if [[ "$USE_BUILDX" == true ]]; then
+        local push_args=()
+        if [[ "$PUSH" == true ]] && [[ -z "$platform" ]]; then
+            push_args=(--push)
+        else
+            push_args=(--load)
+        fi
+        $ENGINE buildx build "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}" \
+            "${platform_args[@]+"${platform_args[@]}"}" \
+            "${push_args[@]}" \
+            --target "$target" \
+            -t "$full_image" \
+            "$REPO_DIR"
+    else
+        $ENGINE build "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}" \
+            "${platform_args[@]+"${platform_args[@]}"}" \
+            --target "$target" \
+            -t "$full_image" \
+            "$REPO_DIR"
+        
+        if [[ "$PUSH" == true ]] && [[ -z "$platform" ]]; then
+            echo "Pushing $full_image..."
+            $ENGINE push "$full_image"
+        fi
+    fi
+}
+
+# Build multi-arch manifest for a target
+build_multi_arch_target() {
+    local target="$1"
+    local tag
+    tag=$(get_tag_for_target "$target")
+    local full_image="$IMAGE:$tag"
+    
+    if ! supports_multi_arch "$target"; then
+        echo "Warning: $target doesn't support multi-arch (amd64-only base image)"
+        echo "Building $target for linux/amd64 only..."
+        build_target "$target" "linux/amd64"
+        if [[ "$PUSH" == true ]]; then
+            if [[ "$USE_BUILDX" == true ]]; then
+                $ENGINE buildx build "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}" \
+                    --platform "linux/amd64" \
+                    --push \
+                    --target "$target" \
+                    -t "$full_image" \
+                    "$REPO_DIR"
+            else
+                $ENGINE push "$full_image"
+            fi
+        fi
+        return
+    fi
+    
+    echo "Building multi-arch manifest for $full_image..."
+    
+    if [[ "$USE_BUILDX" == true ]]; then
+        local push_args=()
+        if [[ "$PUSH" == true ]]; then
+            push_args=(--push)
+        fi
+        $ENGINE buildx build "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}" \
+            --platform "linux/amd64,linux/arm64" \
+            "${push_args[@]+"${push_args[@]}"}" \
+            --target "$target" \
+            -t "$full_image" \
+            "$REPO_DIR"
+        
+        if [[ "$PUSH" != true ]]; then
+            echo "Note: Multi-arch image built but not loaded locally (use --push to push to registry)"
+        fi
+    else
+        # Podman manifest workflow
+        $ENGINE manifest rm "$full_image" 2>/dev/null || true
+        $ENGINE manifest create "$full_image"
+        
+        for platform in linux/amd64 linux/arm64; do
+            echo ""
+            echo "Building $full_image for $platform..."
+            $ENGINE build "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}" \
+                --platform "$platform" \
+                --manifest "$full_image" \
+                --target "$target" \
+                "$REPO_DIR"
+        done
+        
+        if [[ "$PUSH" == true ]]; then
+            echo ""
+            echo "Pushing multi-arch manifest $full_image..."
+            $ENGINE manifest push --all "$full_image" "docker://$full_image"
+        fi
+    fi
+}
+
+# Main build logic
+if [[ "$BUILD_ALL" == true ]]; then
+    for t in debian debian-bootstrap arch arch-bootstrap; do
+        if [[ "$MULTI_ARCH" == true ]]; then
+            build_multi_arch_target "$t"
+        elif [[ -n "$PLATFORM" ]]; then
+            build_target "$t" "$PLATFORM"
+        else
+            build_target "$t"
+        fi
+        echo ""
+    done
+elif [[ "$MULTI_ARCH" == true ]]; then
+    build_multi_arch_target "$TARGET"
+else
+    build_target "$TARGET" "$PLATFORM"
 fi
 
 echo "Done."
