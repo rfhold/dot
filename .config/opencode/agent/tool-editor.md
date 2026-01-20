@@ -1,7 +1,7 @@
 ---
 description: Creates and refines OpenCode custom TypeScript tools with comprehensive capabilities including API integration, file operations, data processing, and external service access. Use when creating new tools or improving existing ones.
 mode: subagent
-permissions:
+permission:
   execute_tool: allow
   write: allow
   edit: allow

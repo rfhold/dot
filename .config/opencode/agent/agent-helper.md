@@ -1,7 +1,7 @@
 ---
 description: Manages OpenCode configuration (agents, commands, tools) by delegating to specialized -editor subagents.
 mode: primary
-permissions:
+permission:
   read: allow
   grep: allow
   glob: allow

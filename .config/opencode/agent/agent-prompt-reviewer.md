@@ -1,7 +1,7 @@
 ---
 description: Prompt engineering quality reviewer analyzing OpenCode agent configurations for adherence to Anthropic's best practices. Invoke after creating or updating agents to validate prompt quality and get actionable improvement recommendations.
 mode: subagent
-permissions:
+permission:
   read: allow
   list: allow
   grep: allow

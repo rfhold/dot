@@ -42,8 +42,8 @@
     "execute_tool": "deny",
     "list_sessions": "deny",
     "export_session": "deny",
-    "firecrawl*": "deny",
     "websearch": "deny",
+    "firecrawl_*": "deny",
     "bash": {
       "*": "allow",
       "git status *": "allow",

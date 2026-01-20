@@ -1,7 +1,7 @@
 ---
 description: Creates and refines OpenCode slash commands following Anthropic prompt engineering best practices. Use when creating new commands or improving existing ones.
 mode: subagent
-permissions:
+permission:
   write: allow
   edit: allow
   read: allow

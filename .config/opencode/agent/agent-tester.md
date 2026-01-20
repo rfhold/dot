@@ -1,7 +1,7 @@
 ---
 description: Comprehensive agent validation specialist that tests agents, subagents, slash commands, and custom tools. Can inspect sessions with list_sessions and export_session, execute targeted test cases with execute_agent, and validate custom tools with execute_tool. Use after creating or modifying agents, commands, or tools.
 mode: subagent
-permissions:
+permission:
   execute_tool: allow
   execute_agent: allow
   list_sessions: allow

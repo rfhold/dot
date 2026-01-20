@@ -1,7 +1,7 @@
 ---
 description: Research documentation and online resources to gather comprehensive information on any technical topic. Analyzes official docs, community resources, and implementation patterns. Use this agent PROACTIVELY.
 mode: subagent
-permissions:
+permission:
   firecrawl_firecrawl_scrape: allow
   firecrawl_firecrawl_map: allow
   firecrawl_firecrawl_search: allow

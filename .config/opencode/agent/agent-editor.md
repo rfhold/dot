@@ -1,7 +1,7 @@
 ---
 description: Expert agent architect specializing in creating and refining OpenCode agents using Anthropic prompt engineering best practices. Invoked when designing new agents, improving existing ones, or applying prompt engineering principles to agent architecture.
 mode: subagent
-permissions:
+permission:
   write: allow
   edit: allow
   read: allow

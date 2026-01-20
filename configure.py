@@ -391,14 +391,15 @@ go.packages(
 # AUR packages (Arch only)
 # -----------------------------------------------------------------------------
 
-if pkg_manager == "pacman":
-    yay.packages(
-        name="Install AUR packages",
-        packages=[
-            "opencode",
-        ],
-        present=True,
-    )
+# Skipped - opencode is pre-installed in the container image
+# if pkg_manager == "pacman":
+#     yay.packages(
+#         name="Install AUR packages",
+#         packages=[
+#             "opencode",
+#         ],
+#         present=True,
+#     )
 
 # -----------------------------------------------------------------------------
 # OpenSSH Server (Arch only)
