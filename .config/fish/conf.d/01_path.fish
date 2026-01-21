@@ -4,8 +4,6 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export GOPATH="$HOME/go"
 export GOPRIVATE="github.com/cfaintl"
 
-# Docker host (colima on macOS, default socket on Linux)
-
 export OLLAMA_API_BASE="https://ollama.holdenitdown.net"
 
 export DOTDIR="$HOME/dot"
