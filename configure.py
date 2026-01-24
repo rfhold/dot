@@ -42,7 +42,7 @@ PACKAGES = {
     },
     "gpg": {
         "brew": ["gnupg", "pinentry-mac"],
-        "pacman": ["gnupg", "pinentry"],
+        "pacman": ["gnupg", "pinentry", "libsecret", "gnome-keyring"],
         "apk": ["gnupg", "pinentry"],
         "apt": ["gnupg", "pinentry-curses"],
     },

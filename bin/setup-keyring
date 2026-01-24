@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Initializes gnome-keyring with a default collection for secure storage
+#
+# Usage:
+#   setup-keyring          # Interactive setup - prompts for password
+#   setup-keyring --check  # Exit 0 if keyring is ready, 1 if needs setup
+
+set -euo pipefail
+
+# Check if secret-tool is available
+if ! command -v secret-tool &>/dev/null; then
+    echo "Error: secret-tool not found. Install libsecret." >&2
+    exit 1
+fi
+
+# Check if gnome-keyring-daemon is running
+check_daemon() {
+    if ! pgrep -x gnome-keyring-d &>/dev/null; then
+        return 1
+    fi
+    return 0
+}
+
+# Check if the default collection exists and is unlocked
+check_keyring_ready() {
+    # Try to lookup a non-existent key - if it returns empty (not error), keyring is ready
+    if secret-tool lookup __keyring_test__ __nonexistent__ &>/dev/null; then
+        return 0
+    fi
+    # Also check if we can store (which means collection exists)
+    if echo "test" | secret-tool store --label="keyring-check" __keyring_check__ __test__ &>/dev/null; then
+        # Clean up test entry
+        secret-tool clear __keyring_check__ __test__ &>/dev/null || true
+        return 0
+    fi
+    return 1
+}
+
+# Handle --check flag
+if [[ "${1:-}" == "--check" ]]; then
+    if ! check_daemon; then
+        echo "daemon_not_running"
+        exit 1
+    fi
+    if check_keyring_ready; then
+        echo "ready"
+        exit 0
+    else
+        echo "needs_setup"
+        exit 1
+    fi
+fi
+
+# Ensure daemon is running
+if ! check_daemon; then
+    echo "Starting gnome-keyring-daemon..."
+    gnome-keyring-daemon --start --components=secrets,pkcs11 &>/dev/null
+    sleep 1
+fi
+
+if ! check_daemon; then
+    echo "Error: Failed to start gnome-keyring-daemon" >&2
+    exit 1
+fi
+
+# Check if already set up
+if check_keyring_ready; then
+    echo "Keyring is already initialized and unlocked."
+    exit 0
+fi
+
+echo "Initializing default keyring collection..."
+echo "You will be prompted to set a password for your keyring."
+echo ""
+
+# Store an initialization secret - this triggers the keyring creation dialog
+# The user will be prompted by gnome-keyring to create/unlock the default keyring
+if echo "initialized" | secret-tool store --label="Keyring Initialized" __keyring_init__ timestamp "$(date -Iseconds)"; then
+    echo ""
+    echo "Keyring initialized successfully!"
+    echo "Your secrets are now stored securely."
+else
+    echo "Error: Failed to initialize keyring" >&2
+    exit 1
+fi
