@@ -16,6 +16,13 @@
 set -euo pipefail
 
 IMAGE="cr.holdenitdown.net/rfhold/dot"
+
+# Detect host OS to select appropriate image tag
+if [[ -f /etc/os-release ]] && grep -q '^ID=arch' /etc/os-release; then
+    IMAGE="${IMAGE}:arch"
+else
+    IMAGE="${IMAGE}:latest"
+fi
 CURRENT_DIR="$(pwd)"
 OPENCODE_DATA="${HOME}/.local/share/opencode"
 
@@ -62,7 +69,15 @@ else
     CMD=(fish)
 fi
 
+# Build engine-specific options
+ENGINE_OPTS=()
+if [[ "$ENGINE" == "podman" ]]; then
+    # Keep host UID inside container (fixes permission issues without modifying files)
+    ENGINE_OPTS+=(--userns=keep-id)
+fi
+
 exec $ENGINE run --rm -it \
+    ${ENGINE_OPTS[@]+"${ENGINE_OPTS[@]}"} \
     ${PORTS[@]+"${PORTS[@]}"} \
     "${MOUNTS[@]}" \
     "$IMAGE" \

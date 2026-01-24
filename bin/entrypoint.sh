@@ -336,9 +336,21 @@ start_sshd() {
 }
 
 # -----------------------------------------------------------------------------
+# Mark directories as safe for git (ownership differs when mounted from host)
+# -----------------------------------------------------------------------------
+setup_git_safe_directories() {
+    # Mark directories as safe for git (ownership may differ when mounted from host)
+    # Use system-level config since ~/.gitconfig may be a symlink into ~/dot
+    # which git refuses to read before the directory is marked safe
+    sudo git config --system --add safe.directory "$HOME/dot" 2>/dev/null || true
+    sudo git config --system --add safe.directory "$(pwd)" 2>/dev/null || true
+}
+
+# -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
 main() {
+    setup_git_safe_directories
     setup_ssh_dir
     generate_host_keys
     setup_known_hosts
@@ -359,6 +371,13 @@ main() {
         echo "[entrypoint] Connect via: ssh -p <port> $(whoami)@<host>"
         # Sleep forever - sshd handles connections in background
         exec sleep infinity
+    fi
+    
+    # Check if we're running interactively (TTY attached)
+    # Interactive commands like fish/bash need direct exec, not backgrounding
+    if [[ -t 0 && -t 1 ]]; then
+        echo "[entrypoint] Interactive mode detected, exec'ing: $*"
+        exec "$@"
     fi
     
     # Supervisor loop with flag-based restart support

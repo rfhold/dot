@@ -99,7 +99,8 @@ RUN groupadd -g $USER_GID $USERNAME \
     && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && passwd -d $USERNAME
 
-COPY etc/sshd_config /etc/ssh/sshd_config
+# Use Arch-specific sshd_config (different sftp path, no PrintLastLog)
+COPY etc/sshd_config.arch /etc/ssh/sshd_config
 
 # =============================================================================
 # DEBIAN COMMON - Copy dotfiles and configure environment
@@ -152,6 +153,9 @@ ARG USERNAME=rfhold
 # Run bootstrap (installs rustup, uv, go, bun and runs pyinfra)
 RUN /home/$USERNAME/dot/bin/bootstrap.sh
 
+# Mark bootstrap complete so entrypoint skips it
+RUN touch /home/$USERNAME/.bootstrap-complete
+
 # Set fish as the user's login shell
 RUN sudo chsh -s /usr/bin/fish $USERNAME
 
@@ -174,6 +178,9 @@ ARG USERNAME=rfhold
 
 # Run bootstrap (installs rustup, uv, go, bun and runs pyinfra)
 RUN /home/$USERNAME/dot/bin/bootstrap.sh
+
+# Mark bootstrap complete so entrypoint skips it
+RUN touch /home/$USERNAME/.bootstrap-complete
 
 # Set fish as the user's login shell
 RUN sudo chsh -s /usr/bin/fish $USERNAME

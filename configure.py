@@ -76,6 +76,7 @@ PACKAGES = {
         "pacman": [
             "podman",
             "podman-docker",  # Docker CLI compat + socket at /var/run/docker.sock
+            "podman-compose",  # Docker Compose compatibility
             "qemu-user-static",  # QEMU emulation binaries
             "qemu-user-static-binfmt",  # binfmt_misc registration
         ],
@@ -246,6 +247,19 @@ def is_container():
     if host.get_fact(File, path="/run/.containerenv") is not None:
         return True
     return False
+
+
+def has_systemd():
+    """Check if systemd is running (PID 1 is systemd)."""
+    # During Docker build, there's no init system, so systemd operations will fail
+    comm = host.get_fact(File, path="/proc/1/comm")
+    if comm is None:
+        return False
+    # Read the actual content to check if it's systemd
+    result = host.get_fact(
+        Command, command="cat /proc/1/comm 2>/dev/null || echo unknown"
+    )
+    return result.strip() == "systemd" if result else False
 
 
 os_name = host.get_fact(Os)
@@ -629,10 +643,19 @@ if pkg_manager == "pacman" and is_container():
         _sudo=True,
     )
 
-    systemd.service(
-        name="Enable and start sshd",
-        service="sshd",
-        running=True,
-        enabled=True,
-        _sudo=True,
-    )
+    if has_systemd():
+        # If systemd is running, use the proper operation to enable and start
+        systemd.service(
+            name="Enable and start sshd",
+            service="sshd",
+            running=True,
+            enabled=True,
+            _sudo=True,
+        )
+    else:
+        # During Docker build, systemd isn't running - just enable for boot
+        server.shell(
+            name="Enable sshd for boot",
+            commands=["systemctl enable sshd.service"],
+            _sudo=True,
+        )

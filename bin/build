@@ -2,7 +2,7 @@
 # Build the dotfiles Docker image
 #
 # Usage:
-#   build                           # Build debian target (default)
+#   build                           # Build target for host OS (arch on Arch, debian otherwise)
 #   build --target debian-bootstrap # Build debian-bootstrap target
 #   build --target arch             # Build arch target
 #   build --target arch-bootstrap   # Build arch-bootstrap target
@@ -44,7 +44,12 @@ fi
 PUSH=false
 BUILD_ALL=false
 MULTI_ARCH=false
-TARGET="debian"
+# Detect host OS to set default target
+if [[ -f /etc/os-release ]] && grep -q '^ID=arch' /etc/os-release; then
+    TARGET="arch"
+else
+    TARGET="debian"
+fi
 PLATFORM=""
 BUILD_ARGS=()
 

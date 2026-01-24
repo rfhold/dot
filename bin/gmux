@@ -45,6 +45,10 @@ clone_repo() {
         
         if git clone "$personal_url" "$full_path" 2>/dev/null; then
             echo -e "${GREEN}Successfully cloned $repo_path from personal server${NC}" >&2
+            # Add GitHub as a secondary remote
+            local github_url="git@github.com:${repo_path}.git"
+            echo -e "${BLUE}Adding GitHub remote: $github_url${NC}" >&2
+            git -C "$full_path" remote add github "$github_url"
             return 0
         fi
         echo -e "${YELLOW}Not found on personal server, trying GitHub...${NC}" >&2
