@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Auto-selecting pinentry wrapper
+# Detects the current environment and delegates to the appropriate pinentry program
+
+# Try to execute a pinentry, checking if it actually works
+try_pinentry() {
+    local prog="$1"
+    if [[ -x "$prog" ]] && "$prog" --version >/dev/null 2>&1; then
+        exec "$prog" "${@:2}"
+    fi
+    return 1
+}
+
+case "$(uname -s)" in
+    Darwin)
+        # macOS - prefer Homebrew ARM path, fallback to Intel
+        try_pinentry /opt/homebrew/bin/pinentry-mac "$@"
+        try_pinentry /usr/local/bin/pinentry-mac "$@"
+        ;;
+    Linux)
+        # Graphical environment (Hyprland/Wayland/X11) → try GUI pinentries
+        if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]] || [[ -n "${DISPLAY:-}" ]]; then
+            try_pinentry /usr/bin/pinentry-gnome3 "$@"
+            try_pinentry /usr/bin/pinentry-gtk "$@"
+            try_pinentry /usr/bin/pinentry-qt "$@"
+            try_pinentry /usr/bin/pinentry-qt5 "$@"
+        fi
+        # Fallback to TUI pinentries
+        try_pinentry /usr/bin/pinentry-curses "$@"
+        try_pinentry /usr/bin/pinentry-tty "$@"
+        ;;
+esac
+
+# Final fallback to whatever pinentry is in PATH
+exec pinentry "$@"
