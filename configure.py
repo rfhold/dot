@@ -69,7 +69,12 @@ PACKAGES = {
     # Packages only installed on bare metal (not in containers)
     "bare_metal": {
         "brew": ["podman"],
-        "pacman": ["podman"],
+        "pacman": [
+            "podman",
+            "podman-docker",  # Docker CLI compat + socket at /var/run/docker.sock
+            "qemu-user-static",  # QEMU emulation binaries
+            "qemu-user-static-binfmt",  # binfmt_misc registration
+        ],
     },
     # Packages only installed inside containers
     # Note: apt packages require adding Docker/Kubernetes repos first (see container section below)
@@ -341,6 +346,25 @@ else:
         systemd.service(
             name="Enable NetworkManager",
             service="NetworkManager",
+            running=True,
+            enabled=True,
+            _sudo=True,
+        )
+
+        # Podman socket for Docker API compatibility
+        # podman-docker configures socket at /var/run/docker.sock
+        systemd.service(
+            name="Enable podman socket for Docker compatibility",
+            service="podman.socket",
+            running=True,
+            enabled=True,
+            _sudo=True,
+        )
+
+        # Enable binfmt service for QEMU cross-arch builds
+        systemd.service(
+            name="Enable binfmt for QEMU cross-arch builds",
+            service="systemd-binfmt",
             running=True,
             enabled=True,
             _sudo=True,
