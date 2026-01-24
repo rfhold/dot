@@ -1,11 +1,11 @@
 """
-Yay AUR helper operations for pyinfra.
+Paru AUR helper operations for pyinfra.
 
 Example usage in configure.py:
 
-    from pyinfra_yay import operations as yay
+    from pyinfra_paru import operations as paru
 
-    yay.packages(
+    paru.packages(
         name="Install AUR packages",
         packages=[
             'opencode',
@@ -17,4 +17,4 @@ Example usage in configure.py:
 
 from . import operations, facts
 
-__all__ = ['operations', 'facts']
+__all__ = ["operations", "facts"]

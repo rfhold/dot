@@ -15,10 +15,10 @@ from pyinfra.operations import (
 from pyinfra.facts.files import FindFiles, FindDirectories, File
 from pyinfra.facts.server import Command, Home, Os, Which
 from pyinfra_fisher import operations as fisher
-from pyinfra_yay import operations as yay
+from pyinfra_paru import operations as paru
 from pyinfra_bun import operations as bun
 from pyinfra_go import operations as go
-from pyinfra_git.facts import GitSigningConfigCurrent
+from pyinfra_git.facts import GitSigningConfigCurrent, GpgAgentConfigCurrent
 
 # Check if we're in upgrade mode
 upgrade_mode = os.environ.get("DOTFILES_UPGRADE", "0") == "1"
@@ -47,8 +47,8 @@ PACKAGES = {
         "apt": ["gnupg", "pinentry-curses"],
     },
     "terminal": {
-        "brew": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf"],
-        "pacman": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf"],
+        "brew": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop"],
+        "pacman": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop"],
         "apk": [
             "fish",
             "tmux",
@@ -56,8 +56,9 @@ PACKAGES = {
             "ripgrep",
             "fd",
             "fzf",
+            "btop",
         ],  # fisher installed via curl
-        "apt": ["fish", "tmux", "neovim", "ripgrep", "fd-find", "fzf"],
+        "apt": ["fish", "tmux", "neovim", "ripgrep", "fd-find", "fzf", "btop"],
     },
     "tools": {
         "brew": ["pulumi", "gh", "argon2"],
@@ -76,6 +77,50 @@ PACKAGES = {
         "apk": ["docker-cli", "docker-cli-compose", "docker-cli-buildx", "kubectl"],
         "pacman": ["docker", "docker-buildx", "docker-compose", "kubectl"],
         "apt": [],  # Added via add_apt_repo() below
+    },
+    # Hyprland desktop environment (Arch bare metal only)
+    "hyprland": {
+        "pacman": [
+            # Core Hyprland
+            "hyprland",
+            "xdg-desktop-portal-hyprland",
+            # Hypr ecosystem
+            "hyprpaper",
+            "hyprlock",
+            "hypridle",
+            "hyprpicker",
+            "hyprpolkitagent",
+            "hyprcursor",
+            # Desktop utilities
+            "waybar",
+            "fuzzel",
+            "mako",
+            "yazi",
+            # Screenshot & clipboard
+            "grim",
+            "slurp",
+            "wl-clipboard",
+            "cliphist",
+            # System utilities
+            "brightnessctl",
+            "pamixer",
+            "playerctl",
+            # Terminal
+            "ghostty",
+            # Theming
+            "nwg-look",
+            "qt5ct",
+            "qt6ct",
+            "qt5-wayland",
+            "qt6-wayland",
+            # Network/Bluetooth
+            "networkmanager",
+            "network-manager-applet",
+            "blueman",
+            # Fonts for waybar icons
+            "ttf-font-awesome",
+            "noto-fonts",
+        ],
     },
 }
 
@@ -278,6 +323,29 @@ if is_container():
 else:
     install_packages("Install bare metal packages", "bare_metal")
 
+    # Hyprland desktop environment (Arch only)
+    if pkg_manager == "pacman":
+        install_packages("Install Hyprland desktop", "hyprland")
+
+        # Add user to required groups for GPU/display access
+        username = host.get_fact(Command, command="whoami").strip()
+        server.shell(
+            name="Add user to required groups for Hyprland",
+            commands=[
+                f"usermod -aG video,input,render {username}",
+            ],
+            _sudo=True,
+        )
+
+        # Enable NetworkManager for network management
+        systemd.service(
+            name="Enable NetworkManager",
+            service="NetworkManager",
+            running=True,
+            enabled=True,
+            _sudo=True,
+        )
+
 # GUI apps (macOS only)
 if pkg_manager == "brew":
     brew.casks(name="Install GUI applications", casks=CASKS)
@@ -295,6 +363,19 @@ if not git_signing_current:
     server.shell(
         name="Configure git signing based on GPG key availability",
         commands=[git_signing_script],
+    )
+
+# -----------------------------------------------------------------------------
+# GPG agent configuration
+# -----------------------------------------------------------------------------
+
+gpg_agent_script = f"{home}/dot/bin/setup-gpg-agent"
+gpg_agent_current = host.get_fact(GpgAgentConfigCurrent, script_path=gpg_agent_script)
+
+if not gpg_agent_current:
+    server.shell(
+        name="Configure GPG agent based on OS and desktop environment",
+        commands=[gpg_agent_script],
     )
 
 # -----------------------------------------------------------------------------
@@ -391,15 +472,14 @@ go.packages(
 # AUR packages (Arch only)
 # -----------------------------------------------------------------------------
 
-# Skipped - opencode is pre-installed in the container image
-# if pkg_manager == "pacman":
-#     yay.packages(
-#         name="Install AUR packages",
-#         packages=[
-#             "opencode",
-#         ],
-#         present=True,
-#     )
+if pkg_manager == "pacman" and not is_container():
+    paru.packages(
+        name="Install AUR packages",
+        packages=[
+            "librewolf-bin",
+        ],
+        present=True,
+    )
 
 # -----------------------------------------------------------------------------
 # OpenSSH Server (Arch only)

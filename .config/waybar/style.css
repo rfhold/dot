@@ -1,0 +1,185 @@
+/* =============================================================================
+   Waybar Styles - Aura Theme
+   ============================================================================= */
+
+/* Color Variables */
+@define-color bg #0f0f0f;
+@define-color bg-alt #1f2937;
+@define-color fg #9ca3af;
+@define-color fg-bright #d1d5db;
+@define-color purple #a78bfa;
+@define-color purple-bright #c084fc;
+@define-color lavender #e9d5ff;
+@define-color cyan #7dd3fc;
+@define-color green #6ee7b7;
+@define-color yellow #fbbf24;
+@define-color red #fca5a1;
+@define-color gray #6b7280;
+
+/* Global Styles */
+* {
+    font-family: "Noto Sans", "Font Awesome 6 Free", sans-serif;
+    font-size: 13px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+window#waybar {
+    background: alpha(@bg, 0.9);
+    border-radius: 8px;
+    color: @fg;
+}
+
+window#waybar.hidden {
+    opacity: 0.2;
+}
+
+/* Tooltip */
+tooltip {
+    background: @bg;
+    border: 1px solid @purple;
+    border-radius: 8px;
+}
+
+tooltip label {
+    color: @fg;
+    padding: 4px;
+}
+
+/* Module Containers */
+#workspaces,
+#window,
+#clock,
+#tray,
+#network,
+#bluetooth,
+#pulseaudio,
+#backlight,
+#battery {
+    padding: 0 12px;
+    margin: 4px 2px;
+    background: transparent;
+    border-radius: 6px;
+}
+
+/* Workspaces */
+#workspaces {
+    padding: 0 4px;
+}
+
+#workspaces button {
+    padding: 0 8px;
+    margin: 4px 2px;
+    color: @gray;
+    background: transparent;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+#workspaces button:hover {
+    background: alpha(@purple, 0.2);
+    color: @purple-bright;
+}
+
+#workspaces button.active {
+    background: alpha(@purple, 0.3);
+    color: @lavender;
+}
+
+#workspaces button.urgent {
+    background: alpha(@red, 0.3);
+    color: @red;
+}
+
+/* Window Title */
+#window {
+    color: @fg;
+    font-weight: 500;
+}
+
+/* Clock */
+#clock {
+    color: @fg-bright;
+    font-weight: 600;
+}
+
+/* Tray */
+#tray {
+    padding: 0 8px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
+    background-color: alpha(@yellow, 0.2);
+}
+
+/* Network */
+#network {
+    color: @cyan;
+}
+
+#network.disconnected {
+    color: @gray;
+}
+
+/* Bluetooth */
+#bluetooth {
+    color: @cyan;
+}
+
+#bluetooth.disabled {
+    color: @gray;
+}
+
+#bluetooth.connected {
+    color: @cyan;
+}
+
+/* Audio */
+#pulseaudio {
+    color: @purple;
+}
+
+#pulseaudio.muted {
+    color: @gray;
+}
+
+/* Backlight */
+#backlight {
+    color: @yellow;
+}
+
+/* Battery */
+#battery {
+    color: @green;
+}
+
+#battery.charging {
+    color: @green;
+}
+
+#battery.plugged {
+    color: @cyan;
+}
+
+#battery.warning:not(.charging) {
+    background: alpha(@yellow, 0.2);
+    color: @yellow;
+}
+
+#battery.critical:not(.charging) {
+    background: alpha(@red, 0.3);
+    color: @red;
+    animation: blink 0.5s linear infinite alternate;
+}
+
+@keyframes blink {
+    to {
+        background: alpha(@red, 0.5);
+    }
+}

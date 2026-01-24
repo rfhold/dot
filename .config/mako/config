@@ -1,0 +1,47 @@
+# =============================================================================
+# Mako Configuration
+# =============================================================================
+
+# General settings
+max-visible=5
+sort=-time
+layer=overlay
+anchor=top-right
+
+# Appearance
+font=Noto Sans 11
+background-color=#0f0f0fdd
+text-color=#d1d5dbff
+border-color=#a78bfaff
+border-radius=8
+border-size=2
+
+# Dimensions
+width=350
+height=100
+margin=8
+padding=12
+icon-path=/usr/share/icons/Adwaita
+max-icon-size=48
+
+# Behavior
+default-timeout=5000
+ignore-timeout=0
+
+# Actions
+on-button-left=dismiss
+on-button-middle=none
+on-button-right=dismiss-all
+on-touch=dismiss
+
+# Urgency-based styling
+[urgency=low]
+border-color=#6b7280ff
+default-timeout=3000
+
+[urgency=normal]
+border-color=#a78bfaff
+
+[urgency=critical]
+border-color=#fca5a1ff
+default-timeout=0

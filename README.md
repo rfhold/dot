@@ -1,6 +1,6 @@
 # Dotfiles
 
-A comprehensive dotfiles management system using PyInfra for automated setup and configuration of macOS development environment.
+A comprehensive dotfiles management system using PyInfra for automated setup and configuration of macOS and Arch Linux development environments.
 
 ## Overview
 
@@ -141,6 +141,153 @@ Run `./bin/update.sh` anytime to:
 
 ## Requirements
 
-- macOS (tested on recent versions)
+- macOS (tested on recent versions) or Arch Linux
 - Internet connection for downloading tools
 - Admin privileges for some installations
+
+## Hyprland Desktop Environment (Arch Linux)
+
+On Arch Linux bare metal systems, a complete Hyprland desktop environment is installed with the following components:
+
+| Component     | Tool      | Description                      |
+| ------------- | --------- | -------------------------------- |
+| Compositor    | Hyprland  | Dynamic tiling Wayland compositor |
+| Status Bar    | Waybar    | Customizable status bar          |
+| Launcher      | Fuzzel    | Fast application launcher        |
+| Notifications | Mako      | Lightweight notification daemon  |
+| Wallpaper     | Hyprpaper | Wallpaper manager                |
+| Lock Screen   | Hyprlock  | GPU-accelerated screen locker    |
+| Idle Daemon   | Hypridle  | Idle management                  |
+| File Manager  | Yazi      | Terminal-based file manager      |
+| Terminal      | Ghostty   | GPU-accelerated terminal         |
+
+### Hyprland Keybindings
+
+#### Applications
+
+| Keybind         | Action                           |
+| --------------- | -------------------------------- |
+| `SUPER + Return`  | Open terminal (Ghostty)          |
+| `SUPER + D`       | Open application launcher        |
+| `SUPER + E`       | Open file manager (Yazi)         |
+| `SUPER + B`       | Open browser (Firefox)           |
+| `SUPER + V`       | Open clipboard history           |
+
+#### Window Management
+
+| Keybind                 | Action                 |
+| ----------------------- | ---------------------- |
+| `SUPER + Q`               | Close window           |
+| `SUPER + SHIFT + Q`       | Exit Hyprland          |
+| `SUPER + F`               | Toggle fullscreen      |
+| `SUPER + Space`           | Toggle floating        |
+| `SUPER + P`               | Toggle pseudo-tile     |
+| `SUPER + S`               | Toggle split direction |
+
+#### Focus (Vim-style)
+
+| Keybind     | Action       |
+| ----------- | ------------ |
+| `SUPER + H`   | Focus left   |
+| `SUPER + J`   | Focus down   |
+| `SUPER + K`   | Focus up     |
+| `SUPER + L`   | Focus right  |
+
+#### Move Windows
+
+| Keybind           | Action      |
+| ----------------- | ----------- |
+| `SUPER + SHIFT + H` | Move left   |
+| `SUPER + SHIFT + J` | Move down   |
+| `SUPER + SHIFT + K` | Move up     |
+| `SUPER + SHIFT + L` | Move right  |
+
+#### Resize Windows
+
+| Keybind          | Action        |
+| ---------------- | ------------- |
+| `SUPER + CTRL + H` | Shrink width  |
+| `SUPER + CTRL + L` | Grow width    |
+| `SUPER + CTRL + K` | Shrink height |
+| `SUPER + CTRL + J` | Grow height   |
+
+#### Workspaces
+
+| Keybind             | Action                       |
+| ------------------- | ---------------------------- |
+| `SUPER + 1-9, 0`      | Switch to workspace 1-10     |
+| `SUPER + SHIFT + 1-9` | Move window to workspace     |
+| `SUPER + ]`           | Next workspace               |
+| `SUPER + [`           | Previous workspace           |
+| `SUPER + \``          | Toggle special workspace     |
+| `SUPER + SHIFT + \``  | Move to special workspace    |
+
+#### Screenshots
+
+| Keybind               | Action                          |
+| --------------------- | ------------------------------- |
+| `Print`                 | Screenshot region to clipboard  |
+| `SHIFT + Print`         | Screenshot screen to clipboard  |
+| `SUPER + Print`         | Screenshot region to file       |
+| `SUPER + SHIFT + Print` | Screenshot screen to file       |
+
+#### System
+
+| Keybind           | Action            |
+| ----------------- | ----------------- |
+| `SUPER + SHIFT + X` | Lock screen       |
+| `SUPER + SHIFT + C` | Color picker      |
+
+#### Media Keys
+
+| Key                    | Action                 |
+| ---------------------- | ---------------------- |
+| `XF86AudioRaiseVolume`   | Volume up              |
+| `XF86AudioLowerVolume`   | Volume down            |
+| `XF86AudioMute`          | Toggle mute            |
+| `XF86AudioMicMute`       | Toggle mic mute        |
+| `XF86MonBrightnessUp`    | Brightness up          |
+| `XF86MonBrightnessDown`  | Brightness down        |
+| `XF86AudioPlay`          | Play/Pause media       |
+| `XF86AudioNext`          | Next track             |
+| `XF86AudioPrev`          | Previous track         |
+
+#### Mouse Bindings
+
+| Keybind                  | Action        |
+| ------------------------ | ------------- |
+| `SUPER + Left Click`       | Move window   |
+| `SUPER + Right Click`      | Resize window |
+| `SUPER + Scroll`           | Cycle workspaces |
+
+### Hyprland Configuration Files
+
+All configuration files are located in `~/.config/`:
+
+| File                        | Purpose                                     |
+| --------------------------- | ------------------------------------------- |
+| `hypr/hyprland.conf`          | Main Hyprland configuration                 |
+| `hypr/hyprpaper.conf`         | Wallpaper configuration                     |
+| `hypr/hyprlock.conf`          | Lock screen appearance                      |
+| `hypr/hypridle.conf`          | Idle timeout behavior                       |
+| `waybar/config`               | Status bar modules and layout               |
+| `waybar/style.css`            | Status bar styling (Aura theme)             |
+| `fuzzel/fuzzel.ini`           | Application launcher settings               |
+| `mako/config`                 | Notification daemon settings                |
+
+### Setting a Wallpaper
+
+Edit `~/.config/hypr/hyprpaper.conf` and uncomment/modify:
+
+```conf
+preload = ~/Pictures/Wallpapers/your-wallpaper.png
+wallpaper = , ~/Pictures/Wallpapers/your-wallpaper.png
+```
+
+### Idle Behavior
+
+The default idle configuration:
+- **2.5 minutes**: Screen dims to 30%
+- **5 minutes**: Screen locks
+- **5.5 minutes**: Display turns off
+- **30 minutes**: System suspends

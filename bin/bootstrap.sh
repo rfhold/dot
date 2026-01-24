@@ -94,16 +94,16 @@ clone_dotfiles() {
 # -----------------------------------------------------------------------------
 
 install_aur_helper() {
-    if command -v paru &> /dev/null || command -v yay &> /dev/null; then
-        echo "AUR helper found."
+    if command -v paru &> /dev/null; then
+        echo "paru found."
         return
     fi
 
-    echo "Installing yay..."
+    echo "Installing paru..."
     local tmpdir
     tmpdir=$(mktemp -d)
-    git clone https://aur.archlinux.org/yay.git "$tmpdir/yay"
-    (cd "$tmpdir/yay" && makepkg -si --noconfirm)
+    git clone https://aur.archlinux.org/paru.git "$tmpdir/paru"
+    (cd "$tmpdir/paru" && makepkg -si --noconfirm)
     rm -rf "$tmpdir"
 }
 
