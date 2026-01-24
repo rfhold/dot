@@ -10,3 +10,4 @@ opencode.jsonc
 .gnupg/openpgp-revocs.d/
 .gnupg/trustdb.gpg
 .gnupg/public-keys.d/
+.librewolf/
