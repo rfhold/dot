@@ -66,6 +66,10 @@ PACKAGES = {
         "apk": ["github-cli", "argon2"],
         "apt": ["gh", "argon2"],
     },
+    # Security hardening packages (Arch bare metal only)
+    "security": {
+        "pacman": ["nftables"],
+    },
     # Packages only installed on bare metal (not in containers)
     "bare_metal": {
         "brew": ["podman"],
@@ -334,13 +338,18 @@ else:
 
         # Add user to required groups for GPU/display access
         username = host.get_fact(Command, command="whoami").strip()
-        server.shell(
-            name="Add user to required groups for Hyprland",
-            commands=[
-                f"usermod -aG video,input,render {username}",
-            ],
-            _sudo=True,
-        )
+        current_groups = host.get_fact(Command, command="groups").strip().split()
+        required_groups = ["video", "input", "render"]
+        missing_groups = [g for g in required_groups if g not in current_groups]
+
+        if missing_groups:
+            server.user(
+                name="Add user to required groups for Hyprland",
+                user=username,
+                groups=missing_groups,
+                append=True,
+                _sudo=True,
+            )
 
         # Enable NetworkManager for network management
         systemd.service(
@@ -369,6 +378,81 @@ else:
             enabled=True,
             _sudo=True,
         )
+
+        # ---------------------------------------------------------------------
+        # Security hardening (Arch bare metal only)
+        # ---------------------------------------------------------------------
+
+        install_packages("Install security packages", "security")
+
+        # Deploy nftables firewall configuration
+        files.put(
+            name="Deploy nftables firewall config",
+            src=f"{home}/dot/etc/nftables.conf",
+            dest="/etc/nftables.conf",
+            mode="644",
+            user="root",
+            group="root",
+            _sudo=True,
+        )
+
+        # nftables is a oneshot service - it loads rules and exits
+        # running=False prevents pyinfra from trying to "start" a oneshot
+        systemd.service(
+            name="Enable nftables firewall",
+            service="nftables",
+            running=False,
+            enabled=True,
+            _sudo=True,
+        )
+
+        # Deploy sysctl hardening configuration
+        sysctl_config = files.put(
+            name="Deploy sysctl hardening config",
+            src=f"{home}/dot/etc/sysctl.d/99-hardening.conf",
+            dest="/etc/sysctl.d/99-hardening.conf",
+            mode="644",
+            user="root",
+            group="root",
+            _sudo=True,
+        )
+
+        # Only reload sysctl if config changed
+        if sysctl_config.changed:
+            server.shell(
+                name="Apply sysctl hardening settings",
+                commands=["sysctl --system"],
+                _sudo=True,
+            )
+
+        # Deploy NetworkManager MAC randomization config
+        files.directory(
+            name="Ensure NetworkManager conf.d directory exists",
+            path="/etc/NetworkManager/conf.d",
+            present=True,
+            mode="755",
+            user="root",
+            group="root",
+            _sudo=True,
+        )
+
+        nm_config = files.put(
+            name="Deploy NetworkManager MAC randomization config",
+            src=f"{home}/dot/etc/NetworkManager/conf.d/99-mac-randomization.conf",
+            dest="/etc/NetworkManager/conf.d/99-mac-randomization.conf",
+            mode="644",
+            user="root",
+            group="root",
+            _sudo=True,
+        )
+
+        # Only reload NetworkManager if config changed
+        if nm_config.changed:
+            server.shell(
+                name="Reload NetworkManager configuration",
+                commands=["nmcli general reload conf"],
+                _sudo=True,
+            )
 
 # GUI apps (macOS only)
 if pkg_manager == "brew":
@@ -506,9 +590,10 @@ if pkg_manager == "pacman" and not is_container():
     )
 
 # -----------------------------------------------------------------------------
-# OpenSSH Server (Arch only)
+# OpenSSH Server (containers only - bare metal doesn't need incoming SSH)
 # -----------------------------------------------------------------------------
 
+# SSH client is useful everywhere, but SSH server only in containers
 if pkg_manager == "pacman":
     pacman.packages(
         name="Install OpenSSH",
@@ -517,6 +602,23 @@ if pkg_manager == "pacman":
         _sudo=True,
     )
 
+# Ensure .ssh directory and authorized_keys exist (for SSH client use)
+files.directory(
+    name="Ensure .ssh directory exists",
+    path=f"{home}/.ssh",
+    mode="700",
+    present=True,
+)
+
+files.download(
+    name="Download GitHub public keys for rfhold",
+    src="https://github.com/rfhold.keys",
+    dest=f"{home}/.ssh/authorized_keys",
+    mode="600",
+)
+
+# SSH server configuration (containers only)
+if pkg_manager == "pacman" and is_container():
     files.put(
         name="Configure sshd for key-only authentication",
         src=f"{home}/dot/etc/sshd_config.d/99-key-only.conf",
@@ -525,20 +627,6 @@ if pkg_manager == "pacman":
         user="root",
         group="root",
         _sudo=True,
-    )
-
-    files.directory(
-        name="Ensure .ssh directory exists",
-        path=f"{home}/.ssh",
-        mode="700",
-        present=True,
-    )
-
-    files.download(
-        name="Download GitHub public keys for rfhold",
-        src="https://github.com/rfhold.keys",
-        dest=f"{home}/.ssh/authorized_keys",
-        mode="600",
     )
 
     systemd.service(
