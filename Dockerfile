@@ -15,7 +15,7 @@
 # =============================================================================
 # DEBIAN BASE STAGE
 # =============================================================================
-FROM debian:bookworm-slim AS debian-base
+FROM docker.io/library/debian:bookworm-slim AS debian-base
 
 # Install base dependencies required for bootstrap
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -47,7 +47,7 @@ RUN mkdir -p /run/sshd
 # =============================================================================
 # ARCH BASE STAGE
 # =============================================================================
-FROM archlinux:latest AS arch-base
+FROM docker.io/library/archlinux:latest AS arch-base
 
 # Install base dependencies
 RUN pacman -Syu --noconfirm \

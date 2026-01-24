@@ -19,6 +19,7 @@ export OPENCODE_API=https://opencode-api.holdenitdown.net
 if test (uname) = "Darwin"
     export PATH="$PATH:/opt/homebrew/bin"
 end
+export PATH="$PATH:/usr/local/go/bin"
 export PATH="$PATH:$GOPATH/bin"
 export PATH="$PATH:$HOME/.local/bin"
 export PATH="$PATH:$HOME/.cargo/bin"
