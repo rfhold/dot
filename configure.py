@@ -62,7 +62,7 @@ PACKAGES = {
     },
     "tools": {
         "brew": ["pulumi", "gh", "argon2"],
-        "pacman": ["github-cli", "argon2"],  # pulumi via AUR
+        "pacman": ["github-cli", "argon2", "pulumi"],
         "apk": ["github-cli", "argon2"],
         "apt": ["gh", "argon2"],
     },
@@ -127,6 +127,7 @@ PACKAGES = {
             "networkmanager",
             "network-manager-applet",
             "blueman",
+            "kdeconnect",
             # Fonts for waybar icons
             "ttf-font-awesome",
             "noto-fonts",
