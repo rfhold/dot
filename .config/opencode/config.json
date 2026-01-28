@@ -83,14 +83,22 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "Homelab",
       "options": {
-        "baseURL": "https://vllm.holdenitdown.net/v1"
+        "baseURL": "https://litellm.holdenitdown.net/v1"
       },
       "models": {
-        "zai-org/GLM-4.7-Flash": {
+        "vllm/zai-org/glm-4.7-flash": {
           "name": "GLM-4.7-Flash",
           "options": {
             "temperature": 0.7,
             "top_p": 1.0
+          }
+        },
+        "vllm/qwen/qwen3-coder-30b-a3b": {
+          "name": "Qwen3-Coder-30B-A3B",
+          "options": {
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "repetition_penalty": 1.05
           }
         }
       }
