@@ -62,7 +62,16 @@ PACKAGES = {
     },
     "tools": {
         "brew": ["pulumi", "gh", "argon2"],
-        "pacman": ["github-cli", "argon2", "pulumi"],
+        "pacman": [
+            "github-cli",
+            "argon2",
+            "pulumi",
+            "kubectl",
+            "p7zip",
+            "wireguard-tools",
+            "openresolv",
+            "yubikey-manager",
+        ],
         "apk": ["github-cli", "argon2"],
         "apt": ["gh", "argon2"],
     },
@@ -532,6 +541,17 @@ fisher.packages(
     ],
     present=True,
 )
+
+# Ensure fish-ai venv is set up (fisher install may not trigger hooks properly)
+fish_ai_venv = f"{home}/.local/share/fish-ai"
+if not host.get_fact(File, path=fish_ai_venv):
+    server.shell(
+        name="Setup fish-ai venv using uv",
+        commands=[
+            f"uv venv --seed --python 3.13 {fish_ai_venv}",
+            f"{fish_ai_venv}/bin/pip install fish-ai@git+https://github.com/realiserad/fish-ai",
+        ],
+    )
 
 # -----------------------------------------------------------------------------
 # Node.js (via nvm.fish)

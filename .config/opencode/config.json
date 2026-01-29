@@ -46,6 +46,7 @@
     "firecrawl_*": "deny",
     "bash": {
       "*": "allow",
+      "pkexe *": "ask",
       "kill *": "ask",
       "pkill *": "ask",
       "gh *": "ask",
@@ -74,6 +75,7 @@
       "kubectl cluster-info *": "allow",
       "kubectl wait *": "allow",
       "kubectl diff *": "allow",
+      "sudo *": "deny",
       "npm *": "deny",
       "npx *": "deny"
     }
