@@ -71,6 +71,8 @@ PACKAGES = {
             "wireguard-tools",
             "openresolv",
             "yubikey-manager",
+            "bind-tools",
+            "jq",
         ],
         "apk": ["github-cli", "argon2"],
         "apt": ["gh", "argon2"],
@@ -81,11 +83,13 @@ PACKAGES = {
     },
     # Packages only installed on bare metal (not in containers)
     "bare_metal": {
-        "brew": ["podman"],
+        "brew": [],  # Docker Desktop installed via cask
         "pacman": [
-            "podman",
-            "podman-docker",  # Docker CLI compat + socket at /var/run/docker.sock
-            "podman-compose",  # Docker Compose compatibility
+            "docker",
+            "docker-buildx",
+            "docker-compose",
+            "rootlesskit",  # Required for rootless Docker
+            "passt",  # Provides pasta for rootless Docker networking
             "qemu-user-static",  # QEMU emulation binaries
             "qemu-user-static-binfmt",  # binfmt_misc registration
         ],
@@ -144,7 +148,15 @@ PACKAGES = {
     },
 }
 
-CASKS = ["ghostty", "slack", "spotify", "obsidian", "linearmouse", "bitwarden"]
+CASKS = [
+    "docker",
+    "ghostty",
+    "slack",
+    "spotify",
+    "obsidian",
+    "linearmouse",
+    "bitwarden",
+]
 
 BREW_TAPS = ["pulumi/tap"]
 
@@ -384,15 +396,59 @@ else:
             _sudo=True,
         )
 
-        # Podman socket for Docker API compatibility
-        # podman-docker configures socket at /var/run/docker.sock
-        systemd.service(
-            name="Enable podman socket for Docker compatibility",
-            service="podman.socket",
-            running=True,
-            enabled=True,
+        # Docker rootless setup (uses docker-rootless-extras AUR package)
+        # Configure subuid/subgid for rootless containers
+        files.line(
+            name="Configure subuid for rootless Docker",
+            path="/etc/subuid",
+            line=f"{username}:100000:65536",
+            present=True,
             _sudo=True,
         )
+
+        files.line(
+            name="Configure subgid for rootless Docker",
+            path="/etc/subgid",
+            line=f"{username}:100000:65536",
+            present=True,
+            _sudo=True,
+        )
+
+        # Enable user lingering (allows user services to run at boot)
+        server.shell(
+            name="Enable user lingering for rootless Docker",
+            commands=[f"loginctl enable-linger {username}"],
+            _sudo=True,
+        )
+
+        # Load iptables kernel modules at boot (required for Docker networking)
+        server.shell(
+            name="Configure iptables modules to load at boot",
+            commands=[
+                "echo -e 'ip_tables\\niptable_nat\\niptable_filter' > /etc/modules-load.d/docker-rootless.conf"
+            ],
+            _sudo=True,
+        )
+
+        # Disable rootful Docker (we use rootless instead)
+        systemd.service(
+            name="Disable rootful Docker socket",
+            service="docker.socket",
+            running=False,
+            enabled=False,
+            _sudo=True,
+        )
+
+        systemd.service(
+            name="Disable rootful Docker service",
+            service="docker.service",
+            running=False,
+            enabled=False,
+            _sudo=True,
+        )
+
+        # NOTE: Rootless Docker user service is enabled after AUR packages are installed
+        # (see end of file after paru.packages)
 
         # Enable binfmt service for QEMU cross-arch builds
         systemd.service(
@@ -616,12 +672,29 @@ go.packages(
 # -----------------------------------------------------------------------------
 
 if pkg_manager == "pacman" and not is_container():
+    # Refresh sudo credentials before AUR install (paru calls sudo internally)
+    server.shell(
+        name="Refresh sudo credentials for AUR install",
+        commands=["true"],
+        _sudo=True,
+    )
+
     paru.packages(
         name="Install AUR packages",
         packages=[
+            "docker-rootless-extras",  # Rootless Docker systemd user units
             "librewolf-bin",
         ],
         present=True,
+    )
+
+    # Enable rootless Docker user service (now that docker-rootless-extras is installed)
+    server.shell(
+        name="Enable rootless Docker socket",
+        commands=[
+            "systemctl --user enable docker.socket",
+            "systemctl --user start docker.socket",
+        ],
     )
 
 # -----------------------------------------------------------------------------

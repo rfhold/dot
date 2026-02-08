@@ -39,7 +39,7 @@ def packages(packages=None, present=True):
         ]
 
         for package in to_install:
-            yield f"paru -S --noconfirm --needed {package}"
+            yield f"paru -S --noconfirm --skipreview --needed {package}"
     else:
         to_remove = [pkg for pkg in packages if pkg.lower() in current_packages_lower]
 

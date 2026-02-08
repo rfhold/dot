@@ -32,13 +32,13 @@ end
 # Clear line on CTRL + C
 bind --preset \cC 'cancel-commandline'
 
-# Aliases
-# Container engine detection - prefer podman, fall back to docker
-if command -q podman
-    set -gx CONTAINER_ENGINE podman
-    alias docker='podman'
-else if command -q docker
+# Container engine configuration
+if command -q docker
     set -gx CONTAINER_ENGINE docker
+    # Docker rootless on Linux - set DOCKER_HOST to user socket
+    if test (uname) = "Linux"; and test -S "$XDG_RUNTIME_DIR/docker.sock"
+        set -gx DOCKER_HOST "unix://$XDG_RUNTIME_DIR/docker.sock"
+    end
 end
 
 starship init fish | source
