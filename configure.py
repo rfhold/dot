@@ -130,6 +130,8 @@ PACKAGES = {
             "playerctl",
             # Terminal
             "ghostty",
+            # Notifications
+            "libnotify",
             # Theming
             "nwg-look",
             "qt5ct",

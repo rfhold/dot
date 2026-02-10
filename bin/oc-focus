@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# oc-focus - Focus the tmux pane running a specific OpenCode session
+#
+# Usage: oc-focus <breadcrumb-file>
+# The breadcrumb file contains: tmux_session:window.pane
+#
+# Called by Mako notification actions when clicking "Focus"
+
+set -euo pipefail
+
+BREADCRUMB_FILE="$1"
+
+if [[ ! -f "$BREADCRUMB_FILE" ]]; then
+    notify-send -a "opencode" -u low "OpenCode" "Session breadcrumb not found"
+    exit 1
+fi
+
+# Breadcrumb format:
+#   Line 1: tmux target "session:window.pane"
+#   Line 2 (optional): Hyprland window address for precise focusing
+TMUX_TARGET=$(sed -n '1p' "$BREADCRUMB_FILE")
+HYPR_ADDR=$(sed -n '2p' "$BREADCRUMB_FILE")
+
+if [[ -z "$TMUX_TARGET" ]]; then
+    notify-send -a "opencode" -u low "OpenCode" "Empty breadcrumb file"
+    exit 1
+fi
+
+# Extract session name for validation
+TMUX_SESSION="${TMUX_TARGET%%:*}"
+
+# Check if the tmux session still exists
+if ! tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+    notify-send -a "opencode" -u low "OpenCode" "Tmux session '$TMUX_SESSION' no longer exists"
+    rm -f "$BREADCRUMB_FILE"
+    exit 1
+fi
+
+# Focus the correct Ghostty window
+# If we have a Hyprland window address, use it for precise targeting
+# Otherwise fall back to matching any Ghostty window
+if [[ -n "$HYPR_ADDR" ]]; then
+    # Find the workspace of this specific window by address
+    GHOSTTY_WORKSPACE=$(hyprctl clients -j 2>/dev/null | \
+        python3 -c "
+import sys, json
+addr = '$HYPR_ADDR'
+clients = json.load(sys.stdin)
+for c in clients:
+    if c.get('address') == addr:
+        print(c['workspace']['id'])
+        break
+" 2>/dev/null) || true
+
+    if [[ -n "$GHOSTTY_WORKSPACE" ]]; then
+        hyprctl dispatch workspace "$GHOSTTY_WORKSPACE" 2>/dev/null || true
+        sleep 0.05
+        hyprctl dispatch focuswindow "address:${HYPR_ADDR}" 2>/dev/null || true
+    else
+        # Address no longer valid (window closed/recreated), fall back
+        hyprctl dispatch focuswindow "class:com.mitchellh.ghostty" 2>/dev/null || true
+    fi
+else
+    # No address stored — fall back to first Ghostty window
+    GHOSTTY_WORKSPACE=$(hyprctl clients -j 2>/dev/null | \
+        python3 -c "
+import sys, json
+clients = json.load(sys.stdin)
+for c in clients:
+    if c.get('class') == 'com.mitchellh.ghostty':
+        print(c['workspace']['id'])
+        break
+" 2>/dev/null) || true
+
+    if [[ -n "$GHOSTTY_WORKSPACE" ]]; then
+        hyprctl dispatch workspace "$GHOSTTY_WORKSPACE" 2>/dev/null || true
+        sleep 0.05
+        hyprctl dispatch focuswindow "class:com.mitchellh.ghostty" 2>/dev/null || true
+    else
+        hyprctl dispatch focuswindow "class:com.mitchellh.ghostty" 2>/dev/null || true
+    fi
+fi
+
+# Small delay to let the window focus complete
+sleep 0.1
+
+# Switch to the correct tmux session, window, and pane
+tmux switch-client -t "$TMUX_SESSION" 2>/dev/null || true
+tmux select-window -t "$TMUX_TARGET" 2>/dev/null || true
+tmux select-pane -t "$TMUX_TARGET" 2>/dev/null || true
