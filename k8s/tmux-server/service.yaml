@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tmux-server
+  namespace: tmux-server
+spec:
+  selector:
+    app: tmux-server
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

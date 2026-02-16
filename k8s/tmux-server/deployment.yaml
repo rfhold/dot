@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmux-server
+  namespace: tmux-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tmux-server
+  template:
+    metadata:
+      labels:
+        app: tmux-server
+    spec:
+      containers:
+        - name: tmux-server
+          image: cr.holdenitdown.net/rfhold/tmux-server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LISTEN_ADDR
+              value: ":8080"
+            - name: SESSION_TTL
+              value: "60s"
+            - name: SKIP_AUTH
+              value: "true"
+            # When Authentik is configured, remove SKIP_AUTH and uncomment:
+            # - name: AUTHENTIK_ISSUER
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: tmux-server-secrets
+            #       key: AUTHENTIK_ISSUER
+            # - name: OIDC_CLIENT_IDS
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: tmux-server-secrets
+            #       key: OIDC_CLIENT_IDS
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

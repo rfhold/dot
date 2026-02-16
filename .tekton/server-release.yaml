@@ -1,0 +1,228 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: server-release
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[push]"
+    pipelinesascode.tekton.dev/on-target-branch: "[refs/tags/v*]"
+    pipelinesascode.tekton.dev/on-path-change: "[cmd/**, internal/**, Dockerfile.tmux-server, go.mod, go.sum]"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  params:
+    - name: repo-url
+      value: "{{ repo_url }}"
+    - name: revision
+      value: "{{ revision }}"
+  pipelineSpec:
+    params:
+      - name: repo-url
+        type: string
+      - name: revision
+        type: string
+    workspaces:
+      - name: source
+    tasks:
+      - name: fetch-repository
+        taskSpec:
+          params:
+            - name: repo-url
+              type: string
+            - name: revision
+              type: string
+          workspaces:
+            - name: output
+          steps:
+            - name: clone
+              image: alpine/git:latest
+              workingDir: $(workspaces.output.path)
+              script: |
+                #!/bin/sh
+                set -e
+                git clone $(params.repo-url) .
+                git checkout $(params.revision)
+        params:
+          - name: repo-url
+            value: $(params.repo-url)
+          - name: revision
+            value: $(params.revision)
+        workspaces:
+          - name: output
+            workspace: source
+
+      - name: resolve-version
+        runAfter: [fetch-repository]
+        taskSpec:
+          params:
+            - name: revision
+              type: string
+          results:
+            - name: tag
+              description: The version tag (e.g. v1.0.0)
+          workspaces:
+            - name: source
+          steps:
+            - name: resolve
+              image: alpine/git:latest
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/bin/sh
+                set -e
+                TAG=$(git describe --tags --exact-match $(params.revision) 2>/dev/null || echo "")
+                if [ -z "$TAG" ]; then
+                  echo "No tag found at revision $(params.revision)"
+                  exit 1
+                fi
+                echo "Found tag: $TAG"
+                echo -n "$TAG" > $(results.tag.path)
+        params:
+          - name: revision
+            value: $(params.revision)
+        workspaces:
+          - name: source
+            workspace: source
+
+      - name: build-amd64
+        runAfter: [resolve-version]
+        taskSpec:
+          params:
+            - name: image
+              type: string
+            - name: buildkit-addr
+              type: string
+          workspaces:
+            - name: source
+          steps:
+            - name: build
+              image: moby/buildkit:v0.26.3
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/bin/sh
+                set -e
+                buildctl \
+                  --addr tcp://$(params.buildkit-addr) \
+                  build \
+                  --frontend dockerfile.v0 \
+                  --local context=. \
+                  --local dockerfile=. \
+                  --opt filename=Dockerfile.tmux-server \
+                  --opt platform=linux/amd64 \
+                  --output type=image,name=$(params.image),push=true
+                echo "amd64 image pushed: $(params.image)"
+        params:
+          - name: image
+            value: "{{ params.CONTAINER_REGISTRY }}/rfhold/tmux-server:$(tasks.resolve-version.results.tag)-amd64"
+          - name: buildkit-addr
+            value: "{{ params.BUILDKIT_AMD64_ADDR }}"
+        workspaces:
+          - name: source
+            workspace: source
+
+      - name: build-arm64
+        runAfter: [resolve-version]
+        taskSpec:
+          params:
+            - name: image
+              type: string
+            - name: buildkit-addr
+              type: string
+          workspaces:
+            - name: source
+          steps:
+            - name: build
+              image: moby/buildkit:v0.26.3
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/bin/sh
+                set -e
+                buildctl \
+                  --addr tcp://$(params.buildkit-addr) \
+                  build \
+                  --frontend dockerfile.v0 \
+                  --local context=. \
+                  --local dockerfile=. \
+                  --opt filename=Dockerfile.tmux-server \
+                  --opt platform=linux/arm64 \
+                  --output type=image,name=$(params.image),push=true
+                echo "arm64 image pushed: $(params.image)"
+        params:
+          - name: image
+            value: "{{ params.CONTAINER_REGISTRY }}/rfhold/tmux-server:$(tasks.resolve-version.results.tag)-arm64"
+          - name: buildkit-addr
+            value: "{{ params.BUILDKIT_ARM64_ADDR }}"
+        workspaces:
+          - name: source
+            workspace: source
+
+      - name: create-manifest
+        runAfter: [build-amd64, build-arm64]
+        taskSpec:
+          params:
+            - name: base-image
+              type: string
+            - name: tag
+              type: string
+          steps:
+            - name: manifest
+              image: mplatform/manifest-tool:alpine-v2.1.7
+              script: |
+                #!/bin/sh
+                set -e
+                # Create versioned manifest
+                manifest-tool push from-args \
+                  --platforms linux/amd64,linux/arm64 \
+                  --template $(params.base-image):$(params.tag)-ARCH \
+                  --target $(params.base-image):$(params.tag)
+                echo "Manifest created: $(params.base-image):$(params.tag)"
+
+                # Also tag as latest
+                manifest-tool push from-args \
+                  --platforms linux/amd64,linux/arm64 \
+                  --template $(params.base-image):$(params.tag)-ARCH \
+                  --target $(params.base-image):latest
+                echo "Manifest created: $(params.base-image):latest"
+        params:
+          - name: base-image
+            value: "{{ params.CONTAINER_REGISTRY }}/rfhold/tmux-server"
+          - name: tag
+            value: "$(tasks.resolve-version.results.tag)"
+
+    finally:
+      - name: notify-failure
+        when:
+          - input: $(tasks.status)
+            operator: in
+            values: ["Failed"]
+        taskSpec:
+          volumes:
+            - name: git-auth
+              secret:
+                secretName: "{{ git_auth_secret }}"
+          steps:
+            - name: create-issue
+              image: curlimages/curl:latest
+              volumeMounts:
+                - name: git-auth
+                  mountPath: /etc/git-auth
+              script: |
+                #!/bin/sh
+                set -e
+                TOKEN=$(cat /etc/git-auth/git-provider-token)
+                HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
+                  "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
+                  -H "Authorization: token $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"title\": \"Server image build failed for {{ revision }}\", \"body\": \"The tmux-server container build pipeline failed. Check the [Tekton dashboard](https://tekton.holdenitdown.net) for details.\"}")
+                if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+                  echo "Failed to create issue (HTTP $HTTP_CODE)"
+                  cat /tmp/response.json
+                  exit 1
+                fi
+                echo "Failure issue created (HTTP $HTTP_CODE)"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi

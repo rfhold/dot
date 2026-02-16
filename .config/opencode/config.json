@@ -108,7 +108,6 @@
   },
   "autoupdate": false,
   "plugin": [
-    "@franlol/opencode-md-table-formatter@0.0.3",
-    "@tarquinen/opencode-dcp@beta"
+    "@franlol/opencode-md-table-formatter@0.0.3"
   ]
 }

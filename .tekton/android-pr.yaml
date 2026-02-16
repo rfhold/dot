@@ -1,0 +1,88 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: android-pr
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/on-path-change: "[android/**]"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  params:
+    - name: repo-url
+      value: "{{ repo_url }}"
+    - name: revision
+      value: "{{ revision }}"
+  pipelineSpec:
+    params:
+      - name: repo-url
+        type: string
+      - name: revision
+        type: string
+    workspaces:
+      - name: source
+    tasks:
+      - name: fetch-repository
+        taskSpec:
+          params:
+            - name: repo-url
+              type: string
+            - name: revision
+              type: string
+          workspaces:
+            - name: output
+          steps:
+            - name: clone
+              image: alpine/git:latest
+              workingDir: $(workspaces.output.path)
+              script: |
+                #!/bin/sh
+                set -e
+                git clone $(params.repo-url) .
+                git checkout $(params.revision)
+        params:
+          - name: repo-url
+            value: $(params.repo-url)
+          - name: revision
+            value: $(params.revision)
+        workspaces:
+          - name: output
+            workspace: source
+
+      - name: build-apk
+        runAfter: [fetch-repository]
+        taskSpec:
+          workspaces:
+            - name: source
+          steps:
+            - name: fix-permissions
+              image: alpine:latest
+              workingDir: $(workspaces.source.path)
+              script: |
+                #!/bin/sh
+                set -e
+                chmod -R 777 .
+            - name: build
+              image: cimg/android:2025.10.1
+              workingDir: $(workspaces.source.path)/android
+              env:
+                - name: ANDROID_HOME
+                  value: /home/circleci/android-sdk
+                - name: GRADLE_USER_HOME
+                  value: $(workspaces.source.path)/.gradle
+              script: |
+                #!/bin/sh
+                set -e
+                sh ./gradlew assembleDebug --no-daemon --stacktrace
+                echo "Android build succeeded"
+        workspaces:
+          - name: source
+            workspace: source
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 4Gi
