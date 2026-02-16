@@ -699,6 +699,14 @@ if pkg_manager == "pacman" and not is_container():
         ],
     )
 
+    # Enable tmux-agent user service (pushes tmux sessions to server)
+    server.shell(
+        name="Enable tmux-agent user service",
+        commands=[
+            "systemctl --user daemon-reload && systemctl --user enable --now tmux-agent.service"
+        ],
+    )
+
 # -----------------------------------------------------------------------------
 # OpenSSH Server (containers only - bare metal doesn't need incoming SSH)
 # -----------------------------------------------------------------------------

@@ -45,14 +45,10 @@ import dev.rholden.dot.api.TmuxApiClient
 import dev.rholden.dot.auth.AuthManager
 import dev.rholden.dot.data.SettingsStore
 import dev.rholden.dot.ui.theme.Green400
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settingsStore: SettingsStore,
@@ -63,7 +59,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    // Read persisted values (used to seed local state)
+    // Read persisted values
     val persistedServerUrl by settingsStore.serverUrl.collectAsState(initial = "")
     val persistedAuthentikDomain by settingsStore.authentikDomain.collectAsState(initial = "")
     val persistedAuthentikSlug by settingsStore.authentikSlug.collectAsState(initial = "")
@@ -72,64 +68,19 @@ fun SettingsScreen(
     val autoRefreshInterval by settingsStore.autoRefreshInterval.collectAsState(initial = 30)
     val skipAuth by settingsStore.skipAuth.collectAsState(initial = false)
 
-    // Local text field state (initialized once from persisted values)
+    // Local text field state
     var serverUrl by remember { mutableStateOf("") }
     var authentikDomain by remember { mutableStateOf("") }
     var authentikSlug by remember { mutableStateOf("") }
     var oidcClientId by remember { mutableStateOf("") }
     var defaultSshUser by remember { mutableStateOf("") }
 
-    // Seed local state from DataStore on first emission
-    var initialized by remember { mutableStateOf(false) }
-    LaunchedEffect(persistedServerUrl, persistedAuthentikDomain, persistedAuthentikSlug, persistedOidcClientId, persistedDefaultSshUser) {
-        if (!initialized) {
-            serverUrl = persistedServerUrl
-            authentikDomain = persistedAuthentikDomain
-            authentikSlug = persistedAuthentikSlug
-            oidcClientId = persistedOidcClientId
-            defaultSshUser = persistedDefaultSshUser
-            // Wait until we have at least one non-empty or all are loaded
-            if (persistedServerUrl.isNotEmpty() || persistedAuthentikDomain.isNotEmpty() || persistedDefaultSshUser.isNotEmpty()) {
-                initialized = true
-            }
-        }
-    }
-    // Also mark initialized after a short delay even if all values are empty
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(100)
-        if (!initialized) {
-            serverUrl = persistedServerUrl
-            authentikDomain = persistedAuthentikDomain
-            authentikSlug = persistedAuthentikSlug
-            oidcClientId = persistedOidcClientId
-            defaultSshUser = persistedDefaultSshUser
-            initialized = true
-        }
-    }
-
-    // Debounced persistence flows
-    val serverUrlFlow = remember { MutableStateFlow(serverUrl) }
-    val authentikDomainFlow = remember { MutableStateFlow(authentikDomain) }
-    val authentikSlugFlow = remember { MutableStateFlow(authentikSlug) }
-    val oidcClientIdFlow = remember { MutableStateFlow(oidcClientId) }
-    val defaultSshUserFlow = remember { MutableStateFlow(defaultSshUser) }
-
-    // Debounced save effects (300ms debounce, drop initial value)
-    LaunchedEffect(Unit) {
-        serverUrlFlow.drop(1).debounce(300).collect { settingsStore.updateServerUrl(it) }
-    }
-    LaunchedEffect(Unit) {
-        authentikDomainFlow.drop(1).debounce(300).collect { settingsStore.updateAuthentikDomain(it) }
-    }
-    LaunchedEffect(Unit) {
-        authentikSlugFlow.drop(1).debounce(300).collect { settingsStore.updateAuthentikSlug(it) }
-    }
-    LaunchedEffect(Unit) {
-        oidcClientIdFlow.drop(1).debounce(300).collect { settingsStore.updateOidcClientId(it) }
-    }
-    LaunchedEffect(Unit) {
-        defaultSshUserFlow.drop(1).debounce(300).collect { settingsStore.updateDefaultSshUser(it) }
-    }
+    // Sync local state from persisted values
+    LaunchedEffect(persistedServerUrl) { serverUrl = persistedServerUrl }
+    LaunchedEffect(persistedAuthentikDomain) { authentikDomain = persistedAuthentikDomain }
+    LaunchedEffect(persistedAuthentikSlug) { authentikSlug = persistedAuthentikSlug }
+    LaunchedEffect(persistedOidcClientId) { oidcClientId = persistedOidcClientId }
+    LaunchedEffect(persistedDefaultSshUser) { defaultSshUser = persistedDefaultSshUser }
 
     var healthStatus by remember { mutableStateOf<String?>(null) }
     var isTestingConnection by remember { mutableStateOf(false) }
@@ -170,7 +121,7 @@ fun SettingsScreen(
 
             OutlinedTextField(
                 value = serverUrl,
-                onValueChange = { serverUrl = it; serverUrlFlow.value = it },
+                onValueChange = { serverUrl = it; scope.launch { settingsStore.updateServerUrl(it) } },
                 label = { Text("Server URL") },
                 placeholder = { Text("https://dot.example.com") },
                 singleLine = true,
@@ -256,7 +207,7 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = authentikDomain,
-                    onValueChange = { authentikDomain = it; authentikDomainFlow.value = it },
+                    onValueChange = { authentikDomain = it; scope.launch { settingsStore.updateAuthentikDomain(it) } },
                     label = { Text("Authentik Domain") },
                     placeholder = { Text("auth.example.com") },
                     singleLine = true,
@@ -267,7 +218,7 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = authentikSlug,
-                    onValueChange = { authentikSlug = it; authentikSlugFlow.value = it },
+                    onValueChange = { authentikSlug = it; scope.launch { settingsStore.updateAuthentikSlug(it) } },
                     label = { Text("Application Slug") },
                     placeholder = { Text("my-app") },
                     singleLine = true,
@@ -278,7 +229,7 @@ fun SettingsScreen(
 
                 OutlinedTextField(
                     value = oidcClientId,
-                    onValueChange = { oidcClientId = it; oidcClientIdFlow.value = it },
+                    onValueChange = { oidcClientId = it; scope.launch { settingsStore.updateOidcClientId(it) } },
                     label = { Text("Client ID") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -318,7 +269,7 @@ fun SettingsScreen(
 
             OutlinedTextField(
                 value = defaultSshUser,
-                onValueChange = { defaultSshUser = it; defaultSshUserFlow.value = it },
+                onValueChange = { defaultSshUser = it; scope.launch { settingsStore.updateDefaultSshUser(it) } },
                 label = { Text("Default SSH User") },
                 placeholder = { Text("Override SSH user (optional)") },
                 singleLine = true,
@@ -346,7 +297,7 @@ fun SettingsScreen(
                     }
                 },
                 valueRange = 5f..120f,
-                steps = 22, // (120-5)/5 - 1 = 22 steps for 5-second increments
+                steps = 22,
                 modifier = Modifier.fillMaxWidth(),
             )
 

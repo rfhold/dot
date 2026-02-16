@@ -21,30 +21,9 @@ object TermuxLauncher {
         sshHost: String,
         sshUser: String,
         sessionName: String,
-        windowIndex: Int? = null,
-        paneIndex: Int? = null,
     ) {
-        // Build the tmux command: attach to session, optionally select window/pane.
-        val tmuxCmd = buildString {
-            append("tmux attach -t $sessionName")
-            if (windowIndex != null) {
-                append(" \\; select-window -t $windowIndex")
-                if (paneIndex != null) {
-                    append(" \\; select-pane -t $paneIndex")
-                    append(" \\; resize-pane -Z")
-                }
-            }
-        }
-
-        val label = buildString {
-            append("SSH to $sshHost - tmux $sessionName")
-            if (windowIndex != null) {
-                append(":$windowIndex")
-                if (paneIndex != null) {
-                    append(".$paneIndex")
-                }
-            }
-        }
+        val tmuxCmd = "tmux attach -t $sessionName"
+        val label = "SSH to $sshHost - tmux $sessionName"
 
         val intent = Intent().apply {
             setClassName("com.termux", "com.termux.app.RunCommandService")

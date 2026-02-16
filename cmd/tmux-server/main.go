@@ -61,13 +61,6 @@ func main() {
 			clientIDs[i] = strings.TrimSpace(clientIDs[i])
 		}
 
-		slog.Info("starting tmux-server",
-			"listen_addr", listenAddr,
-			"issuer", issuer,
-			"client_ids", clientIDs,
-			"session_ttl", ttl,
-		)
-
 		oidcAuth, err := auth.NewOIDCAuth(ctx, issuer, clientIDs)
 		if err != nil {
 			slog.Error("failed to initialise OIDC auth", "error", err)
