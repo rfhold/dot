@@ -5,7 +5,6 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/on-event: "[push]"
     pipelinesascode.tekton.dev/on-target-branch: "[refs/tags/v*]"
-    pipelinesascode.tekton.dev/on-path-change: "[android/**]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
 spec:
   params:
