@@ -109,9 +109,9 @@ spec:
                 echo "amd64 image pushed: $(params.image)"
         params:
           - name: image
-            value: "{{ params.CONTAINER_REGISTRY }}/rfhold/tmux-server:$(tasks.resolve-version.results.tag)-amd64"
+            value: "cr.holdenitdown.net/rfhold/tmux-server:$(tasks.resolve-version.results.tag)-amd64"
           - name: buildkit-addr
-            value: "{{ params.BUILDKIT_AMD64_ADDR }}"
+            value: "buildkit-amd64.buildkit.svc.cluster.local:1234"
         workspaces:
           - name: source
             workspace: source
@@ -145,9 +145,9 @@ spec:
                 echo "arm64 image pushed: $(params.image)"
         params:
           - name: image
-            value: "{{ params.CONTAINER_REGISTRY }}/rfhold/tmux-server:$(tasks.resolve-version.results.tag)-arm64"
+            value: "cr.holdenitdown.net/rfhold/tmux-server:$(tasks.resolve-version.results.tag)-arm64"
           - name: buildkit-addr
-            value: "{{ params.BUILDKIT_ARM64_ADDR }}"
+            value: "buildkit-arm64.buildkit.svc.cluster.local:1234"
         workspaces:
           - name: source
             workspace: source
@@ -181,7 +181,7 @@ spec:
                 echo "Manifest created: $(params.base-image):latest"
         params:
           - name: base-image
-            value: "{{ params.CONTAINER_REGISTRY }}/rfhold/tmux-server"
+            value: "cr.holdenitdown.net/rfhold/tmux-server"
           - name: tag
             value: "$(tasks.resolve-version.results.tag)"
 
@@ -207,7 +207,7 @@ spec:
                 set -e
                 TOKEN=$(cat /etc/git-auth/git-provider-token)
                 HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-                  "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
+                  "https://git.holdenitdown.net/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
                   -H "Authorization: token $TOKEN" \
                   -H "Content-Type: application/json" \
                   -d "{\"title\": \"Server image build failed for {{ revision }}\", \"body\": \"The tmux-server container build pipeline failed. Check the [Tekton dashboard](https://tekton.holdenitdown.net) for details.\"}")

@@ -192,7 +192,7 @@ spec:
 
                 # Create the release
                 HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/release-response.json -X POST \
-                  "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases" \
+                  "https://git.holdenitdown.net/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases" \
                   -H "Authorization: token $TOKEN" \
                   -H "Content-Type: application/json" \
                   -d "{
@@ -257,7 +257,7 @@ spec:
 
                 echo "Uploading $APK_FILE to release $(params.release-id)..."
                 HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/upload-response.json -X POST \
-                  "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases/$(params.release-id)/assets?name=$APK_FILE" \
+                  "https://git.holdenitdown.net/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases/$(params.release-id)/assets?name=$APK_FILE" \
                   -H "Authorization: token $TOKEN" \
                   -F "attachment=@$APK_FILE")
 
@@ -301,7 +301,7 @@ spec:
                 set -e
                 TOKEN=$(cat /etc/git-auth/git-provider-token)
                 HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-                  "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
+                  "https://git.holdenitdown.net/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
                   -H "Authorization: token $TOKEN" \
                   -H "Content-Type: application/json" \
                   -d "{\"title\": \"Android release build failed for $(params.version)\", \"body\": \"The Android release pipeline failed. Check the [Tekton dashboard](https://tekton.holdenitdown.net) for details.\"}")
