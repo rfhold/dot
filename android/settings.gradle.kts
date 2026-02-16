@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "tmux-viewer"
+rootProject.name = "prism"
 include(":app")

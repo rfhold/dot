@@ -21,9 +21,15 @@ object TermuxLauncher {
         sshHost: String,
         sshUser: String,
         sessionName: String,
+        windowIndex: Int? = null,
     ) {
-        val tmuxCmd = "tmux attach -t $sessionName"
-        val label = "SSH to $sshHost - tmux $sessionName"
+        val tmuxTarget = if (windowIndex != null) "$sessionName:$windowIndex" else sessionName
+        val tmuxCmd = "tmux attach -t $tmuxTarget"
+        val label = if (windowIndex != null) {
+            "SSH to $sshHost - tmux $sessionName:$windowIndex"
+        } else {
+            "SSH to $sshHost - tmux $sessionName"
+        }
 
         val intent = Intent().apply {
             setClassName("com.termux", "com.termux.app.RunCommandService")

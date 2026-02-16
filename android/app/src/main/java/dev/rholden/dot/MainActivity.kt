@@ -16,7 +16,7 @@ import dev.rholden.dot.data.SessionRepository
 import dev.rholden.dot.data.SettingsStore
 import dev.rholden.dot.ui.navigation.NavGraph
 import dev.rholden.dot.ui.navigation.Routes
-import dev.rholden.dot.ui.theme.TmuxViewerTheme
+import dev.rholden.dot.ui.theme.PrismTheme
 import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            TmuxViewerTheme {
+            PrismTheme {
                 val navController = rememberNavController()
 
                 val serverUrl by settingsStore.serverUrl.collectAsState(initial = "")

@@ -11,7 +11,7 @@ Environment=HOME=%h
 Environment=GOPATH=%h/go
 Environment=PATH=/usr/local/go/bin:%h/go/bin:/usr/local/bin:/usr/bin:/bin
 Environment=SERVER_URL=https://tmux.holdenitdown.net
-Environment=SSH_HOST=thinkpad.holdenitdown.net
+Environment=SSH_HOST=172.16.1.254
 Environment=SSH_USER=rfhold
 Environment=SKIP_AUTH=true
 Restart=always

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: tmux-server
-          image: cr.holdenitdown.net/rfhold/tmux-server:latest
+          image: cr.holdenitdown.net/rfhold/tmux-server:v0.3.0-rc.2
           ports:
             - containerPort: 8080
           env:

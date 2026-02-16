@@ -1,6 +1,9 @@
 package dev.rholden.dot.ui.screens
 
+import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -31,8 +34,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.rholden.dot.data.Machine
 import dev.rholden.dot.data.SessionRepository
+import dev.rholden.dot.data.TmuxWindow
 import dev.rholden.dot.data.SettingsStore
 import dev.rholden.dot.data.UiState
 import dev.rholden.dot.service.TermuxLauncher
@@ -58,6 +64,31 @@ fun SessionListScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Pending launch info awaiting permission grant: (machine, sessionName, windowIndex?)
+    data class PendingLaunch(val machine: Machine, val sessionName: String, val windowIndex: Int? = null)
+    val pendingLaunch = remember { mutableStateOf<PendingLaunch?>(null) }
+
+    // Track which session card is currently expanded (only one at a time)
+    var expandedSessionKey by remember { mutableStateOf<String?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val pending = pendingLaunch.value
+        pendingLaunch.value = null
+        if (granted && pending != null) {
+            TermuxLauncher.launchSshTmuxSession(
+                context = context,
+                sshHost = pending.machine.sshHost,
+                sshUser = pending.machine.sshUser,
+                sessionName = pending.sessionName,
+                windowIndex = pending.windowIndex,
+            )
+        } else if (!granted) {
+            Toast.makeText(context, "Termux RUN_COMMAND permission denied", Toast.LENGTH_LONG).show()
+        }
+    }
     val uiState by repository.state.collectAsState()
     val autoRefreshInterval by settingsStore.autoRefreshInterval.collectAsState(initial = 30)
     val snackbarHostState = remember { SnackbarHostState() }
@@ -96,17 +127,39 @@ fun SessionListScreen(
         }
     }
 
-    fun onSessionTap(machine: Machine, sessionName: String) {
+    fun launchSession(machine: Machine, sessionName: String, windowIndex: Int? = null) {
         if (!TermuxLauncher.isTermuxInstalled(context)) {
             Toast.makeText(context, "Termux is not installed", Toast.LENGTH_LONG).show()
             return
         }
-        TermuxLauncher.launchSshTmuxSession(
-            context = context,
-            sshHost = machine.sshHost,
-            sshUser = machine.sshUser,
-            sessionName = sessionName,
-        )
+        val permission = "com.termux.permission.RUN_COMMAND"
+        if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+            TermuxLauncher.launchSshTmuxSession(
+                context = context,
+                sshHost = machine.sshHost,
+                sshUser = machine.sshUser,
+                sessionName = sessionName,
+                windowIndex = windowIndex,
+            )
+        } else {
+            pendingLaunch.value = PendingLaunch(machine, sessionName, windowIndex)
+            permissionLauncher.launch(permission)
+        }
+    }
+
+    fun onSessionTap(machine: Machine, session: dev.rholden.dot.data.TmuxSession) {
+        if (session.windowDetails.size > 1) {
+            // Multi-window: toggle expansion
+            val key = "${machine.name}:${session.name}"
+            expandedSessionKey = if (expandedSessionKey == key) null else key
+        } else {
+            // Single window (or no details): launch directly
+            launchSession(machine, session.name)
+        }
+    }
+
+    fun onWindowTap(machine: Machine, session: dev.rholden.dot.data.TmuxSession, window: TmuxWindow) {
+        launchSession(machine, session.name, window.index)
     }
 
     Scaffold(
@@ -114,7 +167,7 @@ fun SessionListScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Tmux Sessions",
+                        text = "PRISM",
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 },
@@ -230,7 +283,9 @@ fun SessionListScreen(
                             ) { session ->
                                 SessionCard(
                                     session = session,
-                                    onClick = { onSessionTap(machine, session.name) },
+                                    isExpanded = expandedSessionKey == "${machine.name}:${session.name}",
+                                    onSessionTap = { onSessionTap(machine, session) },
+                                    onWindowTap = { window -> onWindowTap(machine, session, window) },
                                 )
                             }
                             item(key = "spacer-${machine.name}") {

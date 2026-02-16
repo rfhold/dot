@@ -22,7 +22,7 @@ private val AuraDarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun TmuxViewerTheme(content: @Composable () -> Unit) {
+fun PrismTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = AuraDarkColorScheme,
         content = content,
