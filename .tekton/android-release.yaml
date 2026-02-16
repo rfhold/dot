@@ -256,10 +256,11 @@ spec:
                 fi
 
                 echo "Uploading $APK_FILE to release $(params.release-id)..."
-                HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/upload-response.json -X POST \
-                  "https://git.holdenitdown.net/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases/$(params.release-id)/assets?name=$APK_FILE" \
+                HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/upload-response.json \
                   -H "Authorization: token $TOKEN" \
-                  -F "attachment=@$APK_FILE")
+                  -H "Content-Type: multipart/form-data" \
+                  -F "attachment=@$APK_FILE" \
+                  "https://git.holdenitdown.net/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases/$(params.release-id)/assets?name=$APK_FILE")
 
                 if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
                   echo "Failed to upload APK (HTTP $HTTP_CODE)"
