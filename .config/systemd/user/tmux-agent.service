@@ -5,7 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/go/bin/go run %h/dot/cmd/tmux-agent
+WorkingDirectory=%h/dot
+ExecStart=/usr/local/go/bin/go run ./cmd/tmux-agent
 Environment=HOME=%h
 Environment=GOPATH=%h/go
 Environment=PATH=/usr/local/go/bin:%h/go/bin:/usr/local/bin:/usr/bin:/bin
