@@ -2,6 +2,7 @@ package dev.rholden.dot
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.rholden.dot.auth.AuthManager
 import dev.rholden.dot.data.SessionRepository
 import dev.rholden.dot.data.SettingsStore
+import dev.rholden.dot.service.TermuxLauncher
 import dev.rholden.dot.ui.navigation.NavGraph
 import dev.rholden.dot.ui.navigation.Routes
 import dev.rholden.dot.ui.theme.PrismTheme
@@ -84,6 +86,18 @@ class MainActivity : ComponentActivity() {
                                 popUpTo(Routes.LOGIN) { inclusive = true }
                             }
                         }
+                    }
+                }
+
+                // Handle system back button - close all Termux sessions before navigating back
+                BackHandler(enabled = true) {
+                    // Close all tracked Termux sessions
+                    TermuxLauncher.closeAllTrackedSessions(applicationContext)
+                    
+                    // Handle back navigation
+                    if (!navController.popBackStack()) {
+                        // No more screens in back stack, finish the activity
+                        finish()
                     }
                 }
 

@@ -62,5 +62,54 @@ object TermuxLauncher {
         } else {
             context.startService(intent)
         }
+
+        // Track this session so we can close it later
+        SessionTracker.trackSession(
+            ActiveTermuxSession(
+                machineHost = sshHost,
+                sessionName = sessionName,
+                windowIndex = windowIndex,
+                launchTimestamp = System.currentTimeMillis(),
+                processPid = null  // Can't easily get PID from intent launch
+            )
+        )
+    }
+
+    /**
+     * Close all tracked Termux sessions by killing SSH processes.
+     * This is called when the user navigates away from the app via back button.
+     *
+     * Note: This kills ALL SSH processes in Termux, not just ones launched by this app.
+     * This is acceptable when the app is closing anyway.
+     */
+    fun closeAllTrackedSessions(context: Context) {
+        val sessionCount = SessionTracker.getActiveSessionCount()
+        
+        // Only send kill command if we have tracked sessions
+        if (sessionCount > 0) {
+            val intent = Intent().apply {
+                setClassName("com.termux", "com.termux.app.RunCommandService")
+                action = "com.termux.RUN_COMMAND"
+                putExtra(
+                    "com.termux.RUN_COMMAND_PATH",
+                    "/data/data/com.termux/files/usr/bin/pkill"
+                )
+                putExtra(
+                    "com.termux.RUN_COMMAND_ARGUMENTS",
+                    arrayOf("-9", "ssh")
+                )
+                putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+            }
+
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                // Silently fail if Termux is not available or permission denied
+                // This is acceptable as the user is leaving the app anyway
+            }
+
+            // Clear tracked sessions
+            SessionTracker.clearAllSessions()
+        }
     }
 }

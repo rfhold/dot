@@ -77,3 +77,12 @@ if test -f "$HOME/.env.runtime"
     end < "$HOME/.env.runtime"
 end
 
+# Android SDK
+if test -d "$HOME/Android/Sdk"
+    set -gx ANDROID_HOME "$HOME/Android/Sdk"
+    set -gx ANDROID_SDK_ROOT "$HOME/Android/Sdk"
+    set -gx PATH $PATH "$HOME/Android/Sdk/platform-tools"
+    set -gx PATH $PATH "$HOME/Android/Sdk/tools"
+    set -gx PATH $PATH "$HOME/Android/Sdk/tools/bin"
+end
+

@@ -12,5 +12,5 @@ Capture the plan developed during this session into a detailed markdown document
    - Any decisions made and their rationale
    - Open questions or unresolved items, if any
 3. Choose a short, descriptive kebab-case filename that reflects the plan's subject matter.
-4. Save the document to `docs/plans/<name>.md` in the project root. Create the `docs/plans/` directory if it doesn't exist.
+4. Save the document to `.opencode/plans/<name>.md` in the project root. Create the `.opencode/plans/` directory if it doesn't exist.
 5. Output the path where the plan was saved and stop. Do NOT continue with implementation or any other action. Wait for further instructions.

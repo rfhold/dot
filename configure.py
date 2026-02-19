@@ -64,6 +64,7 @@ PACKAGES = {
         "brew": ["pulumi", "gh", "argon2"],
         "pacman": [
             "github-cli",
+            "tea",
             "argon2",
             "pulumi",
             "kubectl",
@@ -168,6 +169,8 @@ BREW_TAPS = ["pulumi/tap"]
 
 
 def link_config_dir(source, target):
+    import os
+
     paths = host.get_fact(FindFiles, path=source, maxdepth=1)
     paths.extend(host.get_fact(FindDirectories, path=source, maxdepth=1))
 
@@ -176,10 +179,22 @@ def link_config_dir(source, target):
             continue
 
         dst = path.replace(source, "", 1).lstrip("/")
+        link_path = f"{target}/{dst}"
+        link_target = f"{source}/{dst}"
+
+        # Python-level skip: check if symlink already exists and points to correct target
+        try:
+            if os.path.islink(link_path) and os.readlink(link_path) == link_target:
+                # Symlink already correct, skip pyinfra operation entirely
+                continue
+        except (OSError, FileNotFoundError):
+            # Link doesn't exist or can't be read, proceed with operation
+            pass
+
         files.link(
             name=f"Link {target}/{dst}",
-            path=f"{target}/{dst}",
-            target=f"{source}/{dst}",
+            path=link_path,
+            target=link_target,
             force=True,
             force_backup=True,
         )
@@ -417,20 +432,46 @@ else:
         )
 
         # Enable user lingering (allows user services to run at boot)
-        server.shell(
-            name="Enable user lingering for rootless Docker",
-            commands=[f"loginctl enable-linger {username}"],
-            _sudo=True,
-        )
+        # Check if lingering is already enabled before running command
+        linger_status = host.get_fact(
+            Command,
+            command=f"loginctl show-user {username} --property=Linger 2>/dev/null || echo 'Linger=no'",
+        ).strip()
+
+        if linger_status != "Linger=yes":
+            server.shell(
+                name="Enable user lingering for rootless Docker",
+                commands=[f"loginctl enable-linger {username}"],
+                _sudo=True,
+            )
 
         # Load iptables kernel modules at boot (required for Docker networking)
-        server.shell(
-            name="Configure iptables modules to load at boot",
-            commands=[
-                "echo -e 'ip_tables\\niptable_nat\\niptable_filter' > /etc/modules-load.d/docker-rootless.conf"
-            ],
-            _sudo=True,
-        )
+        # Check if config file already has correct content
+        modules_config_path = "/etc/modules-load.d/docker-rootless.conf"
+        expected_modules_lines = ["ip_tables", "iptable_nat", "iptable_filter"]
+
+        # Check if file exists with correct content
+        file_exists = host.get_fact(File, path=modules_config_path) is not None
+
+        if file_exists:
+            current_content = host.get_fact(
+                Command, command=f"cat {modules_config_path}"
+            ).strip()
+            current_lines = [
+                line.strip() for line in current_content.split("\n") if line.strip()
+            ]
+            needs_update = current_lines != expected_modules_lines
+        else:
+            needs_update = True
+
+        if needs_update:
+            server.shell(
+                name="Configure iptables modules to load at boot",
+                commands=[
+                    "echo -e 'ip_tables\\niptable_nat\\niptable_filter' > /etc/modules-load.d/docker-rootless.conf"
+                ],
+                _sudo=True,
+            )
 
         # Disable rootful Docker (we use rootless instead)
         systemd.service(
@@ -602,7 +643,12 @@ fisher.packages(
 
 # Ensure fish-ai venv is set up (fisher install may not trigger hooks properly)
 fish_ai_venv = f"{home}/.local/share/fish-ai"
-if not host.get_fact(File, path=fish_ai_venv):
+fish_ai_python = f"{fish_ai_venv}/bin/python"
+
+# Check if venv exists and has python binary (more thorough check)
+venv_exists = host.get_fact(File, path=fish_ai_python) is not None
+
+if not venv_exists:
     server.shell(
         name="Setup fish-ai venv using uv",
         commands=[
@@ -675,11 +721,9 @@ go.packages(
 
 if pkg_manager == "pacman" and not is_container():
     # Refresh sudo credentials before AUR install (paru calls sudo internally)
-    server.shell(
-        name="Refresh sudo credentials for AUR install",
-        commands=["true"],
-        _sudo=True,
-    )
+    # Skip this entirely - paru will handle sudo prompts itself if needed
+    # and we've already authenticated for earlier operations in this run
+    pass
 
     paru.packages(
         name="Install AUR packages",
@@ -691,21 +735,43 @@ if pkg_manager == "pacman" and not is_container():
     )
 
     # Enable rootless Docker user service (now that docker-rootless-extras is installed)
-    server.shell(
-        name="Enable rootless Docker socket",
-        commands=[
-            "systemctl --user enable docker.socket",
-            "systemctl --user start docker.socket",
-        ],
-    )
+    # Check if docker.socket is already enabled and running
+    docker_enabled = host.get_fact(
+        Command,
+        command="systemctl --user is-enabled docker.socket 2>/dev/null || echo disabled",
+    ).strip()
+    docker_active = host.get_fact(
+        Command,
+        command="systemctl --user is-active docker.socket 2>/dev/null || echo inactive",
+    ).strip()
+
+    if docker_enabled != "enabled" or docker_active != "active":
+        server.shell(
+            name="Enable rootless Docker socket",
+            commands=[
+                "systemctl --user enable docker.socket",
+                "systemctl --user start docker.socket",
+            ],
+        )
 
     # Enable tmux-agent user service (pushes tmux sessions to server)
-    server.shell(
-        name="Enable tmux-agent user service",
-        commands=[
-            "systemctl --user daemon-reload && systemctl --user enable --now tmux-agent.service"
-        ],
-    )
+    # Check if tmux-agent.service is already enabled and running
+    tmux_agent_enabled = host.get_fact(
+        Command,
+        command="systemctl --user is-enabled tmux-agent.service 2>/dev/null || echo disabled",
+    ).strip()
+    tmux_agent_active = host.get_fact(
+        Command,
+        command="systemctl --user is-active tmux-agent.service 2>/dev/null || echo inactive",
+    ).strip()
+
+    if tmux_agent_enabled != "enabled" or tmux_agent_active != "active":
+        server.shell(
+            name="Enable tmux-agent user service",
+            commands=[
+                "systemctl --user daemon-reload && systemctl --user enable --now tmux-agent.service"
+            ],
+        )
 
 # -----------------------------------------------------------------------------
 # OpenSSH Server (containers only - bare metal doesn't need incoming SSH)

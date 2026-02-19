@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# nmux - Fuzzy search repos and open in tmux with neovim
+# nmux - Fuzzy search repos and open in tmux
 # Usage: nmux [category/repo-name]
 #   nmux                           - Interactive mode with fuzzy search
 #   nmux stablekernel/github-token-bot - Direct mode with specific repo
@@ -42,8 +42,8 @@ ensure_session() {
     
     if ! session_exists "$session_name"; then
         echo -e "${BLUE}Creating new tmux session: $session_name${NC}" >&2
-        # Create session without any windows initially
-        tmux new-session -d -s "$session_name" -c "$REPOS_DIR/$category" 'sleep 1'
+        # Create session with a single default window in the category directory
+        tmux new-session -d -s "$session_name" -c "$REPOS_DIR/$category"
         # Wait a moment for session to be fully created
         sleep 0.1
     else
