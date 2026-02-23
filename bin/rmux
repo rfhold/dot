@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+
+# rmux - Multi-select repos and run git actions on them
+# Usage: rmux [--repos-dir DIR]
+
+set -euo pipefail
+
+REPOS_DIR="$HOME/repos"
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# ── Repo discovery ────────────────────────────────────────────────────────────
+
+get_repos() {
+    find "$REPOS_DIR" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | \
+        sed "s|$REPOS_DIR/||" | sort
+}
+
+# ── Action implementations ────────────────────────────────────────────────────
+
+action_fetch() {
+    local repo_path="$1"
+    git -C "$repo_path" fetch --all --prune
+}
+
+action_pull() {
+    local repo_path="$1"
+    git -C "$repo_path" pull
+}
+
+action_checkout_main() {
+    local repo_path="$1"
+
+    # Fetch first so remote refs are current
+    git -C "$repo_path" fetch --quiet 2>/dev/null || true
+
+    local default_branch
+    if git -C "$repo_path" show-ref --verify --quiet refs/remotes/origin/main; then
+        default_branch="main"
+    elif git -C "$repo_path" show-ref --verify --quiet refs/remotes/origin/master; then
+        default_branch="master"
+    else
+        # Fall back to whatever HEAD tracks on the remote
+        default_branch=$(git -C "$repo_path" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|origin/||') || true
+        if [ -z "$default_branch" ]; then
+            echo "Cannot determine default branch" >&2
+            return 1
+        fi
+    fi
+
+    git -C "$repo_path" checkout "$default_branch"
+}
+
+action_prune_merged() {
+    local repo_path="$1"
+
+    # Fetch so merged status is accurate
+    git -C "$repo_path" fetch --quiet 2>/dev/null || true
+
+    # Determine the default branch to protect it
+    local default_branch="main"
+    if git -C "$repo_path" show-ref --verify --quiet refs/remotes/origin/master && \
+       ! git -C "$repo_path" show-ref --verify --quiet refs/remotes/origin/main; then
+        default_branch="master"
+    fi
+
+    local merged_branches
+    merged_branches=$(git -C "$repo_path" branch --merged | \
+        grep -v "^\*" | \
+        grep -vE "^\s*(main|master|dev|develop|staging)$" || true)
+
+    if [ -z "$merged_branches" ]; then
+        echo "No merged branches to prune"
+        return 0
+    fi
+
+    echo "$merged_branches" | xargs -r git -C "$repo_path" branch -d
+}
+
+action_custom() {
+    local repo_path="$1"
+    local git_cmd="$2"
+    eval "git -C \"$repo_path\" $git_cmd"
+}
+
+# ── UI helpers ────────────────────────────────────────────────────────────────
+
+select_repos() {
+    local repos="$1"
+    echo "$repos" | gum choose \
+        --no-limit \
+        --height 20 \
+        --header "Select repos (Tab to toggle, Enter to confirm):"
+}
+
+select_action() {
+    gum choose \
+        --header "Select action:" \
+        "fetch        git fetch --all --prune" \
+        "pull         git pull" \
+        "checkout     switch to main/master" \
+        "prune        delete merged local branches" \
+        "custom       run a custom git command"
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+main() {
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --repos-dir)
+                REPOS_DIR="$2"
+                shift 2
+                ;;
+            -h|--help)
+                echo "Usage: rmux [--repos-dir DIR]"
+                echo "  Multi-select repos and run git actions on them."
+                echo "  Repos directory defaults to: $REPOS_DIR"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Unknown flag: $1${NC}" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ ! -d "$REPOS_DIR" ]; then
+        echo -e "${RED}Error: Repos directory '$REPOS_DIR' not found.${NC}" >&2
+        exit 1
+    fi
+
+    local repos
+    repos=$(get_repos)
+
+    if [ -z "$repos" ]; then
+        echo -e "${RED}No repositories found in $REPOS_DIR${NC}" >&2
+        echo "Expected structure: $REPOS_DIR/category/repo-name" >&2
+        exit 1
+    fi
+
+    # Step 1: Select repos
+    local selected_repos
+    selected_repos=$(select_repos "$repos") || true
+
+    if [ -z "$selected_repos" ]; then
+        echo -e "${YELLOW}No repos selected.${NC}" >&2
+        exit 0
+    fi
+
+    local repo_count
+    repo_count=$(echo "$selected_repos" | wc -l | tr -d ' ')
+
+    # Step 2: Select action
+    local action_choice
+    action_choice=$(select_action) || true
+
+    if [ -z "$action_choice" ]; then
+        echo -e "${YELLOW}No action selected.${NC}" >&2
+        exit 0
+    fi
+
+    local action_key
+    action_key=$(echo "$action_choice" | awk '{print $1}')
+
+    # Step 3: If custom, get the git command
+    local custom_cmd=""
+    if [ "$action_key" = "custom" ]; then
+        custom_cmd=$(gum input \
+            --prompt "git " \
+            --placeholder "status --short" \
+            --header "Enter git command (without 'git'):")
+        if [ -z "$custom_cmd" ]; then
+            echo -e "${YELLOW}No command entered.${NC}" >&2
+            exit 0
+        fi
+    fi
+
+    # Step 4: Confirm
+    local action_desc
+    case "$action_key" in
+        fetch)    action_desc="git fetch --all --prune" ;;
+        pull)     action_desc="git pull" ;;
+        checkout) action_desc="checkout main/master" ;;
+        prune)    action_desc="prune merged branches" ;;
+        custom)   action_desc="git $custom_cmd" ;;
+    esac
+
+    echo
+    if ! gum confirm "Run '$action_desc' on $repo_count repo(s)?"; then
+        echo -e "${YELLOW}Cancelled.${NC}" >&2
+        exit 0
+    fi
+    echo
+
+    # Step 5: Execute on each repo
+    local passed=0
+    local failed=0
+    local failed_repos=()
+
+    while IFS= read -r repo; do
+        local repo_path="$REPOS_DIR/$repo"
+        local spin_title="$repo: $action_desc"
+
+        # Run the action; capture exit code without aborting the loop
+        local exit_code=0
+        case "$action_key" in
+            fetch)
+                gum spin --title "$spin_title" -- bash -c "git -C \"$repo_path\" fetch --all --prune" \
+                    || exit_code=$?
+                ;;
+            pull)
+                gum spin --title "$spin_title" -- bash -c "git -C \"$repo_path\" pull" \
+                    || exit_code=$?
+                ;;
+            checkout)
+                # checkout logic is non-trivial; run inline via bash -c
+                gum spin --title "$spin_title" -- bash -c "
+                    git -C \"$repo_path\" fetch --quiet 2>/dev/null || true
+                    if git -C \"$repo_path\" show-ref --verify --quiet refs/remotes/origin/main; then
+                        git -C \"$repo_path\" checkout main
+                    elif git -C \"$repo_path\" show-ref --verify --quiet refs/remotes/origin/master; then
+                        git -C \"$repo_path\" checkout master
+                    else
+                        branch=\$(git -C \"$repo_path\" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|origin/||')
+                        [ -n \"\$branch\" ] && git -C \"$repo_path\" checkout \"\$branch\" || exit 1
+                    fi
+                " || exit_code=$?
+                ;;
+            prune)
+                gum spin --title "$spin_title" -- bash -c "
+                    git -C \"$repo_path\" fetch --quiet 2>/dev/null || true
+                    merged=\$(git -C \"$repo_path\" branch --merged | grep -v '^\*' | grep -vE '^\s*(main|master|dev|develop|staging)\$' || true)
+                    if [ -n \"\$merged\" ]; then
+                        echo \"\$merged\" | xargs git -C \"$repo_path\" branch -d
+                    fi
+                " || exit_code=$?
+                ;;
+            custom)
+                gum spin --title "$spin_title" -- bash -c "git -C \"$repo_path\" $custom_cmd" \
+                    || exit_code=$?
+                ;;
+        esac
+
+        if [ "$exit_code" -eq 0 ]; then
+            echo -e "  ${GREEN}✓${NC} $repo"
+            (( passed++ )) || true
+        else
+            echo -e "  ${RED}✗${NC} $repo"
+            failed_repos+=("$repo")
+            (( failed++ )) || true
+        fi
+    done <<< "$selected_repos"
+
+    # Step 6: Summary
+    echo
+    echo -e "${BLUE}─────────────────────────────────────${NC}"
+    echo -e "  ${GREEN}✓ $passed passed${NC}  ${RED}✗ $failed failed${NC}  (${repo_count} total)"
+    echo -e "${BLUE}─────────────────────────────────────${NC}"
+
+    if [ "${#failed_repos[@]}" -gt 0 ]; then
+        echo -e "${YELLOW}Failed repos:${NC}"
+        for r in "${failed_repos[@]}"; do
+            echo -e "  ${RED}$r${NC}"
+        done
+        echo
+        exit 1
+    fi
+}
+
+main "$@"

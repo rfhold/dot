@@ -1,16 +1,17 @@
 ---
 name: tmux-tui
-description: Operating tmux panes to run shell commands, monitor output, and interact with TUI applications. Invoked when needing to execute commands in a terminal pane, send keys to a running program, capture pane output, split windows, or manage pane lifecycle within tmux.
+description: Operating tmux panes to interact with TUI applications and manage long-lived processes. Use ONLY when the task requires interactive terminal use — such as sending keystrokes to a running TUI (lazygit, nvim, htop, k9s), starting persistent background processes (servers, watchers), or the user explicitly asks to use a tmux pane. Do NOT use for ordinary shell commands — prefer the Bash tool for those.
 ---
 
 # Tmux TUI Pane Operations
 
-Use this skill whenever you need to run commands or interact with programs in a tmux pane rather than (or in addition to) the built-in Bash tool. This is appropriate when you need to:
+**Prefer the Bash tool for ordinary shell commands.** Use this skill only when interactive terminal use is required:
 
-- Run long-lived processes (servers, watchers, builds) that should persist
-- Interact with an existing TUI application (lazygit, nvim, htop, etc.)
-- Execute commands in a specific working directory visible to the user
-- Monitor output from a running process
+- Interact with a running TUI application (lazygit, nvim, htop, k9s, lazydocker, etc.)
+- Start a long-lived process (server, watcher, dev build) that must persist after the task
+- The user explicitly asks to work in a tmux pane
+
+Do not use this skill just to run a command and capture output — use the Bash tool for that.
 
 ## 1. Discovering Your Environment
 

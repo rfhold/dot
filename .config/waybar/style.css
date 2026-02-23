@@ -18,7 +18,7 @@
 
 /* Global Styles */
 * {
-    font-family: "Noto Sans", "Font Awesome 6 Free", sans-serif;
+    font-family: "Noto Sans", "Symbols Nerd Font", "Font Awesome 6 Free", sans-serif;
     font-size: 13px;
     min-height: 0;
     border: none;
@@ -52,6 +52,7 @@ tooltip label {
 #window,
 #clock,
 #tray,
+#custom-idle_inhibit,
 #network,
 #bluetooth,
 #pulseaudio,
@@ -107,6 +108,17 @@ tooltip label {
 /* Tray */
 #tray {
     padding: 0 8px;
+}
+
+#custom-idle_inhibit {
+    color: @gray;
+    font-weight: 700;
+    padding: 0 10px;
+}
+
+#custom-idle_inhibit.enabled {
+    color: @green;
+    background: alpha(@green, 0.15);
 }
 
 #tray > .passive {

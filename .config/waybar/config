@@ -16,6 +16,7 @@
     ],
     "modules-right": [
         "tray",
+        "custom/idle_inhibit",
         "network",
         "bluetooth",
         "pulseaudio",
@@ -76,8 +77,17 @@
         "spacing": 8
     },
 
+    "custom/idle_inhibit": {
+        "return-type": "json",
+        "exec": "$HOME/.config/waybar/idle-inhibit-toggle.sh status",
+        "interval": 2,
+        "exec-on-event": true,
+        "tooltip": true,
+        "on-click": "$HOME/.config/waybar/idle-inhibit-toggle.sh toggle"
+    },
+
     "network": {
-        "format-wifi": " ",
+        "format-wifi": "󰖩 ",
         "format-ethernet": "󰈀 ",
         "format-disconnected": "󰖪 ",
         "tooltip-format-wifi": "{essid} ({signalStrength}%)",

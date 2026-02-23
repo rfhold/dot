@@ -1,6 +1,6 @@
 ---
 name: tekton-pac
-description: Writing Tekton Pipelines as Code (PAC) pipeline definitions for Gitea repositories. Invoked when creating or editing .tekton/ pipeline YAML files, setting up CI/CD for a repo, building container images with BuildKit, posting Gitea PR comments, creating releases, or onboarding a repository to Tekton PAC.
+description: Writing Tekton Pipelines as Code (PAC) pipeline definitions for Gitea repositories and using the tkn CLI to inspect, debug, and manage pipeline runs. Invoked when creating or editing .tekton/ pipeline YAML files, setting up CI/CD for a repo, building container images with BuildKit, posting Gitea PR comments, creating releases, onboarding a repository to Tekton PAC, or using tkn/tkn-pac commands to list, describe, log, or debug pipeline runs.
 ---
 
 # Tekton Pipelines as Code for Gitea
@@ -12,8 +12,11 @@ Use this skill when creating or modifying `.tekton/` pipeline definitions for re
 - **Tekton PAC v0.41.1** receives webhook events from a Gitea org-level webhook
 - **PAC Global Repository CR** shares Gitea auth config and global parameters across all repos
 - All PipelineRuns execute in the `pipelines-as-code` namespace on the **pantheon** cluster
-- **BuildKit daemons** (remote, long-running) handle container builds — no DinD or privileged pods in pipelines
+- **BuildKit daemons** (remote, long-running) handle container builds — preferred over DinD for image builds
 - The `buildctl` client connects to daemons over TCP within the cluster
+- **KVM device plugin** (`squat/generic-device-plugin`) runs on `apollo` and `vulkan` — pipelines can request `squat.ai/kvm: "1"` for Android emulator workloads
+- **Docker-in-Docker** is supported via a privileged sidecar — use for `docker-compose` integration tests; `pipelines-as-code` namespace allows privileged pods
+- **Multi-cluster kubeconfig** — a `tekton-cluster-kubeconfig` secret in `pipelines-as-code` holds ServiceAccount tokens for deploying to both **romulus** and **pantheon** clusters from pipelines
 
 ### Infrastructure Endpoints
 
@@ -48,6 +51,61 @@ These secrets exist in the `pipelines-as-code` namespace and can be mounted in t
 | `{{ git_auth_secret }}` | Auto-created per PipelineRun with Gitea credentials | `git-provider-token`, `.gitconfig`, `.git-credentials` |
 | `gitea-pac-token` | Static Gitea token (prefer `{{ git_auth_secret }}`) | `token` |
 | `android-keystore` | Android APK signing keystore | `keystore.jks`, `keystore-password`, `key-alias`, `key-password` |
+| `tekton-cluster-kubeconfig` | Multi-cluster kubeconfig | `kubeconfig` |
+
+### Multi-Cluster Kubeconfig
+
+Secret `tekton-cluster-kubeconfig` in `pipelines-as-code` namespace contains a kubeconfig with SA tokens for deploying to multiple clusters. Managed by Pulumi via `tekton:clusters` in `programs/tekton/Pulumi.pantheon.yaml`.
+
+**Clusters:** `romulus` (general workloads), `pantheon` (GPU/AI). Context names match cluster names.
+
+**SA permissions** (`tekton-deployer` ClusterRole): CRUD on namespaces, configmaps, secrets, services, serviceaccounts, PVCs, deployments, statefulsets, daemonsets, jobs, ingresses, httproutes (Gateway API), objectbucketclaims.
+
+#### Usage in Tasks
+
+Mount the secret and use `--context` to target a cluster:
+
+```yaml
+- name: deploy
+  taskSpec:
+    params:
+      - name: cluster
+        type: string
+    volumes:
+      - name: kubeconfig
+        secret:
+          secretName: tekton-cluster-kubeconfig
+    steps:
+      - name: apply
+        image: bitnami/kubectl:latest
+        volumeMounts:
+          - name: kubeconfig
+            mountPath: /etc/kubeconfig
+            readOnly: true
+        env:
+          - name: KUBECONFIG
+            value: /etc/kubeconfig/kubeconfig
+        script: |
+          #!/bin/sh
+          set -e
+          kubectl --context $(params.cluster) apply -f manifests/
+  params:
+    - name: cluster
+      value: romulus
+```
+
+For Helm: use `--kube-context $(params.cluster)`.
+
+#### Managing Clusters
+
+Edit `programs/tekton/Pulumi.pantheon.yaml` and run `pulumi up`:
+```yaml
+tekton:clusters:
+  - romulus
+  - pantheon
+```
+
+Each entry is a kubeconfig context name available to the Pulumi operator. Pulumi creates a `k8s.Provider` per context, provisions a ServiceAccount with RBAC on that cluster, and assembles tokens into the kubeconfig secret.
 
 ## PipelineRun File Structure
 
@@ -709,3 +767,283 @@ If pipelines don't trigger after pushing to a PR or branch:
 **Error: `Could not create parent directory for lock file .../.gradle/...`**
 - Gradle needs write permission to the workspace for caching
 - **Solution:** Add the `fix-permissions` step (see above) or set `GRADLE_USER_HOME` to a writable location
+
+## Android Emulator / KVM Workloads
+
+KVM is available on `apollo` (Intel VT-x) and `vulkan` (AMD SVM) via the `squat/generic-device-plugin`. Pods request KVM as an extended resource — no `privileged: true` needed on the step containers.
+
+**KVM-capable nodes:** labeled `kvm.node.kubernetes.io/enabled=true`
+
+**Device resources exposed:**
+- `squat.ai/kvm` — `/dev/kvm` access (max 100 concurrent allocations)
+- `squat.ai/vhost-net` — `/dev/vhost-net` access (for networking in virtual devices)
+
+### Android Emulator Task Pattern
+
+```yaml
+- name: run-emulator-tests
+  taskSpec:
+    workspaces:
+      - name: source
+    steps:
+      - name: run-tests
+        image: your-android-emulator-image:latest
+        workingDir: $(workspaces.source.path)
+        resources:
+          limits:
+            squat.ai/kvm: "1"
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN
+              - NET_RAW
+              - SYS_ADMIN
+        script: |
+          #!/bin/sh
+          set -e
+          emulator -avd <avd-name> -no-audio -no-window &
+          adb wait-for-device
+          sh ./gradlew connectedAndroidTest --no-daemon
+  workspaces:
+    - name: source
+      workspace: source
+  taskRunTemplate:
+    podTemplate:
+      nodeSelector:
+        kvm.node.kubernetes.io/enabled: "true"
+      tolerations:
+        - key: workload-type
+          operator: Equal
+          value: gpu-inference
+          effect: NoSchedule
+```
+
+**Important:** The `podTemplate` with `nodeSelector` and `tolerations` must be set at the task level to target `vulkan` (which has the `workload-type=gpu-inference:NoSchedule` taint).
+
+## tkn CLI Reference
+
+The `tkn` CLI is aliased to default to the `pipelines-as-code` namespace. All commands below assume that namespace unless `--all-namespaces` or `-n` is specified.
+
+### Command Aliases
+
+| Full Command | Short Alias |
+|---|---|
+| `tkn pipeline` | `tkn p` |
+| `tkn pipelinerun` | `tkn pr` |
+| `tkn task` | `tkn t` |
+| `tkn taskrun` | `tkn tr` |
+
+### Inspecting Pipeline Runs
+
+```bash
+tkn pr list
+tkn pr list --label tekton.dev/pipeline=my-pipeline
+tkn pr list --limit 5
+
+tkn pr describe <run-name>
+tkn pr describe --last
+
+tkn pr logs <run-name>
+tkn pr logs --last
+tkn pr logs --last -f
+
+tkn pr logs --last --all
+```
+
+### Inspecting Task Runs
+
+```bash
+tkn tr list
+tkn tr describe <run-name>
+tkn tr logs <run-name>
+tkn tr logs --last -f
+```
+
+### Debugging Failed Runs
+
+1. Check the last failed run:
+   ```bash
+   tkn pr describe --last
+   ```
+2. Stream logs from the failing task:
+   ```bash
+   tkn pr logs --last -f
+   ```
+3. List all runs with status:
+   ```bash
+   tkn pr list
+   ```
+4. Check PAC controller logs:
+   ```bash
+   kubectl logs -n pipelines-as-code deployment/pipelines-as-code-controller --tail=100
+   ```
+
+### Cleanup
+
+```bash
+tkn pr rm --all --keep 10
+tkn pr rm --all --keep-since 72
+tkn pr rm <run-name>
+```
+
+The `max-keep-runs` annotation on PipelineRun definitions handles automatic cleanup — set it in `.tekton/*.yaml` annotations.
+
+### Starting Pipelines Manually
+
+```bash
+tkn pipeline start <pipeline-name> \
+  --param repo-url=https://git.holdenitdown.net/rfhold/myrepo \
+  --param revision=main \
+  --workspace name=source,volumeClaimTemplateFile=pvc.yaml \
+  --showlog
+```
+
+### Output Formats
+
+```bash
+tkn pr list -o json
+tkn pr list -o yaml
+tkn pr describe --last -o json
+```
+
+## tkn pac Plugin
+
+The `tkn pac` plugin provides PAC-specific commands. Install via `go install github.com/openshift-pipelines/pipelines-as-code/cmd/tkn-pac@latest` or download from releases.
+
+### Repository Management
+
+```bash
+tkn pac repo list -n pipelines-as-code
+tkn pac repo describe <repo-name> -n pipelines-as-code
+```
+
+### Listing PAC Runs
+
+```bash
+tkn pac ls -n pipelines-as-code
+tkn pac describe <run-name> -n pipelines-as-code
+tkn pac logs <run-name> -n pipelines-as-code
+```
+
+### Pipeline Generation
+
+Scaffold a pipeline for a repo (auto-detects language):
+
+```bash
+tkn pac generate
+```
+
+Run from the repo root — it creates `.tekton/<name>.yaml` with a PipelineRun template.
+
+### Local Pipeline Resolution
+
+Test PAC template variable expansion locally without pushing:
+
+```bash
+tkn pac resolve -f .tekton/my-pipeline.yaml \
+  --params revision=main \
+  --params repo_url=https://git.holdenitdown.net/rfhold/myrepo
+```
+
+### CEL Expression Testing
+
+Test CEL filter expressions used in `on-cel-expression` annotations:
+
+```bash
+tkn pac cel 'event == "pull_request" && target_branch == "main"'
+```
+
+### Globbing Pattern Testing
+
+Test `on-path-change` glob patterns:
+
+```bash
+tkn pac info globbing 'src/**/*.ts' 'src/index.ts'
+```
+
+## GitOps PR Commands
+
+PAC supports slash commands in PR comments for controlling pipeline execution:
+
+| Command | Effect |
+|---|---|
+| `/retest` | Re-run all failed pipeline runs for the PR |
+| `/retest <pipeline-name>` | Re-run a specific pipeline |
+| `/test <pipeline-name>` | Run a specific pipeline |
+| `/cancel` | Cancel running pipeline runs for the PR |
+| `/cancel <pipeline-name>` | Cancel a specific pipeline |
+| `/ok-to-test` | Allow pipeline runs from external contributors (requires write access) |
+
+These commands are posted as PR comments in Gitea.
+
+## Docker-in-Docker (DinD)
+
+Use DinD when pipelines need to run containers (e.g., `docker-compose` for integration tests). The `pipelines-as-code` namespace is labeled `pod-security.kubernetes.io/enforce: privileged`, so privileged sidecars are allowed.
+
+Use the TCP+TLS pattern (official Tekton approach). The `dockerd` sidecar is privileged; step containers are not.
+
+### DinD Task Pattern
+
+```yaml
+- name: integration-tests
+  taskSpec:
+    workspaces:
+      - name: source
+    sidecars:
+      - name: dockerd
+        image: docker:dind
+        securityContext:
+          privileged: true
+        args:
+          - --storage-driver=vfs
+          - --userland-proxy=false
+        env:
+          - name: DOCKER_TLS_CERTDIR
+            value: /certs
+        volumeMounts:
+          - name: dind-certs
+            mountPath: /certs/client
+          - name: dind-storage
+            mountPath: /var/lib/docker
+        startupProbe:
+          periodSeconds: 1
+          failureThreshold: 30
+          exec:
+            command: [ls, /certs/client/ca.pem]
+        readinessProbe:
+          periodSeconds: 2
+          exec:
+            command: [docker, info]
+    steps:
+      - name: compose-test
+        image: docker/compose:latest
+        workingDir: $(workspaces.source.path)
+        env:
+          - name: DOCKER_HOST
+            value: tcp://localhost:2376
+          - name: DOCKER_TLS_VERIFY
+            value: "1"
+          - name: DOCKER_CERT_PATH
+            value: /certs/client
+        volumeMounts:
+          - name: dind-certs
+            mountPath: /certs/client
+        script: |
+          #!/bin/sh
+          set -e
+          docker compose up --abort-on-container-exit --exit-code-from tests
+    volumes:
+      - name: dind-certs
+        emptyDir: {}
+      - name: dind-storage
+        emptyDir: {}
+  workspaces:
+    - name: source
+      workspace: source
+```
+
+**Key details:**
+- `DOCKER_TLS_CERTDIR=/certs` on the sidecar causes it to auto-generate certs and place client certs at `/certs/client/`
+- The `startupProbe` waits for `/certs/client/ca.pem` before Tekton advances to steps
+- `--storage-driver=vfs` avoids overlay-on-overlay issues on most kernel versions; switch to `overlay2` if the node kernel supports nested overlayfs (Linux ≥ 5.11)
+- `dind-storage` emptyDir isolates the Docker layer cache per TaskRun

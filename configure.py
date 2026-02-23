@@ -68,6 +68,7 @@ PACKAGES = {
             "argon2",
             "pulumi",
             "kubectl",
+            "tekton-cli",
             "p7zip",
             "wireguard-tools",
             "openresolv",
@@ -730,6 +731,7 @@ if pkg_manager == "pacman" and not is_container():
         packages=[
             "docker-rootless-extras",  # Rootless Docker systemd user units
             "librewolf-bin",
+            "maestro",
         ],
         present=True,
     )

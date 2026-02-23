@@ -1,6 +1,6 @@
 ---
 name: gitea-tea
-description: Using the tea CLI to interact with the Gitea instance at git.holdenitdown.net. Invoked when managing repositories, issues, pull requests, releases, labels, milestones, notifications, or branches on Gitea, or when performing git-forge operations beyond what gh provides.
+description: Using the tea CLI to interact with the Gitea instance at git.holdenitdown.net. Use ONLY when the user explicitly mentions Gitea, git.holdenitdown.net, or asks to use the tea CLI. Do NOT use for general git operations, GitHub workflows, or any task that does not specifically involve this Gitea instance.
 ---
 
 # Gitea Tea CLI
