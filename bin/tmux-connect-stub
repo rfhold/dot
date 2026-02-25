@@ -15,12 +15,13 @@ if [[ -z "$SESSION" || -z "$WINDOW" ]]; then
     exit 0
 fi
 
-IS_STUB=$(tmux show-options -t "${SESSION}:${WINDOW}" -wqv @remote_stub 2>/dev/null)
+IS_REMOTE=$(tmux show-options -t "${SESSION}:${WINDOW}" -wqv @remote_stub 2>/dev/null)
 
-if [[ "$IS_STUB" == "1" ]]; then
-    # Unmark before connecting so the hook doesn't re-fire on reconnect
-    tmux set-option -t "${SESSION}:${WINDOW}" -w @remote_stub 0
+if [[ "$IS_REMOTE" == "1" ]]; then
+    PANE_CMD=$(tmux display-message -t "${SESSION}:${WINDOW}" -p "#{pane_current_command}" 2>/dev/null)
 
-    # Wake the read in tmux-stub-window
-    tmux send-keys -t "${SESSION}:${WINDOW}" "" Enter
+    # Wake if the pane is sitting on a read (bash), not if SSH is already running
+    if [[ "$PANE_CMD" == "bash" || "$PANE_CMD" == "sh" ]]; then
+        tmux send-keys -t "${SESSION}:${WINDOW}" "" Enter
+    fi
 fi

@@ -5,10 +5,18 @@ import * as path from "path"
 
 const BREADCRUMB_DIR = "/tmp/opencode-notify"
 const APP_NAME = "opencode"
-const SOUNDS_DIR = "/usr/share/sounds/freedesktop/stereo"
-const SOUND_MAP: Record<string, string> = {
-  normal: `${SOUNDS_DIR}/complete.oga`,
-  critical: `${SOUNDS_DIR}/dialog-warning.oga`,
+const IS_MACOS = process.platform === "darwin"
+
+const LINUX_SOUNDS_DIR = "/usr/share/sounds/freedesktop/stereo"
+const SOUND_MAP: Record<string, Record<string, string>> = {
+  linux: {
+    normal: `${LINUX_SOUNDS_DIR}/complete.oga`,
+    critical: `${LINUX_SOUNDS_DIR}/dialog-warning.oga`,
+  },
+  darwin: {
+    normal: "/System/Library/Sounds/Glass.aiff",
+    critical: "/System/Library/Sounds/Sosumi.aiff",
+  },
 }
 
 /**
@@ -53,16 +61,18 @@ export const NotifyPlugin: Plugin = async ({ $ }) => {
 
   // Capture the Hyprland window address of this terminal at init time
   // so oc-focus can target the exact window even with multiple terminals open
-  try {
-    const activeWindow = (
-      await $`hyprctl activewindow -j 2>/dev/null`.text()
-    ).trim()
-    const parsed = JSON.parse(activeWindow)
-    if (parsed.class === "com.mitchellh.ghostty") {
-      hyprlandAddr = parsed.address
+  if (!IS_MACOS) {
+    try {
+      const activeWindow = (
+        await $`hyprctl activewindow -j 2>/dev/null`.text()
+      ).trim()
+      const parsed = JSON.parse(activeWindow)
+      if (parsed.class === "com.mitchellh.ghostty") {
+        hyprlandAddr = parsed.address
+      }
+    } catch {
+      // Not in Hyprland or activewindow failed
     }
-  } catch {
-    // Not in Hyprland or activewindow failed
   }
 
   // -------------------------------------------------------------------------
@@ -91,9 +101,12 @@ export const NotifyPlugin: Plugin = async ({ $ }) => {
   // -------------------------------------------------------------------------
 
   function playSound(urgency: "low" | "normal" | "critical") {
-    const soundFile = SOUND_MAP[urgency] || SOUND_MAP.normal
+    const platform = IS_MACOS ? "darwin" : "linux"
+    const sounds = SOUND_MAP[platform]
+    const soundFile = sounds[urgency] || sounds.normal
     if (!soundFile) return
-    const child = spawn("pw-play", [soundFile], {
+    const cmd = IS_MACOS ? "afplay" : "pw-play"
+    const child = spawn(cmd, [soundFile], {
       detached: true,
       stdio: "ignore",
     })
@@ -134,6 +147,17 @@ export const NotifyPlugin: Plugin = async ({ $ }) => {
 
     // Play notification sound
     playSound(urgency)
+
+    if (IS_MACOS) {
+      // macOS: use osascript to display a native notification
+      const soundName = urgency === "critical" ? "Sosumi" : "Glass"
+      const script = `display notification "${body.replace(/"/g, '\\"')}" with title "${title.replace(/"/g, '\\"')}" subtitle "${APP_NAME}" sound name "${soundName}"`
+      spawn("osascript", ["-e", script], {
+        detached: true,
+        stdio: "ignore",
+      }).unref()
+      return
+    }
 
     if (!crumb) {
       // No tmux context — fire and forget, no action buttons

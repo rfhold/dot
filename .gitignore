@@ -12,3 +12,5 @@ wheels/
 env/
 .aider*
 node_modules/
+
+home/.ssh/known_hosts*

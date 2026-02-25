@@ -2,25 +2,60 @@
 
 # tmux-stub-window - Lazy SSH connector for remote stub windows
 #
-# Usage: tmux-stub-window <user> <host>
+# Usage: tmux-stub-window <user> <host> <remote-session> <remote-window>
 #
 # Sits idle showing a connection prompt. When the after-select-window hook
-# fires (or the user presses Enter), connects via SSH.
+# fires (or the user presses Enter), SSHes into the host and attaches to
+# the specified tmux session, selecting the correct window.
 # On disconnect the pane dies — no reconnect loop.
 
 SSH_USER="$1"
 SSH_HOST="$2"
+REMOTE_SESSION="$3"
+REMOTE_WINDOW="$4"
 
 if [[ -z "$SSH_USER" || -z "$SSH_HOST" ]]; then
-    echo "tmux-stub-window: missing arguments (user host)" >&2
+    echo "tmux-stub-window: missing arguments (user host [session] [window])" >&2
     exit 1
 fi
 
-printf "\033[2J\033[H"  # clear screen
-printf "  \033[38;5;208m%s\033[0m  →  \033[38;5;147m%s\033[0m\n\n" "$SSH_USER" "$SSH_HOST"
-printf "  \033[2m[not connected — select this window to connect]\033[0m\n"
+connect() {
+    if [[ -n "$REMOTE_SESSION" && -n "$REMOTE_WINDOW" ]]; then
+        ssh -t "${SSH_USER}@${SSH_HOST}" \
+            "tmux new-session -A -s '${REMOTE_SESSION}' \; select-window -t '${REMOTE_WINDOW}'"
+    else
+        ssh "${SSH_USER}@${SSH_HOST}"
+    fi
+}
 
-# Block until woken by the hook (which sends a newline via send-keys)
+prompt() {
+    local msg="$1"
+    printf "\033[2J\033[H"  # clear screen
+    printf "  \033[38;5;208m%s\033[0m  →  \033[38;5;147m%s\033[0m" "$SSH_USER" "$SSH_HOST"
+    if [[ -n "$REMOTE_SESSION" ]]; then
+        printf "  \033[2m(%s)\033[0m" "$REMOTE_SESSION"
+    fi
+    printf "\n\n  \033[2m%s\033[0m\n\n  " "$msg"
+}
+
+# Initial idle state — block until woken by the hook
+prompt "[not connected — select this window to connect]"
 read -r _
 
-exec ssh "${SSH_USER}@${SSH_HOST}"
+while true; do
+    connect
+    EXIT=$?
+
+    if [[ $EXIT -eq 0 ]]; then
+        # Clean disconnect — ask before reconnecting
+        prompt "[disconnected — press enter to reconnect, q to close]"
+    else
+        # Error / unreachable — show exit code
+        prompt "[connection lost (exit $EXIT) — press enter to retry, q to close]"
+    fi
+
+    read -r response
+    [[ "$response" == "q" ]] && exit 0
+
+    prompt "[connecting...]"
+done

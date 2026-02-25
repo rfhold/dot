@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+# tmux-detach-remote - Detach the remote tmux session when leaving a remote window
+#
+# Usage: tmux-detach-remote <current-session> <prev-session>
+#
+# Called by the client-session-changed hook. If prev-session is a remote
+# session (contains "/"), look up the SSH host and detach all clients from
+# that remote tmux session.
+
+CURRENT_SESSION="$1"
+PREV_SESSION="$2"
+
+# Only act if we just left a remote session (name contains "/")
+if [[ "$PREV_SESSION" != */* ]]; then
+    exit 0
+fi
+
+# Don't detach if we're still in the same machine's sessions
+PREV_MACHINE="${PREV_SESSION%%/*}"
+CURRENT_MACHINE="${CURRENT_SESSION%%/*}"
+if [[ "$PREV_MACHINE" == "$CURRENT_MACHINE" ]]; then
+    exit 0
+fi
+
+REMOTE_SESSION="${PREV_SESSION#*/}"
+
+# Look up SSH host from any window in the previous session that has @remote_host set
+SSH_HOST=$(tmux show-options -t "${PREV_SESSION}" -wqv @remote_host 2>/dev/null | head -1)
+SSH_USER=$(tmux show-options -t "${PREV_SESSION}" -wqv @remote_user 2>/dev/null | head -1)
+
+# Fall back to checking individual windows if session-level lookup fails
+if [[ -z "$SSH_HOST" ]]; then
+    while IFS= read -r window; do
+        SSH_HOST=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_host 2>/dev/null)
+        SSH_USER=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_user 2>/dev/null)
+        [[ -n "$SSH_HOST" ]] && break
+    done < <(tmux list-windows -t "=${PREV_SESSION}" -F "#{window_name}" 2>/dev/null)
+fi
+
+[[ -z "$SSH_HOST" || -z "$SSH_USER" ]] && exit 0
+
+# Fire detach on the remote — background so it doesn't block the hook
+ssh -o BatchMode=yes -o ConnectTimeout=3 "${SSH_USER}@${SSH_HOST}" \
+    "tmux detach-client -s '${REMOTE_SESSION}' 2>/dev/null" &

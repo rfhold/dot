@@ -47,19 +47,23 @@ cleanup_init_window() {
 }
 
 # Create a stub window in a local session
+# session format: "<machine>/<remote-session>"
 create_stub() {
     local session="$1"
     local window="$2"
     local ssh_user="$3"
     local ssh_host="$4"
+    local remote_session="${session#*/}"  # strip "machine/" prefix
 
     tmux new-window -d -t "${session}:" -n "$window" -- \
-        "${SCRIPT_DIR}/tmux-stub-window" "$ssh_user" "$ssh_host"
+        "${SCRIPT_DIR}/tmux-stub-window" "$ssh_user" "$ssh_host" "$remote_session" "$window"
 
     # Tag it as a stub with connection info
     tmux set-option -t "${session}:${window}" -w @remote_stub 1
     tmux set-option -t "${session}:${window}" -w @remote_host "$ssh_host"
     tmux set-option -t "${session}:${window}" -w @remote_user "$ssh_user"
+    tmux set-option -t "${session}:${window}" -w @remote_session "$remote_session"
+    tmux set-option -t "${session}:${window}" -w @remote_window "$window"
 }
 
 # Kill a stub window (only if it is still a stub — never kill live SSH windows)
