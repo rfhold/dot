@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+
+# tmux-sync-remote - Sync remote tmux sessions from tmux.holdenitdown.net into local stub windows
+#
+# For each remote machine reported by the API:
+#   - Creates a local tmux session named "<machine>/<session>" for each remote session
+#   - Creates stub windows that auto-connect via SSH when selected
+#   - Removes stub windows that no longer exist on the remote
+#
+# Stub windows are identified by the tmux window option @remote_stub=1
+# Live SSH windows (manually kept open) are never removed.
+
+SERVER_URL="${TMUX_SERVER_URL:-https://tmux.holdenitdown.net}"
+LOCAL_MACHINE="${MACHINE_NAME:-$(hostname -s 2>/dev/null || hostname)}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Fetch sessions JSON from API
+fetch_sessions() {
+    curl -sf "${SERVER_URL}/api/sessions" 2>/dev/null
+}
+
+# Ensure a local tmux session exists (detached, no output)
+# new-session always creates a first window; we mark it for cleanup with @remote_init=1
+# and kill it once real stub windows have been added.
+ensure_session() {
+    local session="$1"
+    if ! tmux has-session -t "=${session}" 2>/dev/null; then
+        tmux new-session -d -s "$session" -x 220 -y 50 2>/dev/null
+        # Mark the auto-created placeholder window so we can remove it later
+        tmux set-option -t "${session}:0" -w @remote_init 1 2>/dev/null
+    fi
+}
+
+# Kill the placeholder window created by new-session (if it still exists)
+cleanup_init_window() {
+    local session="$1"
+    local is_init
+    is_init=$(tmux show-options -t "${session}:0" -wqv @remote_init 2>/dev/null)
+    if [[ "$is_init" == "1" ]]; then
+        # Only remove if there are other windows to switch to
+        local count
+        count=$(tmux list-windows -t "=${session}" | wc -l)
+        if [[ "$count" -gt 1 ]]; then
+            tmux kill-window -t "${session}:0" 2>/dev/null
+        fi
+    fi
+}
+
+# Create a stub window in a local session
+create_stub() {
+    local session="$1"
+    local window="$2"
+    local ssh_user="$3"
+    local ssh_host="$4"
+
+    tmux new-window -d -t "${session}:" -n "$window" -- \
+        "${SCRIPT_DIR}/tmux-stub-window" "$ssh_user" "$ssh_host"
+
+    # Tag it as a stub with connection info
+    tmux set-option -t "${session}:${window}" -w @remote_stub 1
+    tmux set-option -t "${session}:${window}" -w @remote_host "$ssh_host"
+    tmux set-option -t "${session}:${window}" -w @remote_user "$ssh_user"
+}
+
+# Kill a stub window (only if it is still a stub — never kill live SSH windows)
+kill_stub() {
+    local session="$1"
+    local window="$2"
+
+    local is_stub
+    is_stub=$(tmux show-options -t "${session}:${window}" -wqv @remote_stub 2>/dev/null)
+    if [[ "$is_stub" == "1" ]]; then
+        tmux kill-window -t "${session}:${window}" 2>/dev/null
+    fi
+}
+
+# List window names in a local session
+local_windows() {
+    local session="$1"
+    tmux list-windows -t "=${session}" -F "#{window_name}" 2>/dev/null
+}
+
+main() {
+    if ! command -v tmux &>/dev/null; then
+        echo "tmux not found" >&2
+        exit 1
+    fi
+
+    # Must be running inside tmux (or at least have a server running)
+    if ! tmux list-sessions &>/dev/null 2>&1; then
+        exit 0
+    fi
+
+    local json
+    json=$(fetch_sessions)
+    if [[ -z "$json" ]]; then
+        exit 0
+    fi
+
+    # Process each remote machine (skip the local one)
+    local machine_count
+    machine_count=$(echo "$json" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+machines = [m for m in data.get('machines', []) if m['name'] != '${LOCAL_MACHINE}']
+print(len(machines))
+" 2>/dev/null)
+
+    [[ -z "$machine_count" || "$machine_count" -eq 0 ]] && exit 0
+
+    # For each remote machine/session/window, sync stub windows
+    echo "$json" | python3 -c "
+import json, sys
+
+data = json.load(sys.stdin)
+local_machine = '${LOCAL_MACHINE}'
+
+for machine in data.get('machines', []):
+    if machine['name'] == local_machine:
+        continue
+    name     = machine['name']
+    ssh_host = machine['ssh_host']
+    ssh_user = machine['ssh_user']
+    for session in machine.get('sessions', []):
+        sess_name = session['name']
+        local_sess = f'{name}/{sess_name}'
+        print(f'SESSION\t{local_sess}\t{ssh_user}\t{ssh_host}')
+        for window in session.get('window_details', []):
+            print(f'WINDOW\t{local_sess}\t{window[\"name\"]}\t{ssh_user}\t{ssh_host}')
+        print(f'CLEANUP\t{local_sess}')
+" 2>/dev/null | while IFS=$'\t' read -r kind rest; do
+        case "$kind" in
+            SESSION)
+                IFS=$'\t' read -r session ssh_user ssh_host <<< "$rest"
+                ensure_session "$session"
+                ;;
+            WINDOW)
+                IFS=$'\t' read -r session window ssh_user ssh_host <<< "$rest"
+                # Create stub only if no window with this name exists yet
+                if ! tmux list-windows -t "=${session}" -F "#{window_name}" 2>/dev/null | grep -qx "$window"; then
+                    create_stub "$session" "$window" "$ssh_user" "$ssh_host"
+                fi
+                ;;
+            CLEANUP)
+                cleanup_init_window "$rest"
+                ;;
+        esac
+    done
+
+    # Prune stub windows that no longer exist on the remote
+    echo "$json" | python3 -c "
+import json, sys
+
+data = json.load(sys.stdin)
+local_machine = '${LOCAL_MACHINE}'
+
+for machine in data.get('machines', []):
+    if machine['name'] == local_machine:
+        continue
+    name = machine['name']
+    for session in machine.get('sessions', []):
+        sess_name = session['name']
+        local_sess = f'{name}/{sess_name}'
+        remote_windows = {w['name'] for w in session.get('window_details', [])}
+        print(f'{local_sess}\t{\" \".join(remote_windows)}')
+" 2>/dev/null | while IFS=$'\t' read -r local_sess remote_windows_str; do
+        if ! tmux has-session -t "=${local_sess}" 2>/dev/null; then
+            continue
+        fi
+        # Build set of remote window names
+        declare -A remote_set
+        for w in $remote_windows_str; do
+            remote_set["$w"]=1
+        done
+
+        # Check each local window in this session
+        while IFS= read -r local_win; do
+            if [[ -z "${remote_set[$local_win]+_}" ]]; then
+                kill_stub "$local_sess" "$local_win"
+            fi
+        done < <(local_windows "$local_sess")
+
+        unset remote_set
+    done
+}
+
+main "$@"

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# tmux-stub-window - Lazy SSH connector for remote stub windows
+#
+# Usage: tmux-stub-window <user> <host>
+#
+# Sits idle showing a connection prompt. When the after-select-window hook
+# fires (or the user presses Enter), connects via SSH.
+# On disconnect the pane dies — no reconnect loop.
+
+SSH_USER="$1"
+SSH_HOST="$2"
+
+if [[ -z "$SSH_USER" || -z "$SSH_HOST" ]]; then
+    echo "tmux-stub-window: missing arguments (user host)" >&2
+    exit 1
+fi
+
+printf "\033[2J\033[H"  # clear screen
+printf "  \033[38;5;208m%s\033[0m  →  \033[38;5;147m%s\033[0m\n\n" "$SSH_USER" "$SSH_HOST"
+printf "  \033[2m[not connected — select this window to connect]\033[0m\n"
+
+# Block until woken by the hook (which sends a newline via send-keys)
+read -r _
+
+exec ssh "${SSH_USER}@${SSH_HOST}"
