@@ -1,19 +1,19 @@
 ---
-name: gitea-tea
-description: Using the tea CLI to interact with the Gitea instance at git.holdenitdown.net. Use ONLY when the user explicitly mentions Gitea, git.holdenitdown.net, or asks to use the tea CLI. Do NOT use for general git operations, GitHub workflows, or any task that does not specifically involve this Gitea instance.
+name: forgejo-tea
+description: Using the tea CLI to interact with the Forgejo instance at git.holdenitdown.net. Use ONLY when the user explicitly mentions Forgejo, git.holdenitdown.net, or asks to use the tea CLI. Do NOT use for general git operations, GitHub workflows, or any task that does not specifically involve this Forgejo instance.
 ---
 
-# Gitea Tea CLI
+# Forgejo Tea CLI
 
-Use this skill when interacting with the Gitea instance at `git.holdenitdown.net` via the `tea` command-line tool. Tea is the official CLI for Gitea/Forgejo servers, similar to GitHub's `gh` CLI.
+Use this skill when interacting with the Forgejo instance at `git.holdenitdown.net` via the `tea` command-line tool. Tea is the official CLI for Gitea/Forgejo servers, similar to GitHub's `gh` CLI.
 
 ## Environment
 
 | Item | Value |
 |---|---|
-| Gitea instance | `https://git.holdenitdown.net` |
+| Forgejo instance | `https://git.holdenitdown.net` |
 | User | `rfhold` |
-| Auth token env var | `GITEA_ACCESS_TOKEN` |
+| Auth token env var | `FORGEJO_ACCESS_TOKEN` |
 | Token scopes | `write:repository`, `write:issue`, `write:package`, `write:notification`, `write:misc`, `write:activitypub`, `read:organization`, `read:user` |
 | Tea binary | `tea` (Arch `extra` package, installed by `configure.py`) |
 | Tea config | `~/.config/tea/` |
@@ -26,7 +26,7 @@ If tea is not yet logged in, configure it before first use:
 tea login add \
   --name holdenitdown \
   --url https://git.holdenitdown.net \
-  --token "$GITEA_ACCESS_TOKEN" \
+  --token "$FORGEJO_ACCESS_TOKEN" \
   --no-version-check
 ```
 
@@ -310,5 +310,5 @@ ISSUE=$(tea issues create --title "Title" --description "Body" --output json | j
 |---|---|---|
 | `unknown command` | tea not installed | Run `configure.py` or install manually from `gitea.com/gitea/tea/releases` |
 | `No login available` | No stored login | Run `tea login add` with the setup command above |
-| `token does not have required scope` | Token missing permissions | Generate new token in Gitea with required scopes |
-| `could not determine repo` | Not in a git repo with Gitea remote | Use `--repo owner/repo` flag explicitly |
+| `token does not have required scope` | Token missing permissions | Generate new token in Forgejo with required scopes |
+| `could not determine repo` | Not in a git repo with Forgejo remote | Use `--repo owner/repo` flag explicitly |

@@ -1,16 +1,16 @@
 ---
 name: tekton-pac
-description: Writing Tekton Pipelines as Code (PAC) pipeline definitions for Gitea repositories and using the tkn CLI to inspect, debug, and manage pipeline runs. Invoked when creating or editing .tekton/ pipeline YAML files, setting up CI/CD for a repo, building container images with BuildKit, posting Gitea PR comments, creating releases, onboarding a repository to Tekton PAC, or using tkn/tkn-pac commands to list, describe, log, or debug pipeline runs.
+description: Writing Tekton Pipelines as Code (PAC) pipeline definitions for Forgejo repositories and using the tkn CLI to inspect, debug, and manage pipeline runs. Invoked when creating or editing .tekton/ pipeline YAML files, setting up CI/CD for a repo, building container images with BuildKit, posting Forgejo PR comments, creating releases, onboarding a repository to Tekton PAC, or using tkn/tkn-pac commands to list, describe, log, or debug pipeline runs.
 ---
 
-# Tekton Pipelines as Code for Gitea
+# Tekton Pipelines as Code for Forgejo
 
-Use this skill when creating or modifying `.tekton/` pipeline definitions for repositories hosted on the Gitea instance at `git.holdenitdown.net`.
+Use this skill when creating or modifying `.tekton/` pipeline definitions for repositories hosted on the Forgejo instance at `git.holdenitdown.net`.
 
 ## System Architecture
 
-- **Tekton PAC v0.41.1** receives webhook events from a Gitea org-level webhook
-- **PAC Global Repository CR** shares Gitea auth config and global parameters across all repos
+- **Tekton PAC v0.41.1** receives webhook events from a Forgejo org-level webhook
+- **PAC Global Repository CR** shares Forgejo auth config and global parameters across all repos
 - All PipelineRuns execute in the `pipelines-as-code` namespace on the **pantheon** cluster
 - **BuildKit daemons** (remote, long-running) handle container builds — preferred over DinD for image builds
 - The `buildctl` client connects to daemons over TCP within the cluster
@@ -22,7 +22,7 @@ Use this skill when creating or modifying `.tekton/` pipeline definitions for re
 
 | Component | Address |
 |---|---|
-| Gitea | `https://git.holdenitdown.net` |
+| Forgejo | `https://git.holdenitdown.net` |
 | Container Registry | `cr.holdenitdown.net` |
 | BuildKit amd64 | `tcp://buildkit-amd64.buildkit.svc.cluster.local:1234` |
 | BuildKit arm64 | `tcp://buildkit-arm64.buildkit.svc.cluster.local:1234` |
@@ -38,7 +38,7 @@ These are injected by the Global Repository CR and available in all pipeline fil
 | `BUILDKIT_AMD64_ADDR` | `buildkit-amd64.buildkit.svc.cluster.local:1234` |
 | `BUILDKIT_ARM64_ADDR` | `buildkit-arm64.buildkit.svc.cluster.local:1234` |
 | `CONTAINER_REGISTRY` | `cr.holdenitdown.net` |
-| `GITEA_URL` | `https://git.holdenitdown.net` |
+| `GIT_URL` | `https://git.holdenitdown.net` |
 
 Access with: `{{ params.BUILDKIT_AMD64_ADDR }}`, `{{ params.CONTAINER_REGISTRY }}`, etc.
 
@@ -48,8 +48,8 @@ These secrets exist in the `pipelines-as-code` namespace and can be mounted in t
 
 | Secret | Purpose | Keys |
 |---|---|---|
-| `{{ git_auth_secret }}` | Auto-created per PipelineRun with Gitea credentials | `git-provider-token`, `.gitconfig`, `.git-credentials` |
-| `gitea-pac-token` | Static Gitea token (prefer `{{ git_auth_secret }}`) | `token` |
+| `{{ git_auth_secret }}` | Auto-created per PipelineRun with Forgejo credentials | `git-provider-token`, `.gitconfig`, `.git-credentials` |
+| `git-pac-token` | Static Forgejo token (prefer `{{ git_auth_secret }}`) | `token` |
 | `android-keystore` | Android APK signing keystore | `keystore.jks`, `keystore-password`, `key-alias`, `key-password` |
 | `tekton-cluster-kubeconfig` | Multi-cluster kubeconfig | `kubeconfig` |
 
@@ -191,11 +191,11 @@ Available in `.tekton/*.yaml` files via `{{ variable }}` syntax:
 | `{{ target_branch }}` | Target branch name | All events |
 | `{{ pull_request_number }}` | PR number | PR events only |
 | `{{ sender }}` | Username who triggered | All events |
-| `{{ git_auth_secret }}` | Auto-created secret name with Gitea credentials | All events |
+| `{{ git_auth_secret }}` | Auto-created secret name with Forgejo credentials | All events |
 
-The `{{ git_auth_secret }}` secret contains `.gitconfig`, `.git-credentials`, and a `git-provider-token` key with the Gitea API token. This token has write scopes (`write:repository`, `write:issue`) and can create releases, post PR comments, and create issues.
+The `{{ git_auth_secret }}` secret contains `.gitconfig`, `.git-credentials`, and a `git-provider-token` key with the Forgejo API token. This token has write scopes (`write:repository`, `write:issue`) and can create releases, post PR comments, and create issues.
 
-The static `gitea-pac-token` secret (used by the Global Repository CR) stores the same token under the key `token`. In PAC-triggered runs, always prefer `{{ git_auth_secret }}` with key `git-provider-token`.
+The static `git-pac-token` secret (used by the Global Repository CR) stores the same token under the key `token`. In PAC-triggered runs, always prefer `{{ git_auth_secret }}` with key `git-provider-token`.
 
 ## Building Container Images with BuildKit
 
@@ -330,9 +330,9 @@ buildctl --addr tcp://$(params.buildkit-addr) build \
   --output type=image,name=$(params.image),push=true
 ```
 
-## Gitea API Operations
+## Forgejo API Operations
 
-Use `curl` with the token from `{{ git_auth_secret }}` for Gitea API calls. Mount the secret as a volume and read the token from file. Never use `set -x` in scripts that handle the token.
+Use `curl` with the token from `{{ git_auth_secret }}` for Forgejo API calls. Mount the secret as a volume and read the token from file. Never use `set -x` in scripts that handle the token.
 
 ### Posting a PR Comment
 
@@ -359,7 +359,7 @@ Use `curl` with the token from `{{ git_auth_secret }}` for Gitea API calls. Moun
           set -e
           TOKEN=$(cat /etc/git-auth/git-provider-token)
           HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-            "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues/$(params.pr-number)/comments" \
+            "{{ params.GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues/$(params.pr-number)/comments" \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"body\": \"$(params.comment)\"}")
@@ -401,7 +401,7 @@ Use `curl` with the token from `{{ git_auth_secret }}` for Gitea API calls. Moun
           set -e
           TOKEN=$(cat /etc/git-auth/git-provider-token)
           HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-            "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases" \
+            "{{ params.GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases" \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"tag_name\": \"$(params.tag)\", \"name\": \"Release $(params.tag)\", \"body\": \"$(params.body)\"}")
@@ -443,7 +443,7 @@ Use `curl` with the token from `{{ git_auth_secret }}` for Gitea API calls. Moun
           set -e
           TOKEN=$(cat /etc/git-auth/git-provider-token)
           HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-            "{{ params.GITEA_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
+            "{{ params.GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"title\": \"$(params.title)\", \"body\": \"$(params.body)\"}")
@@ -545,9 +545,9 @@ taskSpec:
         TOKEN=$(cat /etc/git-auth/git-provider-token)
 ```
 
-### Gitea Token Scopes
+### Forgejo Token Scopes
 
-The PAC Gitea token requires these scopes for full pipeline functionality:
+The PAC Forgejo token requires these scopes for full pipeline functionality:
 
 | Operation | Required Scope |
 |---|---|
@@ -558,17 +558,17 @@ The PAC Gitea token requires these scopes for full pipeline functionality:
 | Push to registry | (registry is open, no token needed) |
 
 If API calls return HTTP 403 with `token does not have at least one of required scope(s)`, the token needs additional scopes. Update it via:
-1. Generate a new token in Gitea with required scopes
-2. `pulumi config set --secret tekton:giteaToken <new-token>` in `programs/tekton`
+1. Generate a new token in Forgejo with required scopes
+2. `pulumi config set --secret tekton:gitToken <new-token>` in `programs/tekton`
 3. `pulumi up`
 
 ## Onboarding a Repository
 
-To add a Gitea repo to the PAC system:
+To add a Forgejo repo to the PAC system:
 
-1. Add the repo path to `programs/tekton/Pulumi.pantheon.yaml` under `tekton:gitea:repositories`:
+1. Add the repo path to `programs/tekton/Pulumi.pantheon.yaml` under `tekton:git:repositories`:
    ```yaml
-   tekton:gitea:
+   tekton:git:
      host: git.holdenitdown.net
      repositories:
        - rfhold/homelab
@@ -578,7 +578,7 @@ To add a Gitea repo to the PAC system:
 3. Create a `.tekton/` directory in the repository with PipelineRun YAML files
 4. Push — the org-level webhook routes events to PAC automatically
 
-**Repository resources are managed by Pulumi**, not by files in `.tekton/`. The Pulumi code in `src/components/tekton.ts` creates Repository CRs with `git_provider` configuration automatically. Each repo gets its own Repository CR (e.g., `pac-rfhold-dot`) that references the shared Gitea authentication secrets (`gitea-pac-token` and `gitea-pac-webhook`).
+**Repository resources are managed by Pulumi**, not by files in `.tekton/`. The Pulumi code in `src/components/tekton.ts` creates Repository CRs with `git_provider` configuration automatically. Each repo gets its own Repository CR (e.g., `pac-rfhold-dot`) that references the shared Forgejo authentication secrets (`git-pac-token` and `git-pac-webhook`).
 
 No per-repo webhook setup is needed.
 
@@ -664,7 +664,7 @@ The keystore is managed via Pulumi in the Tekton stack. See `.opencode/docs/andr
 - Use `volumeClaimTemplate` with `ReadWriteOnce` for build workspaces
 - Parallel tasks sharing a workspace need to land on the same node (K8s scheduling constraint with RWO PVCs), or each task can clone independently
 - Mount `docker-credentials` secret as a workspace if registry auth is needed for pushes
-- The `{{ git_auth_secret }}` secret is auto-created per PipelineRun — mount it as a volume to access the Gitea token
+- The `{{ git_auth_secret }}` secret is auto-created per PipelineRun — mount it as a volume to access the Forgejo token
 - The `android-keystore` secret is available for APK signing — mount as volume to access the keystore file
 
 ## Common Patterns
@@ -727,11 +727,11 @@ If pipelines don't trigger after pushing to a PR or branch:
 2. **Common error: `failed to find git_provider details in repository spec`**
    - This means the Repository CR is missing `git_provider` configuration
    - Repository resources are managed by Pulumi in `src/components/tekton.ts`
-   - Verify the repo is listed in `programs/tekton/Pulumi.pantheon.yaml` under `tekton:gitea:repositories`
+   - Verify the repo is listed in `programs/tekton/Pulumi.pantheon.yaml` under `tekton:git:repositories`
    - Run `pulumi up` in the Tekton stack to update the Repository CR
    - Check the Repository: `kubectl get repository pac-<owner>-<repo> -n pipelines-as-code -o yaml`
 
-3. **Verify webhook delivery** in Gitea:
+3. **Verify webhook delivery** in Forgejo:
    - Org webhook: `https://git.holdenitdown.net/rfhold/settings/hooks`
    - Check recent deliveries for errors
 
@@ -974,7 +974,7 @@ PAC supports slash commands in PR comments for controlling pipeline execution:
 | `/cancel <pipeline-name>` | Cancel a specific pipeline |
 | `/ok-to-test` | Allow pipeline runs from external contributors (requires write access) |
 
-These commands are posted as PR comments in Gitea.
+These commands are posted as PR comments in Forgejo.
 
 ## Docker-in-Docker (DinD)
 
