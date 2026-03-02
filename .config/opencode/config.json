@@ -77,6 +77,7 @@
       "git shortlog*": "allow",
       "git fetch*": "allow",
       "gh pr list*": "allow",
+      "gh pr checks*": "allow",
       "gh pr view*": "allow",
       "gh pr status*": "allow",
       "gh issue list*": "allow",
@@ -100,9 +101,7 @@
       "kubectl cluster-info *": "allow",
       "kubectl wait *": "allow",
       "kubectl diff *": "allow",
-      "sudo *": "deny",
-      "npm *": "deny",
-      "npx *": "deny"
+      "sudo *": "deny"
     }
   },
   "provider": {

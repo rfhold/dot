@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# tmux-stub-idle - sentinel that blocks waiting for the connect hook to wake it
+#
+# Used by tmux-stub-window as the initial idle state. tmux-connect-stub checks
+# for this process name (instead of generic bash/sh) so it only sends Enter
+# during the pre-connect idle state, not after a disconnect.
+
+read -r _

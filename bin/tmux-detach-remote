@@ -25,21 +25,34 @@ fi
 
 REMOTE_SESSION="${PREV_SESSION#*/}"
 
-# Look up SSH host from any window in the previous session that has @remote_host set
-SSH_HOST=$(tmux show-options -t "${PREV_SESSION}" -wqv @remote_host 2>/dev/null | head -1)
-SSH_USER=$(tmux show-options -t "${PREV_SESSION}" -wqv @remote_user 2>/dev/null | head -1)
+# Look up SSH host and per-window stub session names from the previous session
+# Each window connects via its own grouped stub session: "<session>--stub--<window>"
+declare -A window_ssh_host
+declare -A window_ssh_user
+declare -A window_remote_session
+declare -A window_remote_window
 
-# Fall back to checking individual windows if session-level lookup fails
-if [[ -z "$SSH_HOST" ]]; then
-    while IFS= read -r window; do
-        SSH_HOST=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_host 2>/dev/null)
-        SSH_USER=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_user 2>/dev/null)
-        [[ -n "$SSH_HOST" ]] && break
-    done < <(tmux list-windows -t "=${PREV_SESSION}" -F "#{window_name}" 2>/dev/null)
-fi
+while IFS= read -r window; do
+    w_host=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_host 2>/dev/null)
+    w_user=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_user 2>/dev/null)
+    w_rsess=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_session 2>/dev/null)
+    w_rwin=$(tmux show-options -t "${PREV_SESSION}:${window}" -wqv @remote_window 2>/dev/null)
+    [[ -n "$w_host" ]] && window_ssh_host["$window"]="$w_host"
+    [[ -n "$w_user" ]] && window_ssh_user["$window"]="$w_user"
+    [[ -n "$w_rsess" ]] && window_remote_session["$window"]="$w_rsess"
+    [[ -n "$w_rwin" ]] && window_remote_window["$window"]="$w_rwin"
+done < <(tmux list-windows -t "=${PREV_SESSION}" -F "#{window_name}" 2>/dev/null)
 
-[[ -z "$SSH_HOST" || -z "$SSH_USER" ]] && exit 0
+# Detach each window's stub session on the remote
+for window in "${!window_ssh_host[@]}"; do
+    SSH_HOST="${window_ssh_host[$window]}"
+    SSH_USER="${window_ssh_user[$window]}"
+    W_RSESS="${window_remote_session[$window]}"
+    W_RWIN="${window_remote_window[$window]}"
+    STUB_SESSION="${W_RSESS}--stub--${W_RWIN}"
 
-# Fire detach on the remote — background so it doesn't block the hook
-ssh -o BatchMode=yes -o ConnectTimeout=3 "${SSH_USER}@${SSH_HOST}" \
-    "tmux detach-client -s '${REMOTE_SESSION}' 2>/dev/null" &
+    [[ -z "$SSH_HOST" || -z "$SSH_USER" || -z "$W_RSESS" || -z "$W_RWIN" ]] && continue
+
+    ssh -o BatchMode=yes -o ConnectTimeout=3 "${SSH_USER}@${SSH_HOST}" \
+        "tmux detach-client -s '${STUB_SESSION}' 2>/dev/null" &
+done

@@ -1,0 +1,18 @@
+#!/bin/sh
+# Remove Co-authored-by trailers injected by AI coding assistants
+
+COMMIT_MSG_FILE="$1"
+TMP_FILE="${COMMIT_MSG_FILE}.tmp"
+
+cleanup() {
+  rm -f "$TMP_FILE"
+}
+trap cleanup EXIT
+
+# Strip co-authored-by lines (case-insensitive), then strip trailing blank lines
+grep -vi '^co-authored-by:' "$COMMIT_MSG_FILE" \
+  | sed 's/[[:space:]]*$//' \
+  | awk 'NF { last=NR } { lines[NR]=$0 } END { for (i=1; i<=last; i++) print lines[i] }' \
+  > "$TMP_FILE" || exit 1
+
+mv "$TMP_FILE" "$COMMIT_MSG_FILE" || exit 1

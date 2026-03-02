@@ -20,8 +20,9 @@ IS_REMOTE=$(tmux show-options -t "${SESSION}:${WINDOW}" -wqv @remote_stub 2>/dev
 if [[ "$IS_REMOTE" == "1" ]]; then
     PANE_CMD=$(tmux display-message -t "${SESSION}:${WINDOW}" -p "#{pane_current_command}" 2>/dev/null)
 
-    # Wake if the pane is sitting on a read (bash), not if SSH is already running
-    if [[ "$PANE_CMD" == "bash" || "$PANE_CMD" == "sh" ]]; then
+    # Wake only if the pane is in the initial idle state (tmux-stub-idle),
+    # not during the post-disconnect read or while SSH is running
+    if [[ "$PANE_CMD" == "tmux-stub-idle" ]]; then
         tmux send-keys -t "${SESSION}:${WINDOW}" "" Enter
     fi
 fi

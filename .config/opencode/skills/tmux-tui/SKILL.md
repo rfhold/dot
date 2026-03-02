@@ -5,9 +5,15 @@ description: Operating tmux panes to interact with TUI applications and manage l
 
 # Tmux TUI Pane Operations
 
+> **IMPORTANT:** This skill is ONLY for situations where tmux interaction is unavoidable — specifically:
+> 1. A TUI is already running and there is no alternative but to interact with it directly (e.g., the user has lazygit or nvim open and needs you to drive it), OR
+> 2. A process must run persistently in the background and cannot be managed by the Bash tool alone.
+>
+> **If there is any non-tmux alternative available, use it instead.** For example: prefer `git` CLI over driving lazygit, prefer file editing tools over driving nvim, prefer the Bash tool for any command that produces output you can capture. Do NOT use this skill just because a TUI is involved — only use it when you have no other choice.
+
 **Prefer the Bash tool for ordinary shell commands.** Use this skill only when interactive terminal use is required:
 
-- Interact with a running TUI application (lazygit, nvim, htop, k9s, lazydocker, etc.)
+- Interact with a running TUI application (lazygit, nvim, htop, k9s, lazydocker, etc.) **when no CLI/tool alternative exists**
 - Start a long-lived process (server, watcher, dev build) that must persist after the task
 - The user explicitly asks to work in a tmux pane
 

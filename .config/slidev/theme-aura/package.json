@@ -1,0 +1,23 @@
+{
+  "name": "slidev-theme-aura",
+  "version": "0.1.0",
+  "description": "Aura dark theme for Slidev — purple/violet accent on near-black",
+  "keywords": ["slidev-theme", "slidev"],
+  "license": "MIT",
+  "engines": {
+    "slidev": ">=0.47.0"
+  },
+  "slidev": {
+    "colorSchema": "dark",
+    "defaults": {
+      "transition": "slide-left",
+      "aspectRatio": "16/9",
+      "canvasWidth": 980,
+      "fonts": {
+        "sans": "Inter",
+        "mono": "Fira Code",
+        "weights": "400,500,600,700,800"
+      }
+    }
+  }
+}

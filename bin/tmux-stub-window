@@ -21,8 +21,24 @@ fi
 
 connect() {
     if [[ -n "$REMOTE_SESSION" && -n "$REMOTE_WINDOW" ]]; then
-        ssh -t "${SSH_USER}@${SSH_HOST}" \
-            "tmux new-session -A -s '${REMOTE_SESSION}' \; select-window -t '${REMOTE_WINDOW}'"
+        # Each stub window creates its own grouped session on the remote.
+        # Grouped sessions share windows but have independent current-window
+        # pointers, so selecting a window here doesn't affect other clients.
+        #
+        # We use new-session -d (not -A) to ensure the session exists without
+        # accidentally attaching the terminal mid-script (new-session -A attaches
+        # immediately when the session already exists, swallowing the rest).
+        local stub_session="${REMOTE_SESSION}--stub--${REMOTE_WINDOW}"
+        # Unset TMUX so the remote shell's tmux commands talk to the remote
+        # tmux server, not the local one (SSH forwards $TMUX by default).
+        ssh -t "${SSH_USER}@${SSH_HOST}" "
+            unset TMUX
+            tmux new-session -d -s '${REMOTE_SESSION}' 2>/dev/null
+            tmux new-session -d -s '${stub_session}' -t '${REMOTE_SESSION}' 2>/dev/null
+            tmux select-window -t '${stub_session}:${REMOTE_WINDOW}' 2>/dev/null
+            tmux attach-session -t '${stub_session}'
+            tmux kill-session -t '${stub_session}' 2>/dev/null
+        "
     else
         ssh "${SSH_USER}@${SSH_HOST}"
     fi
@@ -38,9 +54,11 @@ prompt() {
     printf "\n\n  \033[2m%s\033[0m\n\n  " "$msg"
 }
 
-# Initial idle state — block until woken by the hook
+# Initial idle state — block until woken by the hook.
+# tmux-stub-idle is a named sentinel so tmux-connect-stub can distinguish
+# this state from the post-disconnect read and only auto-connect here.
 prompt "[not connected — select this window to connect]"
-read -r _
+tmux-stub-idle
 
 while true; do
     connect

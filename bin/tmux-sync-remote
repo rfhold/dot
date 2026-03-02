@@ -7,6 +7,9 @@
 #   - Creates stub windows that auto-connect via SSH when selected
 #   - Removes stub windows that no longer exist on the remote
 #
+# Usage: tmux-sync-remote [--reset]
+#   --reset  Kill all existing idle stub windows before syncing (force-recreate)
+#
 # Stub windows are identified by the tmux window option @remote_stub=1
 # Live SSH windows (manually kept open) are never removed.
 
@@ -84,6 +87,23 @@ local_windows() {
     tmux list-windows -t "=${session}" -F "#{window_name}" 2>/dev/null
 }
 
+# Kill all idle stub windows across all remote sessions (used by --reset)
+reset_stubs() {
+    tmux list-sessions -F "#{session_name}" 2>/dev/null | grep '/' | while IFS= read -r session; do
+        tmux list-windows -t "=${session}" -F "#{window_name}" 2>/dev/null | while IFS= read -r window; do
+            local is_stub pane_cmd
+            is_stub=$(tmux show-options -t "${session}:${window}" -wqv @remote_stub 2>/dev/null)
+            if [[ "$is_stub" == "1" ]]; then
+                # Only kill idle stubs (pane running tmux-stub-idle = not yet connected)
+                pane_cmd=$(tmux display-message -t "${session}:${window}" -p "#{pane_current_command}" 2>/dev/null)
+                if [[ "$pane_cmd" == "tmux-stub-idle" ]]; then
+                    tmux kill-window -t "${session}:${window}" 2>/dev/null
+                fi
+            fi
+        done
+    done
+}
+
 main() {
     if ! command -v tmux &>/dev/null; then
         echo "tmux not found" >&2
@@ -93,6 +113,10 @@ main() {
     # Must be running inside tmux (or at least have a server running)
     if ! tmux list-sessions &>/dev/null 2>&1; then
         exit 0
+    fi
+
+    if [[ "$1" == "--reset" ]]; then
+        reset_stubs
     fi
 
     local json
@@ -127,6 +151,9 @@ for machine in data.get('machines', []):
     ssh_user = machine['ssh_user']
     for session in machine.get('sessions', []):
         sess_name = session['name']
+        # Skip grouped stub sessions created by tmux-stub-window on the remote
+        if '--stub--' in sess_name:
+            continue
         local_sess = f'{name}/{sess_name}'
         print(f'SESSION\t{local_sess}\t{ssh_user}\t{ssh_host}')
         for window in session.get('window_details', []):
@@ -164,6 +191,9 @@ for machine in data.get('machines', []):
     name = machine['name']
     for session in machine.get('sessions', []):
         sess_name = session['name']
+        # Skip grouped stub sessions created by tmux-stub-window on the remote
+        if '--stub--' in sess_name:
+            continue
         local_sess = f'{name}/{sess_name}'
         remote_windows = {w['name'] for w in session.get('window_details', [])}
         print(f'{local_sess}\t{\" \".join(remote_windows)}')

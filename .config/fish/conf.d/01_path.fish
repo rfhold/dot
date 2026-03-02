@@ -2,7 +2,7 @@
 export XDG_CONFIG_HOME="$HOME/.config"
 
 export GOPATH="$HOME/go"
-export GOPRIVATE="github.com/cfaintl"
+export GOPRIVATE="github.com/cfaintl,git.holdenitdown.net"
 
 export OLLAMA_API_BASE="https://ollama.holdenitdown.net"
 
