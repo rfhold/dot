@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REMOTE_HOST="thinkpad.holdenitdown.net"
+REMOTE_USER="rfhold"
+REMOTE="$REMOTE_USER@$REMOTE_HOST"
+DOT_DIR="$HOME/dot"
+ENV_DIR="$DOT_DIR/env"
+SYNC_DIRS=("encrypted" "kubeconfig")
+
+DRY_RUN=false
+VERBOSE=false
+
+usage() {
+    echo "Usage: sync-env [--dry-run] [--verbose]"
+    exit 1
+}
+
+log() { echo "$*"; }
+verbose() { $VERBOSE && echo "$*" || true; }
+dry() { $DRY_RUN && echo "[dry-run] $*" || true; }
+
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN=true ;;
+        --verbose) VERBOSE=true ;;
+        *) usage ;;
+    esac
+done
+
+# Build a checksum map from lines of "checksum  path"
+# Usage: parse_checksums <output_var_prefix> < <lines>
+declare -A LOCAL_SUMS=()
+declare -A REMOTE_SUMS=()
+
+collect_local() {
+    local rel_dir="$1"
+    local abs_dir="$ENV_DIR/$rel_dir"
+    [[ -d "$abs_dir" ]] || return 0
+    while IFS= read -r -d '' f; do
+        local rel="${rel_dir}/$(basename "$f")"
+        local sum
+        if command -v sha256sum &>/dev/null; then
+            sum=$(sha256sum "$f" | awk '{print $1}')
+        else
+            sum=$(shasum -a 256 "$f" | awk '{print $1}')
+        fi
+        LOCAL_SUMS["$rel"]="$sum"
+        verbose "  local  $rel  $sum"
+    done < <(find "$abs_dir" -maxdepth 1 -type f -not -name '._*' -print0 | sort -z)
+}
+
+collect_remote() {
+    local rel_dir="$1"
+    local remote_dir="\$HOME/dot/env/$rel_dir"
+    local output
+    output=$(ssh "$REMOTE" bash -c "'
+        if [ ! -d $remote_dir ]; then exit 0; fi
+        find $remote_dir -maxdepth 1 -type f -not -name \"._*\" | sort | xargs sha256sum
+    '" 2>/dev/null) || true
+    while IFS= read -r line; do
+        # Only process lines that look like checksum output (64 hex chars + space + path)
+        [[ "$line" =~ ^([0-9a-f]{64})[[:space:]]+(.+)$ ]] || continue
+        local sum="${BASH_REMATCH[1]}"
+        local filename="${BASH_REMATCH[2]}"
+        local rel="${rel_dir}/$(basename "$filename")"
+        REMOTE_SUMS["$rel"]="$sum"
+        verbose "  remote $rel  $sum"
+    done <<< "$output"
+}
+
+transfer_to_remote() {
+    local rel="$1"
+    local local_path="$ENV_DIR/$rel"
+    local remote_path="\$HOME/dot/env/$rel"
+    local remote_dir="\$HOME/dot/env/$(dirname "$rel")"
+    if $DRY_RUN; then
+        dry "push $rel"
+    else
+        ssh "$REMOTE" bash -c "'mkdir -p $remote_dir'"
+        cat "$local_path" | ssh "$REMOTE" bash -c "'cat > $remote_path'"
+        log "  pushed $rel"
+    fi
+}
+
+transfer_from_remote() {
+    local rel="$1"
+    local local_dir="$ENV_DIR/$(dirname "$rel")"
+    local local_path="$ENV_DIR/$rel"
+    local remote_path="\$HOME/dot/env/$rel"
+    local expected_sum="${REMOTE_SUMS[$rel]:-}"
+    if $DRY_RUN; then
+        dry "pull $rel"
+    else
+        mkdir -p "$local_dir"
+        ssh "$REMOTE" bash -c "'echo __SYNC_START__; base64 $remote_path; echo __SYNC_END__'" \
+            | sed -n '/__SYNC_START__/,/__SYNC_END__/{/__SYNC_START__/d;/__SYNC_END__/d;p;}' \
+            | base64 -d > "$local_path"
+        if [[ -n "$expected_sum" ]]; then
+            local actual
+            if command -v sha256sum &>/dev/null; then
+                actual=$(sha256sum "$local_path" | awk '{print $1}')
+            else
+                actual=$(shasum -a 256 "$local_path" | awk '{print $1}')
+            fi
+            if [[ "$actual" != "$expected_sum" ]]; then
+                log "  ERROR: checksum mismatch after pulling $rel (got $actual, expected $expected_sum)"
+                rm -f "$local_path"
+                return 1
+            fi
+        fi
+        log "  pulled $rel"
+    fi
+}
+
+prompt_conflict() {
+    local rel="$1"
+    local local_sum="${LOCAL_SUMS[$rel]}"
+    local remote_sum="${REMOTE_SUMS[$rel]}"
+    echo ""
+    echo "CONFLICT: $rel"
+    echo "  local:  $local_sum"
+    echo "  remote: $remote_sum"
+    if $DRY_RUN; then
+        dry "would prompt: keep [l]ocal, [r]emote, or [s]kip"
+        return
+    fi
+    local choice
+    while true; do
+        printf "  Keep [l]ocal, [r]emote, or [s]kip? " 
+        read -r choice
+        case "$choice" in
+            l|L) transfer_to_remote "$rel"; return ;;
+            r|R) transfer_from_remote "$rel"; return ;;
+            s|S) log "  skipped $rel"; return ;;
+            *) echo "  Enter l, r, or s." ;;
+        esac
+    done
+}
+
+# Collect all file info
+log "Collecting local file checksums..."
+for d in "${SYNC_DIRS[@]}"; do collect_local "$d"; done
+
+log "Collecting remote file checksums..."
+for d in "${SYNC_DIRS[@]}"; do collect_remote "$d"; done
+
+# Build unified set of all known relative paths
+declare -A ALL_RELS=()
+for k in "${!LOCAL_SUMS[@]}";  do ALL_RELS["$k"]=1; done
+for k in "${!REMOTE_SUMS[@]}"; do ALL_RELS["$k"]=1; done
+
+if [[ ${#ALL_RELS[@]} -eq 0 ]]; then
+    log "No files found in either location."
+    exit 0
+fi
+
+log ""
+log "Syncing..."
+
+push_count=0
+pull_count=0
+conflict_count=0
+skip_count=0
+
+for rel in $(echo "${!ALL_RELS[@]}" | tr ' ' '\n' | sort); do
+    local_sum="${LOCAL_SUMS[$rel]:-}"
+    remote_sum="${REMOTE_SUMS[$rel]:-}"
+
+    if [[ -z "$local_sum" ]]; then
+        log "  only remote: $rel → pulling"
+        transfer_from_remote "$rel"
+        pull_count=$((pull_count + 1))
+    elif [[ -z "$remote_sum" ]]; then
+        log "  only local:  $rel → pushing"
+        transfer_to_remote "$rel"
+        push_count=$((push_count + 1))
+    elif [[ "$local_sum" == "$remote_sum" ]]; then
+        verbose "  in sync:     $rel"
+        skip_count=$((skip_count + 1))
+    else
+        prompt_conflict "$rel"
+        conflict_count=$((conflict_count + 1))
+    fi
+done
+
+log ""
+if $DRY_RUN; then
+    log "Dry run complete. pushed=$push_count pulled=$pull_count conflicts=$conflict_count skipped=$skip_count"
+else
+    log "Done. pushed=$push_count pulled=$pull_count conflicts=$conflict_count skipped=$skip_count"
+fi
