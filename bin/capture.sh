@@ -13,12 +13,17 @@ if ! [[ "$duration" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
 fi
 
 api_url="https://whisperx.holdenitdown.net/transcribe"
-tmp_wav="$(mktemp --suffix=.wav)"
+tmp_wav="$(mktemp).wav"
 trap 'rm -f "$tmp_wav"' EXIT
 
 record_with_ffmpeg() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    ffmpeg -loglevel error -y -f avfoundation -i ":default" -t "$duration" -ac 1 -ar 16000 "$tmp_wav" 2>/dev/null
+    return
+  fi
+
   if ffmpeg -loglevel error -y -f pulse -i default -t "$duration" -ac 1 -ar 16000 "$tmp_wav"; then
-    return 0
+    return
   fi
 
   ffmpeg -loglevel error -y -f alsa -i default -t "$duration" -ac 1 -ar 16000 "$tmp_wav"
@@ -35,7 +40,7 @@ else
   exit 1
 fi
 
-response="$(curl -sS -X POST "$api_url" \
+response="$(curl -sS -X POST "$api_url?language=en" \
   -F "file=@$tmp_wav;type=audio/wav")"
 
 text="$(printf '%s' "$response" | jq -r '[.segments[]?.text] | join(" ") | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "")')"
