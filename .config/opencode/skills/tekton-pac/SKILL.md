@@ -172,7 +172,7 @@ spec:
 |---|---|---|
 | `on-event` | `[pull_request]`, `[push]` | Event type filter |
 | `on-target-branch` | `[main]`, `[refs/tags/*]`, `[refs/tags/v*]` | Branch/tag filter |
-| `max-keep-runs` | `"5"` | Auto-cleanup old PipelineRuns |
+| `max-keep-runs` | `"2"` | Auto-cleanup old PipelineRuns; **default convention is 2** |
 | `on-path-change` | `[src/**, docker/**]` | Only trigger on file path matches |
 | `on-path-change-ignore` | `[docs/**, *.md]` | Exclude paths from triggering |
 | `task` | `[git-clone]` | Fetch catalog tasks by name |
@@ -200,6 +200,44 @@ The static `git-pac-token` secret (used by the Global Repository CR) stores the 
 ## Building Container Images with BuildKit
 
 Use `buildctl` to build images against the remote BuildKit daemons. The daemons are long-running with 50Gi persistent caches. No privileged mode needed in pipeline tasks.
+
+### Node Pinning
+
+Tekton tasks run in the `pipelines-as-code` namespace. To pin all tasks in a PipelineRun to a specific node (e.g., `apollo` for CI workloads), use `taskRunTemplate` at the PipelineRun spec level:
+
+```yaml
+spec:
+  taskRunTemplate:
+    podTemplate:
+      nodeSelector:
+        kubernetes.io/hostname: apollo
+```
+
+This is required when using RWO PVCs shared across parallel tasks (all tasks must land on the same node), or when targeting nodes with specific hardware (KVM, GPU).
+
+### Git Clone Convention
+
+**Do not use `--depth=1`** — shallow clones cause `fatal: unable to read tree` errors with specific commit SHAs. Always use full clone:
+
+```yaml
+- name: clone
+  image: alpine/git:latest
+  script: |
+    #!/bin/sh
+    set -e
+    git clone $(params.repo-url) .
+    git checkout $(params.revision)
+```
+
+### Image Revision Tag Convention
+
+Tag images with `{{ revision }}` (full commit SHA) as the primary tag, plus `:latest` for the most recent push:
+
+```yaml
+--output type=image,name=$(params.image):{{ revision }}-amd64,push=true
+```
+
+Then the manifest step creates both `:<revision>` and `:latest` multi-arch manifests.
 
 ### Single-Arch Build Task
 
