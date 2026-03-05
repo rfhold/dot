@@ -721,6 +721,15 @@ if has_dist:
             dest=f"{home}/.local/bin/opencodes-tray",
             mode="755",
         )
+        # Re-sign after copy — copying a Hardened Runtime binary taints its
+        # pages, causing the kernel to reject it with CODE SIGNING errors.
+        server.shell(
+            name="Re-sign opencodes-tray after install",
+            commands=[
+                f"codesign --force --sign - --options runtime {home}/.local/bin/opencodes-tray",
+            ],
+            _if=any_changed(tray_install),
+        )
         launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.opencodes-tray.plist"
         plist_install = files.template(
             name="Write opencodes-tray LaunchAgent plist",
