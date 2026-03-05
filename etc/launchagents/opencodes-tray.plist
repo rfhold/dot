@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>dev.rfholden.opencodes-tray</string>
+  <key>ProgramArguments</key>
+  <array><string>{{ tray_path }}</string></array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OPENCODES_SSH_HOST</key><string>macbook.holdenitdown.net</string>
+    <key>OPENCODES_SSH_USER</key><string>rfhold</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict></plist>

@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenCodes tray daemon
+After=network-online.target graphical-session.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/opencodes-tray
+Environment=HOME=%h
+Environment=OPENCODES_SSH_HOST=thinkpad.holdenitdown.net
+Environment=OPENCODES_SSH_USER=rfhold
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

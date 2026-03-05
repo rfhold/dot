@@ -173,7 +173,23 @@ def link_config_dir(source, target):
     import os
 
     paths = host.get_fact(FindFiles, path=source, maxdepth=1)
-    paths.extend(host.get_fact(FindDirectories, path=source, maxdepth=1))
+    dirs = host.get_fact(FindDirectories, path=source, maxdepth=1)
+
+    # For subdirectories that already exist as real dirs on the target,
+    # link their contents individually instead of replacing the directory.
+    real_dir_children = []
+    for path in dirs:
+        if path == source:
+            continue
+        dst = path.replace(source, "", 1).lstrip("/")
+        link_path = f"{target}/{dst}"
+        try:
+            if os.path.isdir(link_path) and not os.path.islink(link_path):
+                real_dir_children.append(path)
+                continue
+        except OSError:
+            pass
+        paths.append(path)
 
     for path in paths:
         if path == source:
@@ -183,13 +199,10 @@ def link_config_dir(source, target):
         link_path = f"{target}/{dst}"
         link_target = f"{source}/{dst}"
 
-        # Python-level skip: check if symlink already exists and points to correct target
         try:
             if os.path.islink(link_path) and os.readlink(link_path) == link_target:
-                # Symlink already correct, skip pyinfra operation entirely
                 continue
         except (OSError, FileNotFoundError):
-            # Link doesn't exist or can't be read, proceed with operation
             pass
 
         files.link(
@@ -199,6 +212,10 @@ def link_config_dir(source, target):
             force=True,
             force_backup=True,
         )
+
+    # Recurse into subdirectories that exist as real dirs on the target
+    for subdir in real_dir_children:
+        link_config_dir(subdir, f"{target}/{subdir.replace(source, '', 1).lstrip('/')}")
 
 
 def install_packages(name, key, present=True):
@@ -629,6 +646,93 @@ git.repo(
 )
 
 # -----------------------------------------------------------------------------
+# OpenCodes artifacts (from ~/dot/dist/)
+# -----------------------------------------------------------------------------
+
+dist_dir = f"{home}/dot/dist"
+has_dist = host.get_fact(File, path=f"{dist_dir}/opencodes.js") is not None
+
+if has_dist:
+    # --- opencodes-tmux plugin ---
+    files.directory(
+        name="Ensure opencodes-tmux plugin directory",
+        path=f"{home}/.tmux/plugins/opencodes-tmux/bin",
+        present=True,
+    )
+
+    if os_name == "Darwin":
+        tmux_binary_src = f"{dist_dir}/opencodes-tmux-darwin"
+    else:
+        tmux_binary_src = f"{dist_dir}/opencodes-tmux-linux-amd64"
+
+    files.put(
+        name="Install opencodes-tmux binary",
+        src=tmux_binary_src,
+        dest=f"{home}/.tmux/plugins/opencodes-tmux/bin/opencodes-tmux",
+        mode="755",
+    )
+    files.put(
+        name="Install opencodes-tmux.tmux plugin script",
+        src=f"{dist_dir}/opencodes-tmux.tmux",
+        dest=f"{home}/.tmux/plugins/opencodes-tmux/opencodes-tmux.tmux",
+        mode="755",
+    )
+
+    # --- opencodes opencode plugin ---
+    files.directory(
+        name="Ensure opencode plugins directory",
+        path=f"{home}/.config/opencode/plugins",
+        present=True,
+    )
+    files.put(
+        name="Install opencodes opencode plugin",
+        src=f"{dist_dir}/opencodes.js",
+        dest=f"{home}/.config/opencode/plugins/opencodes.js",
+        mode="644",
+    )
+
+    # --- opencodes tray binary + service ---
+    files.directory(
+        name="Ensure ~/.local/bin exists",
+        path=f"{home}/.local/bin",
+        present=True,
+    )
+
+    if os_name == "Darwin":
+        tray_binary_src = f"{dist_dir}/opencodes-tray-darwin"
+    else:
+        tray_binary_src = f"{dist_dir}/opencodes-tray-linux-amd64"
+
+    tray_install = files.put(
+        name="Install opencodes-tray binary",
+        src=tray_binary_src,
+        dest=f"{home}/.local/bin/opencodes-tray",
+        mode="755",
+    )
+
+    if os_name == "Darwin":
+        launchagent_path = f"{home}/Library/LaunchAgents/dev.rfholden.opencodes-tray.plist"
+        plist_install = files.template(
+            name="Write opencodes-tray LaunchAgent plist",
+            src=f"{home}/dot/etc/launchagents/opencodes-tray.plist",
+            dest=launchagent_path,
+            tray_path=f"{home}/.local/bin/opencodes-tray",
+        )
+        if tray_install.changed or plist_install.changed:
+            server.shell(
+                name="Reload opencodes-tray LaunchAgent",
+                commands=[
+                    f"launchctl unload {launchagent_path} 2>/dev/null || true",
+                    f"launchctl load {launchagent_path}",
+                ],
+            )
+    elif has_systemd() and tray_install.changed:
+        server.shell(
+            name="Restart opencodes-tray service after binary update",
+            commands=["systemctl --user restart opencodes-tray.service"],
+        )
+
+# -----------------------------------------------------------------------------
 # Fish plugins
 # -----------------------------------------------------------------------------
 
@@ -756,22 +860,31 @@ if pkg_manager == "pacman" and not is_container():
             ],
         )
 
-    # Enable tmux-agent user service (pushes tmux sessions to server)
-    # Check if tmux-agent.service is already enabled and running
-    tmux_agent_enabled = host.get_fact(
+    # Disable old tmux-agent service (superseded by opencodes-tray)
+    old_agent_enabled = host.get_fact(
         Command,
         command="systemctl --user is-enabled tmux-agent.service 2>/dev/null || echo disabled",
     ).strip()
-    tmux_agent_active = host.get_fact(
-        Command,
-        command="systemctl --user is-active tmux-agent.service 2>/dev/null || echo inactive",
-    ).strip()
-
-    if tmux_agent_enabled != "enabled" or tmux_agent_active != "active":
+    if old_agent_enabled == "enabled":
         server.shell(
-            name="Enable tmux-agent user service",
+            name="Disable old tmux-agent service",
+            commands=["systemctl --user disable --now tmux-agent.service"],
+        )
+
+    # Enable opencodes-tray user service (tray daemon + tmux session bridging)
+    tray_enabled = host.get_fact(
+        Command,
+        command="systemctl --user is-enabled opencodes-tray.service 2>/dev/null || echo disabled",
+    ).strip()
+    tray_active = host.get_fact(
+        Command,
+        command="systemctl --user is-active opencodes-tray.service 2>/dev/null || echo inactive",
+    ).strip()
+    if tray_enabled != "enabled" or tray_active != "active":
+        server.shell(
+            name="Enable opencodes-tray user service",
             commands=[
-                "systemctl --user daemon-reload && systemctl --user enable --now tmux-agent.service"
+                "systemctl --user daemon-reload && systemctl --user enable --now opencodes-tray.service"
             ],
         )
 
