@@ -3,6 +3,10 @@ __pycache__/
 *.py[oc]
 build/
 dist/
+!dist/
+dist/*
+!dist/opencodes-*
+!dist/opencodes.*
 wheels/
 *.egg-info
 
