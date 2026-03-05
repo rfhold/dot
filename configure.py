@@ -664,17 +664,22 @@ if has_dist:
     else:
         tmux_binary_src = f"{dist_dir}/opencodes-tmux-linux-amd64"
 
-    files.put(
+    tmux_binary_install = files.put(
         name="Install opencodes-tmux binary",
         src=tmux_binary_src,
         dest=f"{home}/.tmux/plugins/opencodes-tmux/bin/opencodes-tmux",
         mode="755",
     )
-    files.put(
+    tmux_plugin_install = files.put(
         name="Install opencodes-tmux.tmux plugin script",
         src=f"{dist_dir}/opencodes-tmux.tmux",
         dest=f"{home}/.tmux/plugins/opencodes-tmux/opencodes-tmux.tmux",
         mode="755",
+    )
+    server.shell(
+        name="Reload tmux config",
+        commands=[f"tmux source-file {home}/.tmux.conf 2>/dev/null || true"],
+        _if=any_changed(tmux_binary_install, tmux_plugin_install),
     )
 
     # --- opencodes opencode plugin ---
