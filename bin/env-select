@@ -34,6 +34,8 @@ decrypt_and_output() {
             gpg --decrypt --quiet "$encrypted_file" 2>/dev/null | while IFS='=' read -r key value; do
                 # Skip empty lines and comments
                 [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+                # Expand $HOME to its actual value
+                value="${value//'$HOME'/$HOME}"
                 # Output Fish set commands with proper quoting for special characters
                 # Escape single quotes in the value by replacing ' with '\''
                 escaped_value="${value//\'/\'\\\'\'}"
