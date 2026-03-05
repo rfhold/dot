@@ -670,12 +670,6 @@ if has_dist:
         dest=f"{home}/.tmux/plugins/opencodes-tmux/bin/opencodes-tmux",
         mode="755",
     )
-    if os_name == "Darwin":
-        server.shell(
-            name="Strip quarantine xattr from opencodes-tmux binary",
-            commands=[f"xattr -c {home}/.tmux/plugins/opencodes-tmux/bin/opencodes-tmux"],
-            _if=tmux_binary_install.did_change,
-        )
     tmux_plugin_install = files.put(
         name="Install opencodes-tmux.tmux plugin script",
         src=f"{dist_dir}/opencodes-tmux.tmux",
