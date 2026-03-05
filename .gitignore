@@ -18,6 +18,7 @@ env/
 node_modules/
 
 home/.ssh/known_hosts*
+home/.ssh/authorized_keys
 .config/fish/fish_variables
 .config/fish/fish_plugins
 .config/opencode/plugins/
