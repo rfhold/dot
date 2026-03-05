@@ -23,23 +23,10 @@ spec:
       - name: source
     tasks:
       - name: fetch-repository
-        taskSpec:
-          params:
-            - name: repo-url
-              type: string
-            - name: revision
-              type: string
-          workspaces:
-            - name: output
-          steps:
-            - name: clone
-              image: alpine/git:latest
-              workingDir: $(workspaces.output.path)
-              script: |
-                #!/bin/sh
-                set -e
-                git clone $(params.repo-url) .
-                git checkout $(params.revision)
+        taskRef:
+          apiVersion: tekton.dev/v1
+          kind: Task
+          name: git-clone
         params:
           - name: repo-url
             value: $(params.repo-url)
@@ -60,21 +47,14 @@ spec:
               workingDir: $(workspaces.source.path)
               script: |
                 #!/bin/sh
-                set -e
                 chmod -R 777 .
             - name: build
-              image: cimg/android:2025.10.1
+              image: cr.holdenitdown.net/rfhold/android-ci:latest
               workingDir: $(workspaces.source.path)/android
-              env:
-                - name: ANDROID_HOME
-                  value: /home/circleci/android-sdk
-                - name: GRADLE_USER_HOME
-                  value: $(workspaces.source.path)/.gradle
               script: |
                 #!/bin/sh
                 set -e
                 sh ./gradlew assembleDebug --no-daemon --stacktrace
-                echo "Android build succeeded"
         workspaces:
           - name: source
             workspace: source
