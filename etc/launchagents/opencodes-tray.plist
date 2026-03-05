@@ -7,6 +7,7 @@
   <array><string>{{ tray_path }}</string></array>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>OPENCODES_SSH_HOST</key><string>macbook.holdenitdown.net</string>
     <key>OPENCODES_SSH_USER</key><string>rfhold</string>
   </dict>
