@@ -29,10 +29,10 @@ upgrade_mode = os.environ.get("DOTFILES_UPGRADE", "0") == "1"
 
 PACKAGES = {
     "unwanted": {
-        "brew": ["rust", "rustup", "uv", "go"],
-        "pacman": ["rust", "rustup", "uv", "go"],
-        "apk": ["rust", "rustup", "go"],
-        "apt": ["golang", "golang-go"],
+        "brew": [],
+        "pacman": [],
+        "apk": [],
+        "apt": [],
     },
     "dev": {
         "brew": ["zig"],
