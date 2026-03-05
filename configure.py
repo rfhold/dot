@@ -12,6 +12,7 @@ from pyinfra.operations import (
     server,
     cargo,
 )
+from pyinfra.operations.util import any_changed
 from pyinfra.facts.files import FindFiles, FindDirectories, File
 from pyinfra.facts.server import Command, Home, Os, Which
 from pyinfra_fisher import operations as fisher
@@ -168,8 +169,11 @@ BREW_TAPS = ["pulumi/tap"]
 # -----------------------------------------------------------------------------
 
 
-def link_config_dir(source, target):
+def link_config_dir(source, target, exclude=None):
     import os
+
+    if exclude is None:
+        exclude = []
 
     paths = host.get_fact(FindFiles, path=source, maxdepth=1)
     dirs = host.get_fact(FindDirectories, path=source, maxdepth=1)
@@ -181,6 +185,8 @@ def link_config_dir(source, target):
         if path == source:
             continue
         dst = path.replace(source, "", 1).lstrip("/")
+        if dst in exclude:
+            continue
         link_path = f"{target}/{dst}"
         try:
             if os.path.isdir(link_path) and not os.path.islink(link_path):
@@ -195,6 +201,8 @@ def link_config_dir(source, target):
             continue
 
         dst = path.replace(source, "", 1).lstrip("/")
+        if dst in exclude:
+            continue
         link_path = f"{target}/{dst}"
         link_target = f"{source}/{dst}"
 
@@ -214,7 +222,18 @@ def link_config_dir(source, target):
 
     # Recurse into subdirectories that exist as real dirs on the target
     for subdir in real_dir_children:
-        link_config_dir(subdir, f"{target}/{subdir.replace(source, '', 1).lstrip('/')}")
+        sub_dst = subdir.replace(source, "", 1).lstrip("/")
+        # Propagate excludes relative to this subdirectory
+        sub_excludes = []
+        prefix = sub_dst + "/"
+        for ex in exclude:
+            if ex.startswith(prefix):
+                sub_excludes.append(ex[len(prefix):])
+        link_config_dir(
+            subdir,
+            f"{target}/{sub_dst}",
+            exclude=sub_excludes,
+        )
 
 
 def install_packages(name, key, present=True):
@@ -339,7 +358,7 @@ home = host.get_fact(Home)
 # -----------------------------------------------------------------------------
 
 link_config_dir(f"{home}/dot/.config", f"{home}/.config")
-link_config_dir(f"{home}/dot/home", home)
+link_config_dir(f"{home}/dot/home", home, exclude=[".ssh/authorized_keys"])
 
 # -----------------------------------------------------------------------------
 # Package management
@@ -463,32 +482,15 @@ else:
             )
 
         # Load iptables kernel modules at boot (required for Docker networking)
-        # Check if config file already has correct content
-        modules_config_path = "/etc/modules-load.d/docker-rootless.conf"
-        expected_modules_lines = ["ip_tables", "iptable_nat", "iptable_filter"]
-
-        # Check if file exists with correct content
-        file_exists = host.get_fact(File, path=modules_config_path) is not None
-
-        if file_exists:
-            current_content = host.get_fact(
-                Command, command=f"cat {modules_config_path}"
-            ).strip()
-            current_lines = [
-                line.strip() for line in current_content.split("\n") if line.strip()
-            ]
-            needs_update = current_lines != expected_modules_lines
-        else:
-            needs_update = True
-
-        if needs_update:
-            server.shell(
-                name="Configure iptables modules to load at boot",
-                commands=[
-                    "echo -e 'ip_tables\\niptable_nat\\niptable_filter' > /etc/modules-load.d/docker-rootless.conf"
-                ],
-                _sudo=True,
-            )
+        files.put(
+            name="Configure iptables modules to load at boot",
+            src=f"{home}/dot/etc/modules-load.d/docker-rootless.conf",
+            dest="/etc/modules-load.d/docker-rootless.conf",
+            mode="644",
+            user="root",
+            group="root",
+            _sudo=True,
+        )
 
         # Disable rootful Docker (we use rootless instead)
         systemd.service(
@@ -557,13 +559,12 @@ else:
             _sudo=True,
         )
 
-        # Only reload sysctl if config changed
-        if sysctl_config.changed:
-            server.shell(
-                name="Apply sysctl hardening settings",
-                commands=["sysctl --system"],
-                _sudo=True,
-            )
+        server.shell(
+            name="Apply sysctl hardening settings",
+            commands=["sysctl --system"],
+            _sudo=True,
+            _if=sysctl_config.did_change,
+        )
 
         # Deploy NetworkManager MAC randomization config
         files.directory(
@@ -586,13 +587,12 @@ else:
             _sudo=True,
         )
 
-        # Only reload NetworkManager if config changed
-        if nm_config.changed:
-            server.shell(
-                name="Reload NetworkManager configuration",
-                commands=["nmcli general reload conf"],
-                _sudo=True,
-            )
+        server.shell(
+            name="Reload NetworkManager configuration",
+            commands=["nmcli general reload conf"],
+            _sudo=True,
+            _if=nm_config.did_change,
+        )
 
 # GUI apps (macOS only)
 if pkg_manager == "brew":
@@ -717,18 +717,19 @@ if has_dist:
             dest=launchagent_path,
             tray_path=f"{home}/.local/bin/opencodes-tray",
         )
-        if tray_install.changed or plist_install.changed:
-            server.shell(
-                name="Reload opencodes-tray LaunchAgent",
-                commands=[
-                    f"launchctl unload {launchagent_path} 2>/dev/null || true",
-                    f"launchctl load {launchagent_path}",
-                ],
-            )
-    elif has_systemd() and tray_install.changed:
+        server.shell(
+            name="Reload opencodes-tray LaunchAgent",
+            commands=[
+                f"launchctl unload {launchagent_path} 2>/dev/null || true",
+                f"launchctl load {launchagent_path}",
+            ],
+            _if=any_changed(tray_install, plist_install),
+        )
+    elif has_systemd():
         server.shell(
             name="Restart opencodes-tray service after binary update",
             commands=["systemctl --user restart opencodes-tray.service"],
+            _if=tray_install.did_change,
         )
 
 # -----------------------------------------------------------------------------
@@ -839,52 +840,33 @@ if pkg_manager == "pacman" and not is_container():
     )
 
     # Enable rootless Docker user service (now that docker-rootless-extras is installed)
-    # Check if docker.socket is already enabled and running
-    docker_enabled = host.get_fact(
-        Command,
-        command="systemctl --user is-enabled docker.socket 2>/dev/null || echo disabled",
-    ).strip()
-    docker_active = host.get_fact(
-        Command,
-        command="systemctl --user is-active docker.socket 2>/dev/null || echo inactive",
-    ).strip()
-
-    if docker_enabled != "enabled" or docker_active != "active":
-        server.shell(
-            name="Enable rootless Docker socket",
-            commands=[
-                "systemctl --user enable docker.socket",
-                "systemctl --user start docker.socket",
-            ],
-        )
+    systemd.service(
+        name="Enable rootless Docker socket",
+        service="docker.socket",
+        running=True,
+        enabled=True,
+        user_mode=True,
+    )
 
     # Disable old tmux-agent service (superseded by opencodes-tray)
-    old_agent_enabled = host.get_fact(
-        Command,
-        command="systemctl --user is-enabled tmux-agent.service 2>/dev/null || echo disabled",
-    ).strip()
-    if old_agent_enabled == "enabled":
-        server.shell(
-            name="Disable old tmux-agent service",
-            commands=["systemctl --user disable --now tmux-agent.service"],
-        )
+    systemd.service(
+        name="Disable old tmux-agent service",
+        service="tmux-agent.service",
+        running=False,
+        enabled=False,
+        user_mode=True,
+        _ignore_errors=True,
+    )
 
     # Enable opencodes-tray user service (tray daemon + tmux session bridging)
-    tray_enabled = host.get_fact(
-        Command,
-        command="systemctl --user is-enabled opencodes-tray.service 2>/dev/null || echo disabled",
-    ).strip()
-    tray_active = host.get_fact(
-        Command,
-        command="systemctl --user is-active opencodes-tray.service 2>/dev/null || echo inactive",
-    ).strip()
-    if tray_enabled != "enabled" or tray_active != "active":
-        server.shell(
-            name="Enable opencodes-tray user service",
-            commands=[
-                "systemctl --user daemon-reload && systemctl --user enable --now opencodes-tray.service"
-            ],
-        )
+    systemd.service(
+        name="Enable opencodes-tray user service",
+        service="opencodes-tray.service",
+        running=True,
+        enabled=True,
+        daemon_reload=True,
+        user_mode=True,
+    )
 
 # -----------------------------------------------------------------------------
 # OpenSSH Server (containers only - bare metal doesn't need incoming SSH)
@@ -899,13 +881,12 @@ if pkg_manager == "pacman":
         _sudo=True,
     )
 
-# Ensure .ssh is a real directory with real files (not symlinks from link_config_dir)
+# Ensure .ssh is a real directory (not a symlink)
 server.shell(
     name="Ensure .ssh directory exists",
     commands=[
         f'test -d "{home}/.ssh" -a ! -L "{home}/.ssh" || '
         f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")',
-        f'test ! -L "{home}/.ssh/authorized_keys" || rm -f "{home}/.ssh/authorized_keys"',
     ],
 )
 
