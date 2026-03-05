@@ -707,14 +707,13 @@ if has_dist:
     else:
         tray_binary_src = f"{dist_dir}/opencodes-tray-linux-amd64"
 
-    tray_install = files.put(
-        name="Install opencodes-tray binary",
-        src=tray_binary_src,
-        dest=f"{home}/.local/bin/opencodes-tray",
-        mode="755",
-    )
-
     if os_name == "Darwin":
+        tray_install = files.put(
+            name="Install opencodes-tray binary",
+            src=tray_binary_src,
+            dest=f"{home}/.local/bin/opencodes-tray",
+            mode="755",
+        )
         launchagent_path = f"{home}/Library/LaunchAgents/dev.rfholden.opencodes-tray.plist"
         plist_install = files.template(
             name="Write opencodes-tray LaunchAgent plist",
@@ -730,12 +729,24 @@ if has_dist:
             ],
             _if=any_changed(tray_install, plist_install),
         )
-    elif has_systemd():
+    else:
+        # Stop the service before replacing the binary to avoid "Text file busy".
         server.shell(
-            name="Restart opencodes-tray service after binary update",
-            commands=["systemctl --user restart opencodes-tray.service"],
-            _if=tray_install.did_change,
+            name="Stop opencodes-tray before binary update",
+            commands=["systemctl --user stop opencodes-tray.service 2>/dev/null || true"],
         )
+        tray_install = files.put(
+            name="Install opencodes-tray binary",
+            src=tray_binary_src,
+            dest=f"{home}/.local/bin/opencodes-tray",
+            mode="755",
+        )
+        if has_systemd():
+            server.shell(
+                name="Restart opencodes-tray service after binary update",
+                commands=["systemctl --user restart opencodes-tray.service"],
+                _if=tray_install.did_change,
+            )
 
 # -----------------------------------------------------------------------------
 # Fish plugins
