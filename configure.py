@@ -901,12 +901,13 @@ if pkg_manager == "pacman":
         _sudo=True,
     )
 
-# Ensure .ssh directory and authorized_keys exist (for SSH client use)
-files.directory(
+# Ensure .ssh is a real directory (not a symlink from link_config_dir)
+server.shell(
     name="Ensure .ssh directory exists",
-    path=f"{home}/.ssh",
-    mode="700",
-    present=True,
+    commands=[
+        f'test -d "{home}/.ssh" -a ! -L "{home}/.ssh" || '
+        f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")'
+    ],
 )
 
 files.download(
