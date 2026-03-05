@@ -153,7 +153,6 @@ PACKAGES = {
 }
 
 CASKS = [
-    "docker",
     "ghostty",
     "slack",
     "spotify",
