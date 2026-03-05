@@ -19,4 +19,7 @@ node_modules/
 
 home/.ssh/known_hosts*
 .config/fish/fish_variables
+.config/fish/fish_plugins
 .config/opencode/plugins/
+.config/systemd/user/default.target.wants/
+pyinfra-debug.log
