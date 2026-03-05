@@ -19,3 +19,4 @@ node_modules/
 
 home/.ssh/known_hosts*
 .config/fish/fish_variables
+.config/opencode/plugins/
