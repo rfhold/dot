@@ -899,12 +899,13 @@ if pkg_manager == "pacman":
         _sudo=True,
     )
 
-# Ensure .ssh is a real directory (not a symlink from link_config_dir)
+# Ensure .ssh is a real directory with real files (not symlinks from link_config_dir)
 server.shell(
     name="Ensure .ssh directory exists",
     commands=[
         f'test -d "{home}/.ssh" -a ! -L "{home}/.ssh" || '
-        f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")'
+        f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")',
+        f'test ! -L "{home}/.ssh/authorized_keys" || rm -f "{home}/.ssh/authorized_keys"',
     ],
 )
 
