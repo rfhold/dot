@@ -714,7 +714,7 @@ if has_dist:
             dest=f"{home}/.local/bin/opencodes-tray",
             mode="755",
         )
-        launchagent_path = f"{home}/Library/LaunchAgents/dev.rfholden.opencodes-tray.plist"
+        launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.opencodes-tray.plist"
         plist_install = files.template(
             name="Write opencodes-tray LaunchAgent plist",
             src=f"{home}/dot/etc/launchagents/opencodes-tray.plist",
