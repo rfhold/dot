@@ -664,11 +664,18 @@ if has_dist:
     else:
         tmux_binary_src = f"{dist_dir}/opencodes-tmux-linux-amd64"
 
-    tmux_binary_install = files.put(
+    tmux_binary_dest = f"{home}/.tmux/plugins/opencodes-tmux/bin/opencodes-tmux"
+    tmux_binary_tmp = tmux_binary_dest + ".tmp"
+    tmux_binary_put = files.put(
         name="Install opencodes-tmux binary",
         src=tmux_binary_src,
-        dest=f"{home}/.tmux/plugins/opencodes-tmux/bin/opencodes-tmux",
+        dest=tmux_binary_tmp,
         mode="755",
+    )
+    tmux_binary_install = server.shell(
+        name="Atomically replace opencodes-tmux binary",
+        commands=[f"mv -f {tmux_binary_tmp} {tmux_binary_dest}"],
+        _if=tmux_binary_put.did_change,
     )
     tmux_plugin_install = files.put(
         name="Install opencodes-tmux.tmux plugin script",
