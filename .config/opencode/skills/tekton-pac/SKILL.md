@@ -40,7 +40,7 @@ These are injected by the Global Repository CR and available in all pipeline fil
 | `CONTAINER_REGISTRY` | `cr.holdenitdown.net` |
 | `GIT_URL` | `https://git.holdenitdown.net` |
 
-Access with: `{{ params.BUILDKIT_AMD64_ADDR }}`, `{{ params.CONTAINER_REGISTRY }}`, etc.
+Access with: `{{ BUILDKIT_AMD64_ADDR }}`, `{{ CONTAINER_REGISTRY }}`, etc.
 
 ### Available Secrets
 
@@ -175,7 +175,9 @@ spec:
 | `max-keep-runs` | `"2"` | Auto-cleanup old PipelineRuns; **default convention is 2** |
 | `on-path-change` | `[src/**, docker/**]` | Only trigger on file path matches |
 | `on-path-change-ignore` | `[docs/**, *.md]` | Exclude paths from triggering |
-| `task` | `[git-clone]` | Fetch catalog tasks by name |
+| `task` | `[https://.../raw/branch/main/task.yaml]` | Fetch remote Task YAMLs (URL list) |
+
+For shared tasks across repos, prefer `pipelinesascode.tekton.dev/task` URL annotations. PAC does not reliably resolve plain `taskRef: { name: ... }` against pre-deployed namespace Tasks during webhook matching.
 
 ## PAC Template Variables
 
@@ -275,9 +277,9 @@ Then the manifest step creates both `:<revision>` and `:latest` multi-arch manif
             --output type=image,name=$(params.image),push=true
   params:
     - name: image
-      value: "{{ params.CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}:latest"
+      value: "{{ CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}:latest"
     - name: buildkit-addr
-      value: "{{ params.BUILDKIT_AMD64_ADDR }}"
+      value: "{{ BUILDKIT_AMD64_ADDR }}"
   workspaces:
     - name: source
       workspace: source
@@ -295,9 +297,9 @@ tasks:
       # ... same as single-arch build task ...
     params:
       - name: image
-        value: "{{ params.CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}:latest-amd64"
+        value: "{{ CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}:latest-amd64"
       - name: buildkit-addr
-        value: "{{ params.BUILDKIT_AMD64_ADDR }}"
+        value: "{{ BUILDKIT_AMD64_ADDR }}"
     workspaces:
       - name: source
         workspace: source
@@ -308,9 +310,9 @@ tasks:
       # ... same as single-arch build task ...
     params:
       - name: image
-        value: "{{ params.CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}:latest-arm64"
+        value: "{{ CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}:latest-arm64"
       - name: buildkit-addr
-        value: "{{ params.BUILDKIT_ARM64_ADDR }}"
+        value: "{{ BUILDKIT_ARM64_ADDR }}"
     workspaces:
       - name: source
         workspace: source
@@ -335,7 +337,7 @@ tasks:
               --target $(params.base-image):$(params.tag)
     params:
       - name: base-image
-        value: "{{ params.CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}"
+        value: "{{ CONTAINER_REGISTRY }}/{{ repo_owner }}/{{ repo_name }}"
       - name: tag
         value: "latest"
 ```
@@ -397,7 +399,7 @@ Use `curl` with the token from `{{ git_auth_secret }}` for Forgejo API calls. Mo
           set -e
           TOKEN=$(cat /etc/git-auth/git-provider-token)
           HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-            "{{ params.GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues/$(params.pr-number)/comments" \
+            "{{ GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues/$(params.pr-number)/comments" \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"body\": \"$(params.comment)\"}")
@@ -439,7 +441,7 @@ Use `curl` with the token from `{{ git_auth_secret }}` for Forgejo API calls. Mo
           set -e
           TOKEN=$(cat /etc/git-auth/git-provider-token)
           HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-            "{{ params.GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases" \
+            "{{ GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/releases" \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"tag_name\": \"$(params.tag)\", \"name\": \"Release $(params.tag)\", \"body\": \"$(params.body)\"}")
@@ -481,7 +483,7 @@ Use `curl` with the token from `{{ git_auth_secret }}` for Forgejo API calls. Mo
           set -e
           TOKEN=$(cat /etc/git-auth/git-provider-token)
           HTTP_CODE=$(curl -w "%{http_code}" -sS -o /tmp/response.json -X POST \
-            "{{ params.GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
+            "{{ GIT_URL }}/api/v1/repos/{{ repo_owner }}/{{ repo_name }}/issues" \
             -H "Authorization: token $TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"title\": \"$(params.title)\", \"body\": \"$(params.body)\"}")
@@ -752,6 +754,14 @@ params:
 The buildctl `--local context=` and `--local dockerfile=` paths are relative to the workspace root.
 
 ## Troubleshooting
+
+### PAC Template Variables Not Expanding
+
+**Error example:** `No help topic for 'params.BUILDKIT_AMD64_ADDR'`
+
+- Cause: using `{{ params.X }}` in PAC templates.
+- Fix: use PAC custom param syntax `{{ X }}` (no `params.` prefix).
+- Example: `{{ CONTAINER_REGISTRY }}` and `{{ BUILDKIT_AMD64_ADDR }}`.
 
 ### Pipeline Not Triggering
 
