@@ -650,8 +650,8 @@ git.repo(
 
 dist_dir = f"{home}/dot/dist"
 has_dist = host.get_fact(File, path=f"{dist_dir}/opencodes.js") is not None
-codez_version_file = f"{dist_dir}/codez-version"
-has_codez = host.get_fact(File, path=codez_version_file) is not None
+cuthulu_version_file = f"{dist_dir}/cuthulu-version"
+has_cuthulu = host.get_fact(File, path=cuthulu_version_file) is not None
 
 if has_dist:
     # --- opencodes-tmux plugin ---
@@ -704,73 +704,73 @@ if has_dist:
         mode="644",
     )
 
-    # --- Codez Tauri app ---
-    codez_installed_marker = f"{home}/.local/share/codez-installed-version"
+    # --- Cuthulu Tauri app ---
+    cuthulu_installed_marker = f"{home}/.local/share/cuthulu-installed-version"
 
-    if has_codez:
-        codez_version = (host.get_fact(
-            Command, command=f"cat {codez_version_file} 2>/dev/null || echo ''"
+    if has_cuthulu:
+        cuthulu_version = (host.get_fact(
+            Command, command=f"cat {cuthulu_version_file} 2>/dev/null || echo ''"
         ) or "").strip()
         base_url = "https://git.holdenitdown.net/rfhold/opencodes/releases/download"
 
         if os_name == "Darwin":
-            codez_app_dir  = f"{home}/Applications"
-            codez_app_path = f"{codez_app_dir}/Codez.app"
-            codez_bin_path = f"{codez_app_path}/Contents/MacOS/codez"
-            codez_tarball  = f"{home}/.cache/codez-darwin.tar.gz"
-            download_url   = f"{base_url}/{codez_version}/codez-darwin.tar.gz"
+            cuthulu_app_dir  = f"{home}/Applications"
+            cuthulu_app_path = f"{cuthulu_app_dir}/Cuthulu.app"
+            cuthulu_bin_path = f"{cuthulu_app_path}/Contents/MacOS/cuthulu"
+            cuthulu_tarball  = f"{home}/.cache/cuthulu-darwin.tar.gz"
+            download_url   = f"{base_url}/{cuthulu_version}/cuthulu-darwin.tar.gz"
 
             files.directory(
                 name="Ensure ~/Applications exists",
-                path=codez_app_dir,
+                path=cuthulu_app_dir,
                 present=True,
             )
             installed_tag = (host.get_fact(
                 Command,
-                command=f"cat {codez_installed_marker} 2>/dev/null || echo ''",
+                command=f"cat {cuthulu_installed_marker} 2>/dev/null || echo ''",
             ) or "").strip()
-            need_update = installed_tag != codez_version
+            need_update = installed_tag != cuthulu_version
 
-            codez_download = server.shell(
-                name="Download Codez macOS app",
+            cuthulu_download = server.shell(
+                name="Download Cuthulu macOS app",
                 commands=[
-                    f'curl -fsSL -o {codez_tarball} "{download_url}"',
+                    f'curl -fsSL -o {cuthulu_tarball} "{download_url}"',
                 ],
-                _if=need_update,
+                _if=lambda: need_update,
             )
-            codez_extract = server.shell(
-                name="Extract Codez.app to ~/Applications",
-                commands=[f"tar -xzf {codez_tarball} -C {codez_app_dir}"],
-                _if=codez_download.did_change,
-            )
-            server.shell(
-                name="Ad-hoc sign Codez.app after install",
-                commands=[f"codesign --force --sign - --deep {codez_app_path}"],
-                _if=codez_download.did_change,
+            cuthulu_extract = server.shell(
+                name="Extract Cuthulu.app to ~/Applications",
+                commands=[f"tar -xzf {cuthulu_tarball} -C {cuthulu_app_dir}"],
+                _if=cuthulu_download.did_change,
             )
             server.shell(
-                name="Write Codez installed-version marker",
+                name="Ad-hoc sign Cuthulu.app after install",
+                commands=[f"codesign --force --sign - --deep {cuthulu_app_path}"],
+                _if=cuthulu_download.did_change,
+            )
+            server.shell(
+                name="Write Cuthulu installed-version marker",
                 commands=[
                     f"mkdir -p {home}/.local/share",
-                    f"echo '{codez_version}' > {codez_installed_marker}",
+                    f"echo '{cuthulu_version}' > {cuthulu_installed_marker}",
                 ],
-                _if=codez_download.did_change,
+                _if=cuthulu_download.did_change,
             )
 
-            launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.codez.plist"
+            launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.cuthulu.plist"
             plist_install = files.template(
-                name="Write Codez LaunchAgent plist",
-                src=f"{home}/dot/etc/launchagents/codez.plist",
+                name="Write Cuthulu LaunchAgent plist",
+                src=f"{home}/dot/etc/launchagents/cuthulu.plist",
                 dest=launchagent_path,
-                app_path=codez_bin_path,
+                app_path=cuthulu_bin_path,
             )
             server.shell(
-                name="Reload Codez LaunchAgent",
+                name="Reload Cuthulu LaunchAgent",
                 commands=[
                     f"launchctl unload {launchagent_path} 2>/dev/null || true",
                     f"launchctl load {launchagent_path}",
                 ],
-                _if=any_changed(codez_extract, plist_install),
+                _if=any_changed(cuthulu_extract, plist_install),
             )
 
             # Migration: remove old opencodes-tray LaunchAgent
@@ -784,8 +784,8 @@ if has_dist:
             )
 
         else:  # Linux
-            codez_appimage_dest = f"{home}/.local/bin/codez"
-            download_url = f"{base_url}/{codez_version}/codez-linux.AppImage"
+            cuthulu_appimage_dest = f"{home}/.local/bin/cuthulu"
+            download_url = f"{base_url}/{cuthulu_version}/cuthulu-linux.AppImage"
 
             files.directory(
                 name="Ensure ~/.local/bin exists",
@@ -794,36 +794,36 @@ if has_dist:
             )
             installed_tag = (host.get_fact(
                 Command,
-                command=f"cat {codez_installed_marker} 2>/dev/null || echo ''",
+                command=f"cat {cuthulu_installed_marker} 2>/dev/null || echo ''",
             ) or "").strip()
-            need_update = installed_tag != codez_version
+            need_update = installed_tag != cuthulu_version
 
             server.shell(
-                name="Stop codez before update",
-                commands=["systemctl --user stop codez.service 2>/dev/null || true"],
-                _if=need_update,
+                name="Stop Cuthulu before update",
+                commands=["systemctl --user stop cuthulu.service 2>/dev/null || true"],
+                _if=lambda: need_update,
             )
-            codez_download = server.shell(
-                name="Download Codez Linux AppImage",
+            cuthulu_download = server.shell(
+                name="Download Cuthulu Linux AppImage",
                 commands=[
-                    f'curl -fsSL -o {codez_appimage_dest} "{download_url}"',
-                    f"chmod 755 {codez_appimage_dest}",
+                    f'curl -fsSL -o {cuthulu_appimage_dest} "{download_url}"',
+                    f"chmod 755 {cuthulu_appimage_dest}",
                 ],
-                _if=need_update,
+                _if=lambda: need_update,
             )
             server.shell(
-                name="Write Codez installed-version marker",
+                name="Write Cuthulu installed-version marker",
                 commands=[
                     f"mkdir -p {home}/.local/share",
-                    f"echo '{codez_version}' > {codez_installed_marker}",
+                    f"echo '{cuthulu_version}' > {cuthulu_installed_marker}",
                 ],
-                _if=codez_download.did_change,
+                _if=cuthulu_download.did_change,
             )
             if has_systemd():
                 server.shell(
-                    name="Restart codez service after update",
-                    commands=["systemctl --user restart codez.service"],
-                    _if=codez_download.did_change,
+                    name="Restart Cuthulu service after update",
+                    commands=["systemctl --user restart cuthulu.service"],
+                    _if=cuthulu_download.did_change,
                 )
 
 # -----------------------------------------------------------------------------
@@ -952,7 +952,7 @@ if pkg_manager == "pacman" and not is_container():
         _ignore_errors=True,
     )
 
-    # Disable old opencodes-tray service (superseded by Codez)
+    # Disable old opencodes-tray service (superseded by Cuthulu)
     systemd.service(
         name="Disable old opencodes-tray service",
         service="opencodes-tray.service",
@@ -962,10 +962,10 @@ if pkg_manager == "pacman" and not is_container():
         _ignore_errors=True,
     )
 
-    # Enable codez user service
+    # Enable Cuthulu user service
     systemd.service(
-        name="Enable codez user service",
-        service="codez.service",
+        name="Enable Cuthulu user service",
+        service="cuthulu.service",
         running=True,
         enabled=True,
         daemon_reload=True,

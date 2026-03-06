@@ -1,11 +1,11 @@
 [Unit]
-Description=Codez OpenCodes client
+Description=Cuthulu OpenCodes client
 After=network-online.target graphical-session.target
 Wants=network-online.target graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/codez
+ExecStart=%h/.local/bin/cuthulu
 Environment=HOME=%h
 Environment=DISPLAY=:0
 Environment=OPENCODES_SSH_HOST=thinkpad.holdenitdown.net
