@@ -650,6 +650,8 @@ git.repo(
 
 dist_dir = f"{home}/dot/dist"
 has_dist = host.get_fact(File, path=f"{dist_dir}/opencodes.js") is not None
+codez_version_file = f"{dist_dir}/codez-version"
+has_codez = host.get_fact(File, path=codez_version_file) is not None
 
 if has_dist:
     # --- opencodes-tmux plugin ---
@@ -702,67 +704,127 @@ if has_dist:
         mode="644",
     )
 
-    # --- opencodes tray binary + service ---
-    files.directory(
-        name="Ensure ~/.local/bin exists",
-        path=f"{home}/.local/bin",
-        present=True,
-    )
+    # --- Codez Tauri app ---
+    codez_installed_marker = f"{home}/.local/share/codez-installed-version"
 
-    if os_name == "Darwin":
-        tray_binary_src = f"{dist_dir}/opencodes-tray-darwin"
-    else:
-        tray_binary_src = f"{dist_dir}/opencodes-tray-linux-amd64"
+    if has_codez:
+        codez_version = (host.get_fact(
+            Command, command=f"cat {codez_version_file} 2>/dev/null || echo ''"
+        ) or "").strip()
+        base_url = "https://git.holdenitdown.net/rfhold/opencodes/releases/download"
 
-    if os_name == "Darwin":
-        tray_install = files.put(
-            name="Install opencodes-tray binary",
-            src=tray_binary_src,
-            dest=f"{home}/.local/bin/opencodes-tray",
-            mode="755",
-        )
-        # Re-sign after copy — copying a Hardened Runtime binary taints its
-        # pages, causing the kernel to reject it with CODE SIGNING errors.
-        server.shell(
-            name="Re-sign opencodes-tray after install",
-            commands=[
-                f"codesign --force --sign - --options runtime {home}/.local/bin/opencodes-tray",
-            ],
-            _if=any_changed(tray_install),
-        )
-        launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.opencodes-tray.plist"
-        plist_install = files.template(
-            name="Write opencodes-tray LaunchAgent plist",
-            src=f"{home}/dot/etc/launchagents/opencodes-tray.plist",
-            dest=launchagent_path,
-            tray_path=f"{home}/.local/bin/opencodes-tray",
-        )
-        server.shell(
-            name="Reload opencodes-tray LaunchAgent",
-            commands=[
-                f"launchctl unload {launchagent_path} 2>/dev/null || true",
-                f"launchctl load {launchagent_path}",
-            ],
-            _if=any_changed(tray_install, plist_install),
-        )
-    else:
-        # Stop the service before replacing the binary to avoid "Text file busy".
-        server.shell(
-            name="Stop opencodes-tray before binary update",
-            commands=["systemctl --user stop opencodes-tray.service 2>/dev/null || true"],
-        )
-        tray_install = files.put(
-            name="Install opencodes-tray binary",
-            src=tray_binary_src,
-            dest=f"{home}/.local/bin/opencodes-tray",
-            mode="755",
-        )
-        if has_systemd():
-            server.shell(
-                name="Restart opencodes-tray service after binary update",
-                commands=["systemctl --user restart opencodes-tray.service"],
-                _if=tray_install.did_change,
+        if os_name == "Darwin":
+            codez_app_dir  = f"{home}/Applications"
+            codez_app_path = f"{codez_app_dir}/Codez.app"
+            codez_bin_path = f"{codez_app_path}/Contents/MacOS/codez"
+            codez_tarball  = f"{home}/.cache/codez-darwin.tar.gz"
+            download_url   = f"{base_url}/{codez_version}/codez-darwin.tar.gz"
+
+            files.directory(
+                name="Ensure ~/Applications exists",
+                path=codez_app_dir,
+                present=True,
             )
+            installed_tag = (host.get_fact(
+                Command,
+                command=f"cat {codez_installed_marker} 2>/dev/null || echo ''",
+            ) or "").strip()
+            need_update = installed_tag != codez_version
+
+            codez_download = server.shell(
+                name="Download Codez macOS app",
+                commands=[
+                    f'curl -fsSL -o {codez_tarball} "{download_url}"',
+                ],
+                _if=need_update,
+            )
+            codez_extract = server.shell(
+                name="Extract Codez.app to ~/Applications",
+                commands=[f"tar -xzf {codez_tarball} -C {codez_app_dir}"],
+                _if=codez_download.did_change,
+            )
+            server.shell(
+                name="Ad-hoc sign Codez.app after install",
+                commands=[f"codesign --force --sign - --deep {codez_app_path}"],
+                _if=codez_download.did_change,
+            )
+            server.shell(
+                name="Write Codez installed-version marker",
+                commands=[
+                    f"mkdir -p {home}/.local/share",
+                    f"echo '{codez_version}' > {codez_installed_marker}",
+                ],
+                _if=codez_download.did_change,
+            )
+
+            launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.codez.plist"
+            plist_install = files.template(
+                name="Write Codez LaunchAgent plist",
+                src=f"{home}/dot/etc/launchagents/codez.plist",
+                dest=launchagent_path,
+                app_path=codez_bin_path,
+            )
+            server.shell(
+                name="Reload Codez LaunchAgent",
+                commands=[
+                    f"launchctl unload {launchagent_path} 2>/dev/null || true",
+                    f"launchctl load {launchagent_path}",
+                ],
+                _if=any_changed(codez_extract, plist_install),
+            )
+
+            # Migration: remove old opencodes-tray LaunchAgent
+            old_plist = f"{home}/Library/LaunchAgents/dev.rholden.opencodes-tray.plist"
+            server.shell(
+                name="Remove old opencodes-tray LaunchAgent",
+                commands=[
+                    f"launchctl unload {old_plist} 2>/dev/null || true",
+                    f"rm -f {old_plist}",
+                ],
+            )
+
+        else:  # Linux
+            codez_appimage_dest = f"{home}/.local/bin/codez"
+            download_url = f"{base_url}/{codez_version}/codez-linux.AppImage"
+
+            files.directory(
+                name="Ensure ~/.local/bin exists",
+                path=f"{home}/.local/bin",
+                present=True,
+            )
+            installed_tag = (host.get_fact(
+                Command,
+                command=f"cat {codez_installed_marker} 2>/dev/null || echo ''",
+            ) or "").strip()
+            need_update = installed_tag != codez_version
+
+            server.shell(
+                name="Stop codez before update",
+                commands=["systemctl --user stop codez.service 2>/dev/null || true"],
+                _if=need_update,
+            )
+            codez_download = server.shell(
+                name="Download Codez Linux AppImage",
+                commands=[
+                    f'curl -fsSL -o {codez_appimage_dest} "{download_url}"',
+                    f"chmod 755 {codez_appimage_dest}",
+                ],
+                _if=need_update,
+            )
+            server.shell(
+                name="Write Codez installed-version marker",
+                commands=[
+                    f"mkdir -p {home}/.local/share",
+                    f"echo '{codez_version}' > {codez_installed_marker}",
+                ],
+                _if=codez_download.did_change,
+            )
+            if has_systemd():
+                server.shell(
+                    name="Restart codez service after update",
+                    commands=["systemctl --user restart codez.service"],
+                    _if=codez_download.did_change,
+                )
 
 # -----------------------------------------------------------------------------
 # Fish plugins
@@ -890,10 +952,20 @@ if pkg_manager == "pacman" and not is_container():
         _ignore_errors=True,
     )
 
-    # Enable opencodes-tray user service (tray daemon + tmux session bridging)
+    # Disable old opencodes-tray service (superseded by Codez)
     systemd.service(
-        name="Enable opencodes-tray user service",
+        name="Disable old opencodes-tray service",
         service="opencodes-tray.service",
+        running=False,
+        enabled=False,
+        user_mode=True,
+        _ignore_errors=True,
+    )
+
+    # Enable codez user service
+    systemd.service(
+        name="Enable codez user service",
+        service="codez.service",
         running=True,
         enabled=True,
         daemon_reload=True,

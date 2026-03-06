@@ -1,0 +1,17 @@
+[Unit]
+Description=Codez OpenCodes client
+After=network-online.target graphical-session.target
+Wants=network-online.target graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/codez
+Environment=HOME=%h
+Environment=DISPLAY=:0
+Environment=OPENCODES_SSH_HOST=thinkpad.holdenitdown.net
+Environment=OPENCODES_SSH_USER=rfhold
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
