@@ -20,8 +20,10 @@ var __require = import.meta.require;
 // src/index.ts
 import * as fs2 from "fs";
 
-// src/server-client.ts
+// src/local-client.ts
 import * as fs from "fs";
+import * as net from "net";
+import { randomUUID } from "crypto";
 var LOG_FILE = "/tmp/opencodes-plugin.log";
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.join(" ")}
@@ -30,73 +32,139 @@ function log(...args) {
   console.error(...args);
 }
 
-class ServerClient {
+class LocalClient {
   opts;
-  ws = null;
+  socket = null;
   backoffMs = 1000;
   stopped = false;
   reconnectTimer = null;
   instanceID;
+  socketPath;
+  pending = new Map;
+  buffer = "";
   constructor(opts) {
     this.opts = opts;
-    this.instanceID = crypto.randomUUID();
+    this.instanceID = randomUUID();
+    this.socketPath = LocalClient.getSocketPath();
+  }
+  static getSocketPath() {
+    if (process.env.OPENCODES_SOCKET_PATH)
+      return process.env.OPENCODES_SOCKET_PATH;
+    const xdg = process.env.XDG_RUNTIME_DIR;
+    if (xdg)
+      return `${xdg}/opencodes-plugin.sock`;
+    const tmpdir = process.env.TMPDIR;
+    if (tmpdir)
+      return `${tmpdir}/opencodes-plugin.sock`;
+    return "/tmp/opencodes-plugin.sock";
   }
   connect() {
     if (this.stopped)
       return;
-    const isLocal = this.opts.serverAddr.startsWith("localhost:") || this.opts.serverAddr.startsWith("127.0.0.1:");
-    const proto = isLocal ? "ws" : "wss";
-    const url = `${proto}://${this.opts.serverAddr}/ws`;
-    log(`[opencodes] connecting to ${url}`);
-    const ws = new WebSocket(url);
-    this.ws = ws;
-    ws.addEventListener("open", () => {
-      log("[opencodes] connection open, registering");
-      ws.send(JSON.stringify({
-        type: "register",
-        instanceId: this.instanceID,
-        pid: process.pid,
-        projectDir: this.opts.projectDir,
-        opencodeUrl: this.opts.opencodeUrl,
-        hostname: this.opts.hostname,
-        tmuxSession: this.opts.tmuxSession,
-        tmuxWindow: this.opts.tmuxWindow,
-        tmuxPane: this.opts.tmuxPane
-      }));
+    log(`[opencodes] connecting to ${this.socketPath}`);
+    const socket = net.createConnection(this.socketPath);
+    this.socket = socket;
+    socket.on("connect", () => {
+      log("[opencodes] socket connected, registering");
+      this.sendRegister().catch((err) => {
+        log("[opencodes] register failed:", err);
+        socket.destroy();
+      });
       this.backoffMs = 1000;
       if (this.opts.onConnect) {
         this.opts.onConnect().catch((err) => log("[opencodes] onConnect error:", err));
       }
     });
-    ws.addEventListener("message", (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "command") {
-          this.opts.onCommand(msg).catch((err) => {
-            log("[opencodes] onCommand error:", err);
-          });
-        }
-      } catch (err) {
-        log("[opencodes] failed to handle message:", err);
+    socket.on("data", (chunk) => {
+      this.buffer += chunk.toString();
+      let newlineIdx;
+      while ((newlineIdx = this.buffer.indexOf(`
+`)) !== -1) {
+        const line = this.buffer.slice(0, newlineIdx);
+        this.buffer = this.buffer.slice(newlineIdx + 1);
+        if (line.trim())
+          this.handleMessage(line.trim());
       }
     });
-    ws.addEventListener("close", () => {
-      log("[opencodes] connection closed, scheduling reconnect");
-      this.ws = null;
+    socket.on("close", () => {
+      log("[opencodes] socket closed, scheduling reconnect");
+      this.socket = null;
+      this.rejectAllPending("socket closed");
       this.scheduleReconnect();
     });
-    ws.addEventListener("error", (event) => {
-      log("[opencodes] websocket error:", event.message ?? event.type);
+    socket.on("error", (err) => {
+      log("[opencodes] socket error:", err.message);
     });
   }
-  wsState() {
-    return this.ws?.readyState ?? -1;
+  handleMessage(line) {
+    try {
+      const msg = JSON.parse(line);
+      if (msg.type === "ack" && msg.requestId) {
+        const p = this.pending.get(msg.requestId);
+        if (p) {
+          this.pending.delete(msg.requestId);
+          clearTimeout(p.timer);
+          if (msg.ok) {
+            p.resolve();
+          } else {
+            p.reject(new Error(msg.error || "server rejected request"));
+          }
+        }
+      } else if (msg.type === "command") {
+        this.opts.onCommand(msg).catch((err) => {
+          log("[opencodes] onCommand error:", err);
+        });
+      }
+    } catch (err) {
+      log("[opencodes] failed to handle message:", err);
+    }
+  }
+  sendWithAck(msg) {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || this.socket.destroyed) {
+        reject(new Error("not connected"));
+        return;
+      }
+      const requestId = msg.requestId;
+      const timer = setTimeout(() => {
+        this.pending.delete(requestId);
+        reject(new Error("request timeout"));
+      }, 5000);
+      this.pending.set(requestId, { resolve, reject, timer });
+      this.socket.write(JSON.stringify(msg) + `
+`);
+    });
+  }
+  async sendRegister() {
+    return this.sendWithAck({
+      requestId: randomUUID(),
+      type: "register",
+      instanceId: this.instanceID,
+      pid: process.pid,
+      projectDir: this.opts.projectDir,
+      opencodeUrl: this.opts.opencodeUrl,
+      hostname: this.opts.hostname,
+      tmuxSession: this.opts.tmuxSession,
+      tmuxWindow: this.opts.tmuxWindow,
+      tmuxPane: this.opts.tmuxPane
+    });
+  }
+  isConnected() {
+    return this.socket !== null && !this.socket.destroyed;
   }
   sendEvent(eventType, data) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN)
+    if (!this.socket || this.socket.destroyed)
       return;
     try {
-      this.ws.send(JSON.stringify({ type: "event", event: eventType, data }));
+      const msg = {
+        requestId: randomUUID(),
+        type: "event",
+        instanceId: this.instanceID,
+        eventType,
+        data
+      };
+      this.socket.write(JSON.stringify(msg) + `
+`);
     } catch (err) {
       log("[opencodes] sendEvent error:", err);
     }
@@ -107,12 +175,20 @@ class ServerClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    if (this.ws !== null) {
+    this.rejectAllPending("client disconnecting");
+    if (this.socket !== null) {
       try {
-        this.ws.close();
+        this.socket.destroy();
       } catch {}
-      this.ws = null;
+      this.socket = null;
     }
+  }
+  rejectAllPending(reason) {
+    for (const [id, p] of this.pending) {
+      clearTimeout(p.timer);
+      p.reject(new Error(reason));
+    }
+    this.pending.clear();
   }
   scheduleReconnect() {
     if (this.stopped || this.reconnectTimer !== null)
@@ -224,7 +300,6 @@ function log2(...args) {
 }
 var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
   try {
-    const serverAddr = process.env.OPENCODES_SERVER_ADDR ?? "opencodes.holdenitdown.net:443";
     const opencodeUrl = serverUrl.toString().replace(/\/$/, "");
     let tmuxSession = "";
     let tmuxWindow = "";
@@ -238,8 +313,7 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
       } catch {}
     }
     const hostname = (await import("os")).hostname();
-    const serverClient = new ServerClient({
-      serverAddr,
+    const serverClient = new LocalClient({
       opencodeUrl,
       projectDir: directory || project.worktree,
       hostname,
@@ -258,7 +332,7 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
     return {
       event: async ({ event }) => {
         const data = event.properties ?? event;
-        log2(`[opencodes] hook event: ${event.type} ws=${serverClient.wsState()}`);
+        log2(`[opencodes] hook event: ${event.type} connected=${serverClient.isConnected()}`);
         serverClient.sendEvent(event.type, data);
       }
     };
