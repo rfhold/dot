@@ -2,6 +2,8 @@
 Description=Cuthulu OpenCodes client
 After=network-online.target graphical-session.target
 Wants=network-online.target graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
