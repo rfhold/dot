@@ -300,7 +300,7 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
         tmuxWindow = parts[1] ?? "";
       } catch {}
     }
-    const hostname = (await import("os")).hostname();
+    const hostname = (await import("os")).hostname().split(".")[0];
     const serverClient = new LocalClient({
       opencodeUrl,
       projectDir: directory || project.worktree,
