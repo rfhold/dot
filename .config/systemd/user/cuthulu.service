@@ -10,7 +10,7 @@ Environment=HOME=%h
 Environment=DISPLAY=:0
 Environment=OPENCODES_SSH_HOST=thinkpad.holdenitdown.net
 Environment=OPENCODES_SSH_USER=rfhold
-Restart=always
+Restart=on-failure
 RestartSec=5
 
 [Install]
