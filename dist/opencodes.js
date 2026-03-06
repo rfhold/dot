@@ -17,20 +17,9 @@ var __toESM = (mod, isNodeMode, target) => {
 };
 var __require = import.meta.require;
 
-// src/index.ts
-import * as fs2 from "fs";
-
 // src/local-client.ts
-import * as fs from "fs";
 import * as net from "net";
 import { randomUUID } from "crypto";
-var LOG_FILE = "/tmp/opencodes-plugin.log";
-function log(...args) {
-  const line = `[${new Date().toISOString()}] ${args.join(" ")}
-`;
-  fs.appendFileSync(LOG_FILE, line);
-  console.error(...args);
-}
 
 class LocalClient {
   opts;
@@ -61,18 +50,18 @@ class LocalClient {
   connect() {
     if (this.stopped)
       return;
-    log(`[opencodes] connecting to ${this.socketPath}`);
+    this.opts.logger("debug", `connecting to ${this.socketPath}`);
     const socket = net.createConnection(this.socketPath);
     this.socket = socket;
     socket.on("connect", () => {
-      log("[opencodes] socket connected, registering");
+      this.opts.logger("debug", "socket connected, registering");
       this.sendRegister().catch((err) => {
-        log("[opencodes] register failed:", err);
+        this.opts.logger("error", "register failed", { error: String(err) });
         socket.destroy();
       });
       this.backoffMs = 1000;
       if (this.opts.onConnect) {
-        this.opts.onConnect().catch((err) => log("[opencodes] onConnect error:", err));
+        this.opts.onConnect().catch((err) => this.opts.logger("error", "onConnect error", { error: String(err) }));
       }
     });
     socket.on("data", (chunk) => {
@@ -87,13 +76,13 @@ class LocalClient {
       }
     });
     socket.on("close", () => {
-      log("[opencodes] socket closed, scheduling reconnect");
+      this.opts.logger("debug", "socket closed, scheduling reconnect");
       this.socket = null;
       this.rejectAllPending("socket closed");
       this.scheduleReconnect();
     });
     socket.on("error", (err) => {
-      log("[opencodes] socket error:", err.message);
+      this.opts.logger("warn", "socket error", { error: err.message });
     });
   }
   handleMessage(line) {
@@ -112,11 +101,11 @@ class LocalClient {
         }
       } else if (msg.type === "command") {
         this.opts.onCommand(msg).catch((err) => {
-          log("[opencodes] onCommand error:", err);
+          this.opts.logger("error", "onCommand error", { error: String(err) });
         });
       }
     } catch (err) {
-      log("[opencodes] failed to handle message:", err);
+      this.opts.logger("error", "failed to handle message", { error: String(err) });
     }
   }
   sendWithAck(msg) {
@@ -166,7 +155,7 @@ class LocalClient {
       this.socket.write(JSON.stringify(msg) + `
 `);
     } catch (err) {
-      log("[opencodes] sendEvent error:", err);
+      this.opts.logger("error", "sendEvent error", { error: String(err) });
     }
   }
   disconnect() {
@@ -195,7 +184,7 @@ class LocalClient {
       return;
     const delay = this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 2, 60000);
-    log(`[opencodes] reconnecting in ${delay}ms`);
+    this.opts.logger("debug", `reconnecting in ${delay}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
@@ -219,7 +208,7 @@ function makeCommandHandler(opts) {
             body: JSON.stringify({ parts: [{ type: "text", text }] })
           });
           if (!res.ok) {
-            console.error(`[opencodes] send-message failed: ${res.status} ${res.statusText}`);
+            opts.logger("error", "send-message failed", { status: res.status, statusText: res.statusText });
           }
           break;
         }
@@ -230,7 +219,7 @@ function makeCommandHandler(opts) {
             method: "POST"
           });
           if (!res.ok) {
-            console.error(`[opencodes] abort failed: ${res.status} ${res.statusText}`);
+            opts.logger("error", "abort failed", { status: res.status, statusText: res.statusText });
           }
           break;
         }
@@ -245,7 +234,7 @@ function makeCommandHandler(opts) {
             body: JSON.stringify({ allow })
           });
           if (!res.ok) {
-            console.error(`[opencodes] permission-response failed: ${res.status} ${res.statusText}`);
+            opts.logger("error", "permission-response failed", { status: res.status, statusText: res.statusText });
           }
           break;
         }
@@ -258,16 +247,16 @@ function makeCommandHandler(opts) {
                 const statuses = await statusRes.json();
                 const busy = Object.values(statuses).some((s) => s === "running" || s === "permission");
                 if (busy) {
-                  console.error("[opencodes] restart blocked: instance is busy");
+                  opts.logger("warn", "restart blocked: instance is busy");
                   return;
                 }
               }
             } catch (err) {
-              console.error("[opencodes] restart idle-check failed, proceeding:", err);
+              opts.logger("warn", "restart idle-check failed, proceeding", { error: String(err) });
             }
           }
           if (!opts.tmuxPane) {
-            console.error("[opencodes] restart failed: no tmux pane context");
+            opts.logger("error", "restart failed: no tmux pane context");
             return;
           }
           const paneTarget = `%${opts.tmuxPane}`;
@@ -285,20 +274,19 @@ function makeCommandHandler(opts) {
           break;
         }
         default:
-          console.warn(`[opencodes] unknown command payload: ${cmd.payload}`);
+          opts.logger("warn", `unknown command payload: ${cmd.payload}`);
       }
     } catch (err) {
-      console.error("[opencodes] command handler error:", err);
+      opts.logger("error", "command handler error", { error: String(err) });
     }
   };
 }
 
 // src/index.ts
-function log2(...args) {
-  fs2.appendFileSync("/tmp/opencodes-plugin.log", `[${new Date().toISOString()}] ${args.join(" ")}
-`);
-}
 var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
+  const logger = (level, message, extra) => {
+    client.app.log({ body: { service: "opencodes", level, message, extra } }).catch(() => {});
+  };
   try {
     const opencodeUrl = serverUrl.toString().replace(/\/$/, "");
     let tmuxSession = "";
@@ -320,7 +308,8 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
       tmuxSession,
       tmuxWindow,
       tmuxPane,
-      onCommand: makeCommandHandler({ opencodeUrl, tmuxPane }),
+      logger,
+      onCommand: makeCommandHandler({ opencodeUrl, tmuxPane, logger }),
       onConnect: async () => {
         const resp = await client.session.list();
         for (const sess of resp.data ?? []) {
@@ -332,12 +321,11 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
     return {
       event: async ({ event }) => {
         const data = event.properties ?? event;
-        log2(`[opencodes] hook event: ${event.type} connected=${serverClient.isConnected()}`);
         serverClient.sendEvent(event.type, data);
       }
     };
   } catch (err) {
-    console.error("[opencodes] plugin init error:", err);
+    logger("error", "plugin init error", { error: String(err) });
   }
   return {};
 };
