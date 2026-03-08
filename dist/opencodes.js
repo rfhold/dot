@@ -26,6 +26,7 @@ class LocalClient {
   socket = null;
   backoffMs = 1000;
   stopped = false;
+  registered = false;
   reconnectTimer = null;
   instanceID;
   socketPath;
@@ -55,14 +56,15 @@ class LocalClient {
     this.socket = socket;
     socket.on("connect", () => {
       this.opts.logger("debug", "socket connected, registering");
-      this.sendRegister().catch((err) => {
+      this.registered = false;
+      this.backoffMs = 1000;
+      this.sendRegister().then(() => {
+        this.registered = true;
+        return this.opts.onConnect?.();
+      }).catch((err) => {
         this.opts.logger("error", "register failed", { error: String(err) });
         socket.destroy();
       });
-      this.backoffMs = 1000;
-      if (this.opts.onConnect) {
-        this.opts.onConnect().catch((err) => this.opts.logger("error", "onConnect error", { error: String(err) }));
-      }
     });
     socket.on("data", (chunk) => {
       this.buffer += chunk.toString();
@@ -77,6 +79,7 @@ class LocalClient {
     });
     socket.on("close", () => {
       this.opts.logger("debug", "socket closed, scheduling reconnect");
+      this.registered = false;
       this.socket = null;
       this.rejectAllPending("socket closed");
       this.scheduleReconnect();
@@ -142,6 +145,8 @@ class LocalClient {
     return this.socket !== null && !this.socket.destroyed;
   }
   sendEvent(eventType, data) {
+    if (!this.registered)
+      return;
     if (!this.socket || this.socket.destroyed)
       return;
     try {
