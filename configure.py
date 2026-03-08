@@ -720,6 +720,12 @@ if has_dist:
     opencodes_repo = f"{home}/repos/rfhold/opencodes"
 
     if has_cuthulu:
+        server.shell(
+            name="Pull latest opencodes repo",
+            commands=[f"[ ! -d {opencodes_repo} ] || git -C {opencodes_repo} pull --ff-only"],
+        )
+
+    if has_cuthulu:
         if not host.get_fact(Which, command="cargo"):
             raise Exception(
                 "cargo not found on PATH — install Rust before running configure.py "
