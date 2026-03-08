@@ -735,8 +735,12 @@ if has_dist:
             server.shell(
                 name="Reload Cuthulu LaunchAgent",
                 commands=[
-                    f"launchctl bootout gui/$(id -u) dev.rholden.cuthulu 2>/dev/null || true",
-                    f"launchctl bootstrap gui/$(id -u) {launchagent_path}",
+                    # If already bootstrapped, kickstart (kill+restart); otherwise bootstrap fresh.
+                    f"if launchctl list dev.rholden.cuthulu &>/dev/null; then "
+                    f"launchctl kickstart -k gui/$(id -u)/dev.rholden.cuthulu; "
+                    f"else "
+                    f"launchctl bootstrap gui/$(id -u) {launchagent_path}; "
+                    f"fi",
                 ],
                 _if=any_changed(cuthulu_install, plist_install),
             )
