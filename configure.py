@@ -104,6 +104,16 @@ PACKAGES = {
         "pacman": ["docker", "docker-buildx", "docker-compose", "kubectl"],
         "apt": [],  # Added via add_apt_repo() below
     },
+    # Tauri runtime/build dependencies for Cuthulu (Arch only)
+    "cuthulu_tauri": {
+        "pacman": [
+            "webkit2gtk-4.1",
+            "libayatana-appindicator",
+            "gtk3",
+            "librsvg",
+            "libsoup3",
+        ],
+    },
     # Hyprland desktop environment (Arch bare metal only)
     "hyprland": {
         "pacman": [
@@ -756,11 +766,29 @@ if has_dist:
             )
 
         else:  # Linux
+            if pkg_manager == "pacman":
+                install_packages("Install Cuthulu Tauri dependencies", "cuthulu_tauri")
+
             files.directory(
                 name="Ensure ~/.local/bin exists",
                 path=f"{home}/.local/bin",
                 present=True,
             )
+
+            # Deploy systemd user unit
+            cuthulu_hostname = host.get_fact(Command, command="hostname -s").strip()
+            files.directory(
+                name="Ensure ~/.config/systemd/user exists",
+                path=f"{home}/.config/systemd/user",
+                present=True,
+            )
+            unit_install = files.template(
+                name="Deploy cuthulu systemd user unit",
+                src=f"{home}/dot/etc/systemd/user/cuthulu.service",
+                dest=f"{home}/.config/systemd/user/cuthulu.service",
+                hostname=cuthulu_hostname,
+            )
+
             server.shell(
                 name="Stop Cuthulu before build",
                 commands=["systemctl --user stop cuthulu.service 2>/dev/null || true"],
@@ -770,6 +798,14 @@ if has_dist:
                 commands=[f"make -C {opencodes_repo} install-app"],
             )
             if has_systemd():
+                server.shell(
+                    name="Reload systemd user daemon and enable Cuthulu",
+                    commands=[
+                        "systemctl --user daemon-reload",
+                        "systemctl --user enable cuthulu.service",
+                    ],
+                    _if=unit_install.did_change,
+                )
                 server.shell(
                     name="Restart Cuthulu service after install",
                     commands=["systemctl --user restart cuthulu.service"],
@@ -879,6 +915,7 @@ if pkg_manager == "pacman" and not is_container():
             "docker-rootless-extras",  # Rootless Docker systemd user units
             "librewolf-bin",
             "maestro",
+            "linuxdeploy",  # Required for AppImage bundling (Tauri/Cuthulu)
         ],
         present=True,
     )

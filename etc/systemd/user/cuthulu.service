@@ -1,0 +1,19 @@
+[Unit]
+Description=Cuthulu OpenCodes client
+After=network-online.target graphical-session.target
+Wants=network-online.target graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/cuthulu
+Environment=HOME=%h
+Environment=DISPLAY=:0
+Environment=OPENCODES_SSH_HOST={{ hostname }}
+Environment=OPENCODES_SSH_USER=rfhold
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
