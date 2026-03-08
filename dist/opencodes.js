@@ -283,7 +283,7 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
       onConnect: async () => {
         const resp = await client.session.list();
         for (const sess of resp.data ?? []) {
-          serverClient.sendEvent("session.created", { info: sess });
+          serverClient.sendEvent("session.updated", { info: sess });
         }
       }
     });
