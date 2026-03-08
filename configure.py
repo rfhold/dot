@@ -915,7 +915,6 @@ if pkg_manager == "pacman" and not is_container():
             "docker-rootless-extras",  # Rootless Docker systemd user units
             "librewolf-bin",
             "maestro",
-            "linuxdeploy",  # Required for AppImage bundling (Tauri/Cuthulu)
         ],
         present=True,
     )
