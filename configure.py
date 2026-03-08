@@ -705,56 +705,24 @@ if has_dist:
     )
 
     # --- Cuthulu Tauri app ---
-    cuthulu_installed_marker = f"{home}/.local/share/cuthulu-installed-version"
+    # Built natively from source via `make install-app` in the opencodes repo.
+    # Requires: cargo, bun (both expected to be present on the machine).
+    opencodes_repo = f"{home}/repos/rfhold/opencodes"
 
     if has_cuthulu:
-        cuthulu_version = (host.get_fact(
-            Command, command=f"cat {cuthulu_version_file} 2>/dev/null || echo ''"
-        ) or "").strip()
-        base_url = "https://git.holdenitdown.net/rfhold/opencodes/releases/download"
+        if not host.get_fact(Which, command="cargo"):
+            raise Exception(
+                "cargo not found on PATH — install Rust before running configure.py "
+                "(see https://rustup.rs)"
+            )
 
         if os_name == "Darwin":
-            cuthulu_app_dir  = f"{home}/Applications"
-            cuthulu_app_path = f"{cuthulu_app_dir}/Cuthulu.app"
+            cuthulu_app_path = f"{home}/Applications/Cuthulu.app"
             cuthulu_bin_path = f"{cuthulu_app_path}/Contents/MacOS/cuthulu"
-            cuthulu_tarball  = f"{home}/.cache/cuthulu-darwin.tar.gz"
-            download_url   = f"{base_url}/{cuthulu_version}/cuthulu-darwin.tar.gz"
 
-            files.directory(
-                name="Ensure ~/Applications exists",
-                path=cuthulu_app_dir,
-                present=True,
-            )
-            installed_tag = (host.get_fact(
-                Command,
-                command=f"cat {cuthulu_installed_marker} 2>/dev/null || echo ''",
-            ) or "").strip()
-            need_update = installed_tag != cuthulu_version
-
-            cuthulu_download = server.shell(
-                name="Download Cuthulu macOS app",
-                commands=[
-                    f'curl -fsSL -o {cuthulu_tarball} "{download_url}"',
-                ],
-                _if=lambda: need_update,
-            )
-            cuthulu_extract = server.shell(
-                name="Extract Cuthulu.app to ~/Applications",
-                commands=[f"tar -xzf {cuthulu_tarball} -C {cuthulu_app_dir}"],
-                _if=cuthulu_download.did_change,
-            )
-            server.shell(
-                name="Ad-hoc sign Cuthulu.app after install",
-                commands=[f"codesign --force --sign - --deep {cuthulu_app_path}"],
-                _if=cuthulu_download.did_change,
-            )
-            server.shell(
-                name="Write Cuthulu installed-version marker",
-                commands=[
-                    f"mkdir -p {home}/.local/share",
-                    f"echo '{cuthulu_version}' > {cuthulu_installed_marker}",
-                ],
-                _if=cuthulu_download.did_change,
+            cuthulu_install = server.shell(
+                name="Build and install Cuthulu (native, macOS)",
+                commands=[f"make -C {opencodes_repo} install-app"],
             )
 
             launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.cuthulu.plist"
@@ -767,10 +735,10 @@ if has_dist:
             server.shell(
                 name="Reload Cuthulu LaunchAgent",
                 commands=[
-                    f"launchctl unload {launchagent_path} 2>/dev/null || true",
-                    f"launchctl load {launchagent_path}",
+                    f"launchctl bootout gui/$(id -u) dev.rholden.cuthulu 2>/dev/null || true",
+                    f"launchctl bootstrap gui/$(id -u) {launchagent_path}",
                 ],
-                _if=any_changed(cuthulu_extract, plist_install),
+                _if=any_changed(cuthulu_install, plist_install),
             )
 
             # Migration: remove old opencodes-tray LaunchAgent
@@ -778,52 +746,30 @@ if has_dist:
             server.shell(
                 name="Remove old opencodes-tray LaunchAgent",
                 commands=[
-                    f"launchctl unload {old_plist} 2>/dev/null || true",
+                    f"launchctl bootout gui/$(id -u) dev.rholden.opencodes-tray 2>/dev/null || true",
                     f"rm -f {old_plist}",
                 ],
             )
 
         else:  # Linux
-            cuthulu_appimage_dest = f"{home}/.local/bin/cuthulu"
-            download_url = f"{base_url}/{cuthulu_version}/cuthulu-linux.AppImage"
-
             files.directory(
                 name="Ensure ~/.local/bin exists",
                 path=f"{home}/.local/bin",
                 present=True,
             )
-            installed_tag = (host.get_fact(
-                Command,
-                command=f"cat {cuthulu_installed_marker} 2>/dev/null || echo ''",
-            ) or "").strip()
-            need_update = installed_tag != cuthulu_version
-
             server.shell(
-                name="Stop Cuthulu before update",
+                name="Stop Cuthulu before build",
                 commands=["systemctl --user stop cuthulu.service 2>/dev/null || true"],
-                _if=lambda: need_update,
             )
-            cuthulu_download = server.shell(
-                name="Download Cuthulu Linux AppImage",
-                commands=[
-                    f'curl -fsSL -o {cuthulu_appimage_dest} "{download_url}"',
-                    f"chmod 755 {cuthulu_appimage_dest}",
-                ],
-                _if=lambda: need_update,
-            )
-            server.shell(
-                name="Write Cuthulu installed-version marker",
-                commands=[
-                    f"mkdir -p {home}/.local/share",
-                    f"echo '{cuthulu_version}' > {cuthulu_installed_marker}",
-                ],
-                _if=cuthulu_download.did_change,
+            cuthulu_install = server.shell(
+                name="Build and install Cuthulu (native, Linux)",
+                commands=[f"make -C {opencodes_repo} install-app"],
             )
             if has_systemd():
                 server.shell(
-                    name="Restart Cuthulu service after update",
+                    name="Restart Cuthulu service after install",
                     commands=["systemctl --user restart cuthulu.service"],
-                    _if=cuthulu_download.did_change,
+                    _if=cuthulu_install.did_change,
                 )
 
 # -----------------------------------------------------------------------------
