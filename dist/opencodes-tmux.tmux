@@ -32,7 +32,7 @@ tmux set-hook -g window-renamed "run-shell -b '$BINARY notify'"
 tmux set-hook -g session-window-changed \
     "run-shell -b '$BINARY connect #{session_name} #{window_name}'"
 tmux set-hook -g client-session-changed \
-    "run-shell -b '$BINARY connect #{session_name} #{window_name}' ; run-shell -b '$BINARY detach #{session_name} #{client_last_session}'"
+    "run-shell -b '$BINARY connect #{session_name} #{window_name}' ; if-shell -F '#{client_last_session}' 'run-shell -b \"$BINARY detach #{session_name} #{client_last_session}\"'"
 
 # Manual resync binding (prefix + R).
 tmux bind-key R run-shell "$BINARY notify --reset" \; display-message "Remote sessions synced"
