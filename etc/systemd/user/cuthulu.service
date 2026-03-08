@@ -10,7 +10,7 @@ Type=simple
 ExecStart=%h/.local/bin/cuthulu
 Environment=HOME=%h
 Environment=DISPLAY=:0
-Environment=OPENCODES_SSH_HOST={{ hostname }}
+Environment=OPENCODES_SSH_HOST={{ hostname }}.holdenitdown.net
 Environment=OPENCODES_SSH_USER=rfhold
 Restart=on-failure
 RestartSec=5
