@@ -236,46 +236,11 @@ function makeCommandHandler(opts) {
           const res = await fetch(`${base}/session/${cmd.sessionId}/permissions/${permissionId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ allow })
+            body: JSON.stringify({ response: allow ? "once" : "reject" })
           });
           if (!res.ok) {
             opts.logger("error", "permission-response failed", { status: res.status, statusText: res.statusText });
           }
-          break;
-        }
-        case "restart": {
-          const force = cmd.restart?.force ?? false;
-          if (!force) {
-            try {
-              const statusRes = await fetch(`${base}/session/status`);
-              if (statusRes.ok) {
-                const statuses = await statusRes.json();
-                const busy = Object.values(statuses).some((s) => s === "running" || s === "permission");
-                if (busy) {
-                  opts.logger("warn", "restart blocked: instance is busy");
-                  return;
-                }
-              }
-            } catch (err) {
-              opts.logger("warn", "restart idle-check failed, proceeding", { error: String(err) });
-            }
-          }
-          if (!opts.tmuxPane) {
-            opts.logger("error", "restart failed: no tmux pane context");
-            return;
-          }
-          const paneTarget = `%${opts.tmuxPane}`;
-          Bun.spawn(["tmux", "send-keys", "-t", paneTarget, "C-c", ""]);
-          setTimeout(() => {
-            Bun.spawn([
-              "tmux",
-              "send-keys",
-              "-t",
-              paneTarget,
-              `kill ${process.pid} && sleep 1 && opencode --continue`,
-              "Enter"
-            ]);
-          }, 500);
           break;
         }
         default:
