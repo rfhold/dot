@@ -776,7 +776,7 @@ if has_dist:
             )
 
             # Deploy systemd user unit
-            cuthulu_hostname = host.get_fact(Command, command="hostname -s").strip()
+            cuthulu_hostname = host.get_fact(Command, command="cat /etc/hostname").strip()
             files.directory(
                 name="Ensure ~/.config/systemd/user exists",
                 path=f"{home}/.config/systemd/user",
