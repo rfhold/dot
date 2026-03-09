@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # nmux - Fuzzy search repos and open in tmux
-# Usage: nmux [category/repo-name]
-#   nmux                           - Interactive mode with fuzzy search
+# Usage: nmux [--create] [category/repo-name]
+#   nmux                               - Interactive mode with fuzzy search
 #   nmux stablekernel/github-token-bot - Direct mode with specific repo
+#   nmux --create rfhold/new-repo      - Create remote repo if missing, then open
 
 # Configuration
 REPOS_DIR="$HOME/repos"
@@ -56,10 +57,15 @@ ensure_session() {
 # Function to ensure repo exists (delegates to gmux)
 ensure_repo() {
     local repo_path="$1"
+    local create="$2"
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    
-    if ! "$script_dir/gmux" "$repo_path"; then
+
+    local gmux_args=()
+    [ "$create" = "1" ] && gmux_args+=("--create")
+    gmux_args+=("$repo_path")
+
+    if ! "$script_dir/gmux" "${gmux_args[@]}"; then
         echo -e "${YELLOW}Available repositories:${NC}" >&2
         get_repos | sed 's/^/  /' >&2
         exit 1
@@ -69,14 +75,25 @@ ensure_repo() {
 # Main function
 main() {
     check_repos_dir
-    
+
+    local create=0
+    local repo_arg
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --create) create=1; shift ;;
+            *) repo_arg="$1"; shift ;;
+        esac
+    done
+
     local selected_repo
-    
+
     # Check if repo was provided as argument
-    if [ -n "$1" ]; then
+    if [ -n "$repo_arg" ]; then
         # Direct mode - use provided repo path
-        selected_repo="$1"
-        ensure_repo "$selected_repo"
+        selected_repo="$repo_arg"
+        ensure_repo "$selected_repo" "$create"
         echo -e "${BLUE}Direct mode: Using repository '$selected_repo'${NC}" >&2
     else
         # Interactive mode - use gum to select
