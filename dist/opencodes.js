@@ -296,7 +296,7 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
     let tmuxPane = (process.env.TMUX_PANE ?? "").replace(/^%/, "");
     if (process.env.TMUX) {
       try {
-        const proc = Bun.spawnSync(["tmux", "display-message", "-p", "#S\t#W"]);
+        const proc = Bun.spawnSync(["tmux", "display-message", "-t", `%${tmuxPane}`, "-p", "#S\t#W"]);
         const parts = proc.stdout.toString().trim().split("\t");
         tmuxSession = parts[0] ?? "";
         tmuxWindow = parts[1] ?? "";
