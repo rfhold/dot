@@ -1,38 +1,42 @@
 ---
 name: opencodes
-description: Reference for the opencodes multi-machine opencode session monitoring system (rfhold/opencodes repo). Use when working on the opencodes server, TUI, tray app, or plugin; understanding how opencode instances register and report state; debugging session tracking; or deploying to the opencodes namespace on pantheon. Trigger phrases: "opencodes", "opencode session monitor", "opencode tray", "opencodes server", "opencodes plugin", "session tracking across machines".
+description: Reference for the opencodes multi-machine opencode session monitoring system (rfhold/opencodes repo). Use when working on the opencodes server, Cuthulu Tauri app, tmux-agent, or plugin; understanding how opencode instances register and report state; debugging session tracking; or deploying to the opencodes namespace on pantheon. Trigger phrases: "opencodes", "opencode session monitor", "cuthulu", "opencodes server", "opencodes plugin", "session tracking across machines", "tmux agent".
 metadata:
   author: rfhold
   category: tooling
   source-repo: rfhold/opencodes
-  last-commit: a5fe1733
-  last-updated: "2026-03-04"
+  last-commit: bc705d62
+  last-updated: "2026-03-08"
 ---
 
 # OpenCodes Reference
 
-> Last updated: 2026-03-04 | Source: [rfhold/opencodes](https://git.holdenitdown.net/rfhold/opencodes) @ `a5fe1733`
+> Last updated: 2026-03-08 | Source: [rfhold/opencodes](https://git.holdenitdown.net/rfhold/opencodes) @ `bc705d62`
 
 **opencodes** is a hub-and-spoke system for monitoring and controlling opencode AI coding sessions across multiple machines.
 
 Repo: `git.holdenitdown.net/rfhold/opencodes`  
-Go module root: `github.com/rfhold/opencodes` (workspace with `server/`, `tui/`, `tray/`, `proto/`)
+Go module root: `github.com/rfhold/opencodes` (workspace with `server/`, `cli/`, `tmux-agent/`, `proto/`)
 
 ## Architecture
 
 ```
 opencode instance (machine A)          opencode instance (machine B)
-        ↓ plugin (WebSocket)                   ↓ plugin (WebSocket)
-        └──────────────── opencodes-server ────┘
-                            (port 9091 WS, 9090 gRPC)
-                                    ↓ gRPC
-                          TUI (Bubble Tea)  /  Tray (systray)
+        ↓ plugin (Unix socket)                 ↓ plugin (Unix socket)
+        └───────── Cuthulu (Tauri desktop app) ┘
+                     ↓ gRPC (port 9090)
+                 opencodes-server
+                     ↑ Unix socket IPC
+           opencodes-tmux (tmux-agent binary)
+                     ↑ tmux hooks
+             tmux-plugin (TPM plugin)
 ```
 
-- **plugin** — TypeScript/Bun opencode plugin running inside each opencode instance; connects to server via WebSocket, relays commands back to local opencode HTTP API
-- **server** — central Go server; accepts plugin connections, subscribes to each opencode instance's SSE stream, persists state in SQLite, exposes gRPC API
-- **TUI** — Bubble Tea terminal UI; connects to gRPC API; split-pane view of instances + sessions; send messages, abort, respond to permission requests
-- **tray** — macOS/Linux system tray (fyne/systray); connects to gRPC API; session status in menu bar; system notifications; can launch TUI
+- **plugin** — TypeScript/Bun opencode plugin running inside each opencode instance; connects to Cuthulu via Unix socket (newline-delimited JSON), relays session events; receives command frames back
+- **app (Cuthulu)** — Tauri (Rust + SolidJS) desktop app; acts as local hub: accepts plugin connections via Unix socket, forwards state to server via gRPC, shows session status in system tray, sends OS notifications, embeds the tmux IPC daemon
+- **server** — central Go server; receives state from Cuthulu instances via gRPC, persists in SQLite, exposes gRPC API for other clients
+- **tmux-agent** — standalone `opencodes-tmux` Go binary; client-side tmux bridge invoked by tmux hooks; communicates with the Cuthulu daemon via Unix socket IPC
+- **tmux-plugin** — TPM plugin script that hooks tmux events to call `opencodes-tmux`
 
 ## Deployment
 
@@ -45,9 +49,9 @@ opencode instance (machine A)          opencode instance (machine B)
 
 | Resource | Details |
 |----------|---------|
-| Deployment | 1 replica; ports 9090 (gRPC h2c) and 9091 (WS); UID 65532; 512Mi/1CPU limits |
+| Deployment | 1 replica; port 9090 (gRPC h2c); UID 65532; 512Mi/1CPU limits |
 | PVC | `opencodes-data`, 1Gi, mounted at `/data` for SQLite (`/data/opencodes.db`) |
-| Service | ClusterIP; port 9090 `appProtocol: kubernetes.io/h2c`, port 9091 WS |
+| Service | ClusterIP; port 9090 `appProtocol: kubernetes.io/h2c` |
 | HTTPRoute | `opencodes.holdenitdown.net` → port 9090; timeout `0s` for streaming gRPC |
 
 ### CI/CD
@@ -66,12 +70,12 @@ Single Tekton pipeline `.tekton/opencodes-server-push.yaml`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENCODES_SERVER_URL` | `ws://opencodes.local:9091` | WebSocket URL of the central server |
+| `OPENCODES_SOCKET_PATH` | `$XDG_RUNTIME_DIR/opencodes-plugin.sock` (or `/tmp/opencodes-plugin.sock`) | Unix socket path for the Cuthulu daemon |
 
 **What it does:**
-1. On load: connects to server via WebSocket, registers instance (ID, project directory, local opencode HTTP URL)
-2. Server subscribes to the local opencode SSE stream (`/event`) to track session lifecycle
-3. Plugin receives command frames from server and relays them to local opencode HTTP API:
+1. On load: connects to Cuthulu daemon via Unix socket, registers instance (ID, project directory, local opencode HTTP URL, hostname, tmux session/window/pane)
+2. Forwards session lifecycle events to the daemon as they occur (newline-delimited JSON)
+3. Receives command frames from the daemon and relays them to local opencode HTTP API:
    - `POST /session/{id}/prompt_async` — send a message
    - `POST /session/{id}/abort` — abort a session
    - `POST /session/{id}/permissions/{permId}` — respond to a permission request
@@ -81,23 +85,34 @@ Single Tekton pipeline `.tekton/opencodes-server-push.yaml`:
 **Go binary:** `opencodes-server`
 
 **Ports:**
-- `9090` — gRPC API (ConnectRPC / h2c) for TUI and tray clients
-- `9091` — WebSocket for plugin connections
+- `9090` — gRPC API (ConnectRPC / h2c) for Cuthulu and CLI clients
 
 **Database:** SQLite at `DB_PATH` (default: `~/.local/share/opencodes/opencodes.db`, production: `/data/opencodes.db`)
 
 **Health check:** `opencodes-server -healthcheck` (exits 0 if healthy)
 
-## TUI
+## Cuthulu (app/)
 
-Bubble Tea terminal UI. Connects to `localhost:9090` (hardcoded, no env var). Split-pane:
-- Left: list of registered opencode instances
-- Right: sessions for selected instance
-- Actions: send message, abort session, respond to permission requests
+Tauri (Rust + SolidJS) desktop app. Replaced the old Go `tray/` and `tui/` binaries. Connects to the opencodes gRPC server, shows session status in the system tray, sends OS notifications on status transitions. Embeds a Unix socket IPC daemon (in `src-tauri/src/tray.rs`) that receives tmux state updates from the `opencodes-tmux` binary.
 
-## Tray
+**Build/install:** `make install-app`  
+**Distribute:** `make upload-app-release` (builds macOS `.tar.gz`, creates Forgejo release)
 
-System tray app (macOS/Linux). Connects to `localhost:9090` (hardcoded). Shows session status in menu bar, sends OS notifications on status transitions. Launches TUI via `OPENCODES_TERMINAL` env var or falls back to `kitty`, `gnome-terminal`, `xterm`, or `open -a Terminal` on macOS.
+## tmux-agent (tmux-agent/)
+
+**Go binary:** `opencodes-tmux`
+
+Subcommands: `connect`, `detach`, `notify`, `stub-window`, `status`
+
+Invoked by tmux hooks (via `tmux-plugin`). Sends IPC messages over a Unix socket to the Cuthulu daemon, which aggregates tmux state and forwards it to the server.
+
+**Build:** `make build-tmux-agent`  
+**Install:** `make install-tmux-plugin` (also builds linux-amd64 variant)  
+**Sign (macOS):** `make sign-tmux-agent`
+
+## tmux-plugin (tmux-plugin/)
+
+TPM plugin (`opencodes-tmux.tmux`). Registers tmux hooks (`client-attached`, `session-created`, `session-closed`, `window-linked/unlinked/renamed`, `session-window-changed`, `client-session-changed`) that call `opencodes-tmux`. Binds `prefix+R` to manually resync.
 
 ## Proto API
 
@@ -107,3 +122,4 @@ Defined in `proto/opencodes.proto`. Key RPCs:
 - `SendMessage` — send a prompt to a session
 - `AbortSession` — abort a running session
 - `RespondPermission` — approve/deny a tool permission request
+- `LaunchSession` — launch a new opencode session on a remote machine via tmux agent (partially scaffolded)
