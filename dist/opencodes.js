@@ -243,6 +243,38 @@ function makeCommandHandler(opts) {
           }
           break;
         }
+        case "respondQuestion": {
+          if (!cmd.sessionId)
+            return;
+          const requestId = cmd.respondQuestion?.requestId ?? "";
+          const reject = cmd.respondQuestion?.reject ?? false;
+          if (reject) {
+            const res = await fetch(`${base}/question/${requestId}/reject`, {
+              method: "POST"
+            });
+            if (!res.ok) {
+              opts.logger("error", "question-reject failed", { status: res.status, statusText: res.statusText });
+            }
+          } else {
+            const rawAnswers = cmd.respondQuestion?.answers ?? [];
+            const answers = rawAnswers.map((a) => {
+              try {
+                return JSON.parse(a);
+              } catch {
+                return [a];
+              }
+            });
+            const res = await fetch(`${base}/question/${requestId}/reply`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ answers })
+            });
+            if (!res.ok) {
+              opts.logger("error", "question-reply failed", { status: res.status, statusText: res.statusText });
+            }
+          }
+          break;
+        }
         default:
           opts.logger("warn", `unknown command payload: ${cmd.payload}`);
       }
