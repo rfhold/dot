@@ -206,8 +206,18 @@ function makeCommandHandler(opts) {
           if (!cmd.sessionId)
             return;
           const text = cmd.sendMessage?.text ?? "";
+          const newSession = cmd.sendMessage?.newSession ?? false;
+          let targetSessionId = cmd.sessionId;
+          if (newSession) {
+            const created = await opts.client.session.create();
+            if (created.error) {
+              opts.logger("error", "create-session failed", { error: created.error });
+              break;
+            }
+            targetSessionId = created.data?.id ?? cmd.sessionId;
+          }
           const res = await opts.client.session.promptAsync({
-            path: { id: cmd.sessionId },
+            path: { id: targetSessionId },
             body: { parts: [{ type: "text", text }] }
           });
           if (res.error) {
