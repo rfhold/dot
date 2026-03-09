@@ -231,9 +231,11 @@ function makeCommandHandler(opts) {
             return;
           const permissionId = cmd.permit?.permissionId ?? "";
           const allow = cmd.permit?.allow ?? false;
+          const always = cmd.permit?.always ?? false;
+          const response = always ? "always" : allow ? "once" : "reject";
           const res = await opts.client.postSessionIdPermissionsPermissionId({
             path: { id: cmd.sessionId, permissionID: permissionId },
-            body: { response: allow ? "once" : "reject" }
+            body: { response }
           });
           if (res.error) {
             opts.logger("error", "permission-response failed", { error: res.error });
