@@ -207,6 +207,9 @@ function makeCommandHandler(opts) {
             return;
           const text = cmd.sendMessage?.text ?? "";
           const newSession = cmd.sendMessage?.newSession ?? false;
+          const agent = cmd.sendMessage?.agent ?? "";
+          const modelId = cmd.sendMessage?.modelId ?? "";
+          const providerId = cmd.sendMessage?.providerId ?? "";
           let targetSessionId = cmd.sessionId;
           if (newSession) {
             const created = await opts.client.session.create();
@@ -218,7 +221,11 @@ function makeCommandHandler(opts) {
           }
           const res = await opts.client.session.promptAsync({
             path: { id: targetSessionId },
-            body: { parts: [{ type: "text", text }] }
+            body: {
+              parts: [{ type: "text", text }],
+              agent: agent || undefined,
+              model: modelId && providerId ? { modelID: modelId, providerID: providerId } : undefined
+            }
           });
           if (res.error) {
             opts.logger("error", "send-message failed", { error: res.error });
@@ -327,6 +334,10 @@ var CuthuluPlugin = async ({ project, directory, serverUrl, client }) => {
         for (const sess of resp.data ?? []) {
           serverClient.sendEvent("session.updated", { info: sess });
         }
+        const agentsResp = await client.app.agents();
+        serverClient.sendEvent("app.agents", { agents: agentsResp.data ?? [] });
+        const providersResp = await client.provider.list();
+        serverClient.sendEvent("app.providers", providersResp.data ?? {});
       }
     });
     serverClient.connect();
