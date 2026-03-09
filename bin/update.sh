@@ -23,7 +23,7 @@ done
 # Pull latest changes if requested
 if [[ "$PULL" == "1" ]]; then
     echo "Pulling latest dotfiles..."
-    git pull --ff-only origin main
+    git fetch origin && git reset --hard origin/main
 fi
 
 DOTFILES_UPGRADE=$UPGRADE uv run pyinfra @local configure.py ${ARGS[@]+"${ARGS[@]}"}
