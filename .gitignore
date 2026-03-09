@@ -5,8 +5,8 @@ build/
 dist/
 !dist/
 dist/*
-!dist/opencodes-*
-!dist/opencodes.*
+!dist/cuthulu-*
+!dist/cuthulu.*
 wheels/
 *.egg-info
 

@@ -91,7 +91,7 @@ GPU nodes carry taint `workload-type=gpu-inference:NoSchedule` and label `rholde
 | COTURN               | `turn.holdenitdown.net`                     | `nvr`                |
 | OpenCode (web)       | `opencode.holdenitdown.net`                 | `opencode`           |
 | OpenCode (SSH:2200)  | `devbox.holdenitdown.net`                   | `opencode`           |
-| OpenCodes server     | `opencodes.holdenitdown.net`                | `opencodes`          |
+| Cuthulu server       | `cuthulu.holdenitdown.net`                  | `cuthulu`            |
 | Pantheon S3          | `s3.pantheon.holdenitdown.net`              | `storage`            |
 | NATS                 | `nats.nats.svc:4222` (in-cluster)           | `nats`               |
 | Walter (prod)        | `walter.holdenitdown.net`                   | `walter`             |
@@ -132,7 +132,7 @@ GPU nodes carry taint `workload-type=gpu-inference:NoSchedule` and label `rholde
 
 Managed as TypeScript micro-stacks in the `homelab` repo. Stack names are `<program>.<cluster>`, e.g. `grafana.pantheon`.
 
-Key programs: `ingress`, `dns`, `storage`, `forgejo`, `authentik`, `bitwarden`, `monitoring`, `tekton`, `buildkit`, `nats`, `walter`, `ai-inference`, `litellm`, `firecrawl`, `immich`, `nvr`, `opencode`, `opencodes`, `lobechat`, `vpn`.
+Key programs: `ingress`, `dns`, `storage`, `forgejo`, `authentik`, `bitwarden`, `monitoring`, `tekton`, `buildkit`, `nats`, `walter`, `ai-inference`, `litellm`, `firecrawl`, `immich`, `nvr`, `opencode`, `cuthulu`, `lobechat`, `vpn`.
 
 Run stacks via `p5` (workspace manager) or `pulumi up` from within the program directory.
 

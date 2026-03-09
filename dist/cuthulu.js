@@ -38,15 +38,15 @@ class LocalClient {
     this.socketPath = LocalClient.getSocketPath();
   }
   static getSocketPath() {
-    if (process.env.OPENCODES_SOCKET_PATH)
-      return process.env.OPENCODES_SOCKET_PATH;
+    if (process.env.CUTHULU_SOCKET_PATH)
+      return process.env.CUTHULU_SOCKET_PATH;
     const xdg = process.env.XDG_RUNTIME_DIR;
     if (xdg)
-      return `${xdg}/opencodes-plugin.sock`;
+      return `${xdg}/cuthulu-plugin.sock`;
     const tmpdir = process.env.TMPDIR;
     if (tmpdir)
-      return `${tmpdir}/opencodes-plugin.sock`;
-    return "/tmp/opencodes-plugin.sock";
+      return `${tmpdir}/cuthulu-plugin.sock`;
+    return "/tmp/cuthulu-plugin.sock";
   }
   connect() {
     if (this.stopped)
@@ -285,9 +285,9 @@ function makeCommandHandler(opts) {
 }
 
 // src/index.ts
-var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
+var CuthuluPlugin = async ({ project, directory, serverUrl, client }) => {
   const logger = (level, message, extra) => {
-    client.app.log({ body: { service: "opencodes", level, message, extra } }).catch(() => {});
+    client.app.log({ body: { service: "cuthulu", level, message, extra } }).catch(() => {});
   };
   try {
     const opencodeUrl = serverUrl.toString().replace(/\/$/, "");
@@ -331,8 +331,8 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
   }
   return {};
 };
-var src_default = OpencodesPlugin;
+var src_default = CuthuluPlugin;
 export {
   src_default as default,
-  OpencodesPlugin
+  CuthuluPlugin
 };

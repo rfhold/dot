@@ -1,5 +1,5 @@
 [Unit]
-Description=Cuthulu OpenCodes client
+Description=Cuthulu client
 After=network-online.target graphical-session.target
 Wants=network-online.target graphical-session.target
 StartLimitIntervalSec=60
@@ -10,9 +10,9 @@ Type=simple
 ExecStart=%h/.local/bin/cuthulu
 Environment=HOME=%h
 Environment=DISPLAY=:0
-Environment=OPENCODES_SSH_HOST={{ hostname }}.holdenitdown.net
-Environment=OPENCODES_SSH_USER=rfhold
-Environment=OPENCODES_NO_STUBS=1
+Environment=CUTHULU_SSH_HOST={{ hostname }}.holdenitdown.net
+Environment=CUTHULU_SSH_USER=rfhold
+Environment=CUTHULU_NO_STUBS=1
 Restart=on-failure
 RestartSec=5
 

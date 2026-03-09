@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# opencodes-tmux — TPM plugin for tmux session bridging via opencodes
+# cuthulu-tmux — TPM plugin for tmux session bridging via cuthulu
 #
 # Manages tmux hooks for:
-# - Pushing local tmux state to the opencodes server (via tray's embedded daemon)
+# - Pushing local tmux state to the cuthulu server (via tray's embedded daemon)
 # - Auto-connecting stub windows when selected
 # - Detaching remote sessions when switching away
 
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Locate the binary: check PATH first, then plugin's bin/ directory.
-if command -v opencodes-tmux &>/dev/null; then
-    BINARY="opencodes-tmux"
+if command -v cuthulu-tmux &>/dev/null; then
+    BINARY="cuthulu-tmux"
 else
-    BINARY="${CURRENT_DIR}/bin/opencodes-tmux"
+    BINARY="${CURRENT_DIR}/bin/cuthulu-tmux"
     if [[ ! -x "$BINARY" ]]; then
-        tmux display-message "opencodes-tmux: binary not found"
+        tmux display-message "cuthulu-tmux: binary not found"
         return 0 2>/dev/null || exit 0
     fi
 fi

@@ -655,44 +655,44 @@ git.repo(
 )
 
 # -----------------------------------------------------------------------------
-# OpenCodes artifacts (from ~/dot/dist/)
+# Cuthulu artifacts (from ~/dot/dist/)
 # -----------------------------------------------------------------------------
 
 dist_dir = f"{home}/dot/dist"
-has_dist = host.get_fact(File, path=f"{dist_dir}/opencodes.js") is not None
+has_dist = host.get_fact(File, path=f"{dist_dir}/cuthulu.js") is not None
 cuthulu_version_file = f"{dist_dir}/cuthulu-version"
 has_cuthulu = host.get_fact(File, path=cuthulu_version_file) is not None
 
 if has_dist:
-    # --- opencodes-tmux plugin ---
+    # --- cuthulu-tmux plugin ---
     files.directory(
-        name="Ensure opencodes-tmux plugin directory",
-        path=f"{home}/.tmux/plugins/opencodes-tmux/bin",
+        name="Ensure cuthulu-tmux plugin directory",
+        path=f"{home}/.tmux/plugins/cuthulu-tmux/bin",
         present=True,
     )
 
     if os_name == "Darwin":
-        tmux_binary_src = f"{dist_dir}/opencodes-tmux-darwin"
+        tmux_binary_src = f"{dist_dir}/cuthulu-tmux-darwin"
     else:
-        tmux_binary_src = f"{dist_dir}/opencodes-tmux-linux-amd64"
+        tmux_binary_src = f"{dist_dir}/cuthulu-tmux-linux-amd64"
 
-    tmux_binary_dest = f"{home}/.tmux/plugins/opencodes-tmux/bin/opencodes-tmux"
+    tmux_binary_dest = f"{home}/.tmux/plugins/cuthulu-tmux/bin/cuthulu-tmux"
     tmux_binary_tmp = tmux_binary_dest + ".tmp"
     tmux_binary_put = files.put(
-        name="Install opencodes-tmux binary",
+        name="Install cuthulu-tmux binary",
         src=tmux_binary_src,
         dest=tmux_binary_tmp,
         mode="755",
     )
     tmux_binary_install = server.shell(
-        name="Atomically replace opencodes-tmux binary",
+        name="Atomically replace cuthulu-tmux binary",
         commands=[f"mv -f {tmux_binary_tmp} {tmux_binary_dest}"],
         _if=tmux_binary_put.did_change,
     )
     tmux_plugin_install = files.put(
-        name="Install opencodes-tmux.tmux plugin script",
-        src=f"{dist_dir}/opencodes-tmux.tmux",
-        dest=f"{home}/.tmux/plugins/opencodes-tmux/opencodes-tmux.tmux",
+        name="Install cuthulu-tmux.tmux plugin script",
+        src=f"{dist_dir}/cuthulu-tmux.tmux",
+        dest=f"{home}/.tmux/plugins/cuthulu-tmux/cuthulu-tmux.tmux",
         mode="755",
     )
     server.shell(
@@ -701,28 +701,28 @@ if has_dist:
         _if=any_changed(tmux_binary_install, tmux_plugin_install),
     )
 
-    # --- opencodes opencode plugin ---
+    # --- cuthulu opencode plugin ---
     files.directory(
         name="Ensure opencode plugins directory",
         path=f"{home}/.config/opencode/plugins",
         present=True,
     )
     files.put(
-        name="Install opencodes opencode plugin",
-        src=f"{dist_dir}/opencodes.js",
-        dest=f"{home}/.config/opencode/plugins/opencodes.js",
+        name="Install cuthulu opencode plugin",
+        src=f"{dist_dir}/cuthulu.js",
+        dest=f"{home}/.config/opencode/plugins/cuthulu.js",
         mode="644",
     )
 
     # --- Cuthulu Tauri app ---
-    # Built natively from source via `make install-app` in the opencodes repo.
+    # Built natively from source via `make install-app` in the cuthulu repo.
     # Requires: cargo, bun (both expected to be present on the machine).
-    opencodes_repo = f"{home}/repos/rfhold/opencodes"
+    cuthulu_repo = f"{home}/repos/rfhold/cuthulu"
 
     if has_cuthulu:
         server.shell(
-            name="Pull latest opencodes repo",
-            commands=[f"[ ! -d {opencodes_repo} ] || git -C {opencodes_repo} fetch origin && git -C {opencodes_repo} reset --hard origin/main"],
+            name="Pull latest cuthulu repo",
+            commands=[f"[ ! -d {cuthulu_repo} ] || git -C {cuthulu_repo} fetch origin && git -C {cuthulu_repo} reset --hard origin/main"],
         )
 
     if has_cuthulu:
@@ -738,7 +738,7 @@ if has_dist:
 
             cuthulu_install = server.shell(
                 name="Build and install Cuthulu (native, macOS)",
-                commands=[f"make -C {opencodes_repo} install-app"],
+                commands=[f"make -C {cuthulu_repo} install-app"],
             )
 
             launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.cuthulu.plist"
@@ -761,12 +761,12 @@ if has_dist:
                 _if=any_changed(cuthulu_install, plist_install),
             )
 
-            # Migration: remove old opencodes-tray LaunchAgent
-            old_plist = f"{home}/Library/LaunchAgents/dev.rholden.opencodes-tray.plist"
+            # Migration: remove old cuthulu-tray LaunchAgent
+            old_plist = f"{home}/Library/LaunchAgents/dev.rholden.cuthulu-tray.plist"
             server.shell(
-                name="Remove old opencodes-tray LaunchAgent",
+                name="Remove old cuthulu-tray LaunchAgent",
                 commands=[
-                    f"launchctl bootout gui/$(id -u) dev.rholden.opencodes-tray 2>/dev/null || true",
+                    f"launchctl bootout gui/$(id -u) dev.rholden.cuthulu-tray 2>/dev/null || true",
                     f"rm -f {old_plist}",
                 ],
             )
@@ -801,7 +801,7 @@ if has_dist:
             )
             cuthulu_install = server.shell(
                 name="Build and install Cuthulu (native, Linux)",
-                commands=[f"make -C {opencodes_repo} install-app"],
+                commands=[f"make -C {cuthulu_repo} install-app"],
             )
             if has_systemd():
                 server.shell(
@@ -934,7 +934,7 @@ if pkg_manager == "pacman" and not is_container():
         user_mode=True,
     )
 
-    # Disable old tmux-agent service (superseded by opencodes-tray)
+    # Disable old tmux-agent service (superseded by cuthulu-tray)
     systemd.service(
         name="Disable old tmux-agent service",
         service="tmux-agent.service",
@@ -944,10 +944,10 @@ if pkg_manager == "pacman" and not is_container():
         _ignore_errors=True,
     )
 
-    # Disable old opencodes-tray service (superseded by Cuthulu)
+    # Disable old cuthulu-tray service (superseded by Cuthulu)
     systemd.service(
-        name="Disable old opencodes-tray service",
-        service="opencodes-tray.service",
+        name="Disable old cuthulu-tray service",
+        service="cuthulu-tray.service",
         running=False,
         enabled=False,
         user_mode=True,
