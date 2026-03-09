@@ -722,7 +722,7 @@ if has_dist:
     if has_cuthulu:
         server.shell(
             name="Pull latest opencodes repo",
-            commands=[f"[ ! -d {opencodes_repo} ] || git -C {opencodes_repo} pull --ff-only --autostash"],
+            commands=[f"[ ! -d {opencodes_repo} ] || git -C {opencodes_repo} fetch origin && git -C {opencodes_repo} reset --hard origin/main"],
         )
 
     if has_cuthulu:
