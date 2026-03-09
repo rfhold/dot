@@ -664,25 +664,6 @@ cuthulu_version_file = f"{dist_dir}/cuthulu-version"
 has_cuthulu = host.get_fact(File, path=cuthulu_version_file) is not None
 
 if has_dist:
-    # --- cuthulu-tmux plugin ---
-    files.directory(
-        name="Ensure cuthulu-tmux plugin directory",
-        path=f"{home}/.tmux/plugins/cuthulu-tmux",
-        present=True,
-    )
-
-    tmux_plugin_install = files.put(
-        name="Install cuthulu-tmux.tmux plugin script",
-        src=f"{dist_dir}/cuthulu-tmux.tmux",
-        dest=f"{home}/.tmux/plugins/cuthulu-tmux/cuthulu-tmux.tmux",
-        mode="755",
-    )
-    server.shell(
-        name="Reload tmux config",
-        commands=[f"tmux source-file {home}/.tmux.conf 2>/dev/null || true"],
-        _if=tmux_plugin_install.did_change,
-    )
-
     # --- cuthulu opencode plugin ---
     files.directory(
         name="Ensure opencode plugins directory",
@@ -815,6 +796,13 @@ if has_dist:
                     commands=["systemctl --user restart cuthulu.service"],
                     _if=cuthulu_install.did_change,
                 )
+
+    # Migration: remove old cuthulu-tmux TPM plugin dir (hooks now managed by the app)
+    files.directory(
+        name="Remove old cuthulu-tmux TPM plugin directory",
+        path=f"{home}/.tmux/plugins/cuthulu-tmux",
+        present=False,
+    )
 
 # -----------------------------------------------------------------------------
 # Fish plugins
