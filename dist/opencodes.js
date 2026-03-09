@@ -201,59 +201,48 @@ class LocalClient {
 function makeCommandHandler(opts) {
   return async (cmd) => {
     try {
-      const base = opts.opencodeUrl.replace(/\/$/, "");
       switch (cmd.payload) {
         case "sendMessage": {
           if (!cmd.sessionId)
             return;
           const text = cmd.sendMessage?.text ?? "";
-          const res = await fetch(`${base}/session/${cmd.sessionId}/prompt_async`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ parts: [{ type: "text", text }] })
+          const res = await opts.client.session.promptAsync({
+            sessionID: cmd.sessionId,
+            parts: [{ type: "text", text }]
           });
-          if (!res.ok) {
-            opts.logger("error", "send-message failed", { status: res.status, statusText: res.statusText });
+          if (res.error) {
+            opts.logger("error", "send-message failed", { error: res.error });
           }
           break;
         }
         case "abort": {
           if (!cmd.sessionId)
             return;
-          const res = await fetch(`${base}/session/${cmd.sessionId}/abort`, {
-            method: "POST"
-          });
-          if (!res.ok) {
-            opts.logger("error", "abort failed", { status: res.status, statusText: res.statusText });
+          const res = await opts.client.session.abort({ sessionID: cmd.sessionId });
+          if (res.error) {
+            opts.logger("error", "abort failed", { error: res.error });
           }
           break;
         }
         case "permit": {
-          if (!cmd.sessionId)
-            return;
           const permissionId = cmd.permit?.permissionId ?? "";
           const allow = cmd.permit?.allow ?? false;
-          const res = await fetch(`${base}/session/${cmd.sessionId}/permissions/${permissionId}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ response: allow ? "once" : "reject" })
+          const res = await opts.client.permission.reply({
+            requestID: permissionId,
+            reply: allow ? "once" : "reject"
           });
-          if (!res.ok) {
-            opts.logger("error", "permission-response failed", { status: res.status, statusText: res.statusText });
+          if (res.error) {
+            opts.logger("error", "permission-response failed", { error: res.error });
           }
           break;
         }
         case "respondQuestion": {
-          if (!cmd.sessionId)
-            return;
           const requestId = cmd.respondQuestion?.requestId ?? "";
           const reject = cmd.respondQuestion?.reject ?? false;
           if (reject) {
-            const res = await fetch(`${base}/question/${requestId}/reject`, {
-              method: "POST"
-            });
-            if (!res.ok) {
-              opts.logger("error", "question-reject failed", { status: res.status, statusText: res.statusText });
+            const res = await opts.client.question.reject({ requestID: requestId });
+            if (res.error) {
+              opts.logger("error", "question-reject failed", { error: res.error });
             }
           } else {
             const rawAnswers = cmd.respondQuestion?.answers ?? [];
@@ -264,13 +253,12 @@ function makeCommandHandler(opts) {
                 return [a];
               }
             });
-            const res = await fetch(`${base}/question/${requestId}/reply`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ answers })
+            const res = await opts.client.question.reply({
+              requestID: requestId,
+              answers
             });
-            if (!res.ok) {
-              opts.logger("error", "question-reply failed", { status: res.status, statusText: res.statusText });
+            if (res.error) {
+              opts.logger("error", "question-reply failed", { error: res.error });
             }
           }
           break;
@@ -311,7 +299,7 @@ var OpencodesPlugin = async ({ project, directory, serverUrl, client }) => {
       tmuxWindow,
       tmuxPane,
       logger,
-      onCommand: makeCommandHandler({ opencodeUrl, tmuxPane, logger }),
+      onCommand: makeCommandHandler({ client, tmuxPane, logger }),
       onConnect: async () => {
         const resp = await client.session.list();
         for (const sess of resp.data ?? []) {
