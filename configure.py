@@ -667,28 +667,10 @@ if has_dist:
     # --- cuthulu-tmux plugin ---
     files.directory(
         name="Ensure cuthulu-tmux plugin directory",
-        path=f"{home}/.tmux/plugins/cuthulu-tmux/bin",
+        path=f"{home}/.tmux/plugins/cuthulu-tmux",
         present=True,
     )
 
-    if os_name == "Darwin":
-        tmux_binary_src = f"{dist_dir}/cuthulu-tmux-darwin"
-    else:
-        tmux_binary_src = f"{dist_dir}/cuthulu-tmux-linux-amd64"
-
-    tmux_binary_dest = f"{home}/.tmux/plugins/cuthulu-tmux/bin/cuthulu-tmux"
-    tmux_binary_tmp = tmux_binary_dest + ".tmp"
-    tmux_binary_put = files.put(
-        name="Install cuthulu-tmux binary",
-        src=tmux_binary_src,
-        dest=tmux_binary_tmp,
-        mode="755",
-    )
-    tmux_binary_install = server.shell(
-        name="Atomically replace cuthulu-tmux binary",
-        commands=[f"mv -f {tmux_binary_tmp} {tmux_binary_dest}"],
-        _if=tmux_binary_put.did_change,
-    )
     tmux_plugin_install = files.put(
         name="Install cuthulu-tmux.tmux plugin script",
         src=f"{dist_dir}/cuthulu-tmux.tmux",
@@ -698,7 +680,7 @@ if has_dist:
     server.shell(
         name="Reload tmux config",
         commands=[f"tmux source-file {home}/.tmux.conf 2>/dev/null || true"],
-        _if=any_changed(tmux_binary_install, tmux_plugin_install),
+        _if=tmux_plugin_install.did_change,
     )
 
     # --- cuthulu opencode plugin ---
@@ -739,6 +721,14 @@ if has_dist:
             cuthulu_install = server.shell(
                 name="Build and install Cuthulu (native, macOS)",
                 commands=[f"make -C {cuthulu_repo} install-app"],
+            )
+            server.shell(
+                name="Link cuthulu-tmux to PATH",
+                commands=[
+                    f"mkdir -p {home}/.local/bin",
+                    f"ln -sf {home}/Applications/Cuthulu.app/Contents/MacOS/cuthulu-tmux {home}/.local/bin/cuthulu-tmux",
+                ],
+                _if=cuthulu_install.did_change,
             )
 
             launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.cuthulu.plist"
@@ -802,6 +792,14 @@ if has_dist:
             cuthulu_install = server.shell(
                 name="Build and install Cuthulu (native, Linux)",
                 commands=[f"make -C {cuthulu_repo} install-app"],
+            )
+            server.shell(
+                name="Install cuthulu-tmux to PATH",
+                commands=[
+                    f'TRIPLE=$(rustc -Vv | awk \'/^host/{{print $2}}\') && cp {cuthulu_repo}/app/src-tauri/target/$TRIPLE/release/cuthulu-tmux {home}/.local/bin/cuthulu-tmux',
+                    f"chmod 755 {home}/.local/bin/cuthulu-tmux",
+                ],
+                _if=cuthulu_install.did_change,
             )
             if has_systemd():
                 server.shell(
