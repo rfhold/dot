@@ -207,8 +207,8 @@ function makeCommandHandler(opts) {
             return;
           const text = cmd.sendMessage?.text ?? "";
           const res = await opts.client.session.promptAsync({
-            sessionID: cmd.sessionId,
-            parts: [{ type: "text", text }]
+            path: { id: cmd.sessionId },
+            body: { parts: [{ type: "text", text }] }
           });
           if (res.error) {
             opts.logger("error", "send-message failed", { error: res.error });
@@ -218,18 +218,22 @@ function makeCommandHandler(opts) {
         case "abort": {
           if (!cmd.sessionId)
             return;
-          const res = await opts.client.session.abort({ sessionID: cmd.sessionId });
+          const res = await opts.client.session.abort({
+            path: { id: cmd.sessionId }
+          });
           if (res.error) {
             opts.logger("error", "abort failed", { error: res.error });
           }
           break;
         }
         case "permit": {
+          if (!cmd.sessionId)
+            return;
           const permissionId = cmd.permit?.permissionId ?? "";
           const allow = cmd.permit?.allow ?? false;
-          const res = await opts.client.permission.reply({
-            requestID: permissionId,
-            reply: allow ? "once" : "reject"
+          const res = await opts.client.postSessionIdPermissionsPermissionId({
+            path: { id: cmd.sessionId, permissionID: permissionId },
+            body: { response: allow ? "once" : "reject" }
           });
           if (res.error) {
             opts.logger("error", "permission-response failed", { error: res.error });
@@ -239,8 +243,12 @@ function makeCommandHandler(opts) {
         case "respondQuestion": {
           const requestId = cmd.respondQuestion?.requestId ?? "";
           const reject = cmd.respondQuestion?.reject ?? false;
+          const inner = opts.client._client;
           if (reject) {
-            const res = await opts.client.question.reject({ requestID: requestId });
+            const res = await inner.post({
+              url: "/question/{requestID}/reject",
+              path: { requestID: requestId }
+            });
             if (res.error) {
               opts.logger("error", "question-reject failed", { error: res.error });
             }
@@ -253,9 +261,11 @@ function makeCommandHandler(opts) {
                 return [a];
               }
             });
-            const res = await opts.client.question.reply({
-              requestID: requestId,
-              answers
+            const res = await inner.post({
+              url: "/question/{requestID}/reply",
+              path: { requestID: requestId },
+              body: { answers },
+              headers: { "Content-Type": "application/json" }
             });
             if (res.error) {
               opts.logger("error", "question-reply failed", { error: res.error });
