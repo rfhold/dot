@@ -52,6 +52,8 @@ These secrets exist in the `pipelines-as-code` namespace and can be mounted in t
 | `git-pac-token` | Static Forgejo token (prefer `{{ git_auth_secret }}`) | `token` |
 | `android-keystore` | Android APK signing keystore | `keystore.jks`, `keystore-password`, `key-alias`, `key-password` |
 | `tekton-cluster-kubeconfig` | Multi-cluster kubeconfig | `kubeconfig` |
+| `pulumi-credentials` | Pulumi state backend + S3 credentials for CI deploys | `PULUMI_CONFIG_PASSPHRASE`, `PULUMI_BACKEND_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| `authentik-credentials` | Authentik API credentials for CI Pulumi programs | `AUTHENTIK_URL`, `AUTHENTIK_TOKEN` |
 
 ### Multi-Cluster Kubeconfig
 
@@ -698,6 +700,64 @@ A signing keystore is available in the `pipelines-as-code` namespace for Android
 - DN: CN=Hold It Down
 
 The keystore is managed via Pulumi in the Tekton stack. See `.opencode/docs/android-keystore-usage.md` for rotation instructions.
+
+## Pulumi CI Deploys
+
+Two secrets in `pipelines-as-code` provide everything a `pulumi` step needs to authenticate against the state backend and any provider APIs.
+
+### `pulumi-credentials`
+
+| Key | Value source |
+|---|---|
+| `PULUMI_CONFIG_PASSPHRASE` | `process.env.PULUMI_CONFIG_PASSPHRASE` at tekton stack deploy time |
+| `PULUMI_BACKEND_URL` | `process.env.PULUMI_BACKEND_URL` at tekton stack deploy time (e.g. `s3://pulumi-state?region=auto&endpoint=https://s3.romulus.holdenitdown.net`) |
+| `AWS_ACCESS_KEY_ID` | `tekton-ci` user credentials from `object-storage/romulus` stack reference |
+| `AWS_SECRET_ACCESS_KEY` | `tekton-ci` user credentials from `object-storage/romulus` stack reference |
+
+The `tekton-ci` S3 user has write access to the `pulumi-state` bucket on `s3.romulus.holdenitdown.net`. It is defined in `programs/object-storage/Pulumi.romulus.yaml` and its credentials are cross-stack referenced in `programs/tekton/index.ts`.
+
+### `authentik-credentials`
+
+| Key | Value source |
+|---|---|
+| `AUTHENTIK_URL` | `process.env.AUTHENTIK_URL` at tekton stack deploy time |
+| `AUTHENTIK_TOKEN` | `process.env.AUTHENTIK_TOKEN` at tekton stack deploy time |
+
+Used by Pulumi programs that manage Authentik resources via the `@pulumi/authentik` provider.
+
+### Usage in a Pulumi Deploy Step
+
+Use `envFrom` to inject all keys from both secrets as environment variables:
+
+```yaml
+- name: pulumi-deploy
+  taskSpec:
+    workspaces:
+      - name: source
+    steps:
+      - name: up
+        image: pulumi/pulumi-nodejs:3.215.0
+        workingDir: $(workspaces.source.path)/programs/my-program
+        envFrom:
+          - secretRef:
+              name: pulumi-credentials
+          - secretRef:
+              name: authentik-credentials
+        script: |
+          #!/bin/sh
+          set -e
+          pulumi up --stack <stack> --skip-preview --yes
+  workspaces:
+    - name: source
+      workspace: source
+```
+
+### Secret Management
+
+Both secrets are provisioned by the `tekton/pantheon` Pulumi stack (`src/components/tekton.ts`). To rotate:
+- **Pulumi passphrase / backend URL:** update `process.env` on the machine running `pulumi up` for the tekton stack, then re-run `pulumi up`
+- **S3 creds:** regenerate the `tekton-ci` user key in `programs/object-storage/romulus`, then re-run `pulumi up` for the tekton stack (the stack reference will pick up the new key)
+- **Authentik token:** update `process.env.AUTHENTIK_TOKEN` and re-run `pulumi up` for the tekton stack
 
 ## Workspace Notes
 

@@ -12,6 +12,7 @@ Environment=HOME=%h
 Environment=DISPLAY=:0
 Environment=CUTHULU_SSH_HOST=thinkpad.holdenitdown.net
 Environment=CUTHULU_SSH_USER=rfhold
+Environment=CUTHULU_NO_STUBS=1
 Restart=on-failure
 RestartSec=5
 
