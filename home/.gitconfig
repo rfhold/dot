@@ -9,5 +9,9 @@
 	insteadOf = https://github.com/
 [url "git@gitlab.com:"]
 	insteadOf = https://gitlab.com/
+[tag]
+	forceSignAnnotated = true
+[alias]
+	t = "!f() { git tag -a \"${1}\" -m \"${1}\" \"${@:2}\"; }; f"
 [include]
 	path = ~/.gitconfig.local

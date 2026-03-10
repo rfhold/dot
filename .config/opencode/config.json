@@ -19,17 +19,6 @@
         "FIRECRAWL_API_URL": "https://firecrawl.holdenitdown.net",
         "FIRECRAWL_API_KEY": "no-auth-required"
       }
-    },
-    "playwright": {
-      "type": "local",
-      "command": [
-        "bunx",
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--browser",
-        "chromium"
-      ],
-      "enabled": false
     }
   },
   "instructions": [

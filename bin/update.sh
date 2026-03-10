@@ -11,20 +11,22 @@ export PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 # Parse flags
 UPGRADE=0
 PULL=0
+REMOTE=0
 ARGS=()
 for arg in "$@"; do
     case "$arg" in
         --upgrade) UPGRADE=1 ;;
         --pull) PULL=1 ;;
+        --remote) REMOTE=1 ;;
         *) ARGS+=("$arg") ;;
     esac
 done
 
-# Pull latest changes if requested
-if [[ "$PULL" == "1" ]]; then
-    echo "Pulling latest dotfiles..."
-    git fetch origin && git reset --hard origin/main
+if [[ "$REMOTE" == "1" ]]; then
+    INVENTORY="inventory.py"
+else
+    INVENTORY="@local"
 fi
 
-DOTFILES_UPGRADE=$UPGRADE uv run pyinfra @local configure.py ${ARGS[@]+"${ARGS[@]}"}
+DOTFILES_UPGRADE=$UPGRADE DOTFILES_PULL=$PULL uv run pyinfra "$INVENTORY" configure.py ${ARGS[@]+"${ARGS[@]}"}
 

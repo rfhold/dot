@@ -13,7 +13,7 @@ from pyinfra.operations import (
     cargo,
 )
 from pyinfra.operations.util import any_changed
-from pyinfra.facts.files import FindFiles, FindDirectories, File
+from pyinfra.facts.files import FindFiles, FindDirectories, File, Link
 from pyinfra.facts.server import Command, Home, Os, Which
 from pyinfra_fisher import operations as fisher
 from pyinfra_paru import operations as paru
@@ -23,6 +23,7 @@ from pyinfra_git.facts import GitSigningConfigCurrent, GpgAgentConfigCurrent
 
 # Check if we're in upgrade mode
 upgrade_mode = os.environ.get("DOTFILES_UPGRADE", "0") == "1"
+pull_mode = os.environ.get("DOTFILES_PULL", "0") == "1"
 
 # -----------------------------------------------------------------------------
 # Package definitions
@@ -190,12 +191,11 @@ def link_config_dir(source, target, exclude=None):
         if dst in exclude:
             continue
         link_path = f"{target}/{dst}"
-        try:
-            if os.path.isdir(link_path) and not os.path.islink(link_path):
-                real_dir_children.append(path)
-                continue
-        except OSError:
-            pass
+        link_info = host.get_fact(Link, path=link_path)
+        # link_info is False when path exists but is a real directory (not a symlink)
+        if link_info is False:
+            real_dir_children.append(path)
+            continue
         paths.append(path)
 
     for path in paths:
@@ -208,11 +208,9 @@ def link_config_dir(source, target, exclude=None):
         link_path = f"{target}/{dst}"
         link_target = f"{source}/{dst}"
 
-        try:
-            if os.path.islink(link_path) and os.readlink(link_path) == link_target:
-                continue
-        except (OSError, FileNotFoundError):
-            pass
+        link_info = host.get_fact(Link, path=link_path)
+        if isinstance(link_info, dict) and link_info.get("link_target") == link_target:
+            continue
 
         files.link(
             name=f"Link {target}/{dst}",
@@ -354,6 +352,18 @@ else:
     raise Exception(f"Unsupported OS: {os_name}")
 
 home = host.get_fact(Home)
+
+# -----------------------------------------------------------------------------
+# Dotfiles repo
+# -----------------------------------------------------------------------------
+
+git.repo(
+    name="Dotfiles repo",
+    src="git@git.holdenitdown.net:rfhold/dot.git",
+    dest=f"{home}/dot",
+    pull=pull_mode,
+    ssh_keyscan=True,
+)
 
 # -----------------------------------------------------------------------------
 # Symlink configs
