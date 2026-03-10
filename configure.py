@@ -29,12 +29,6 @@ upgrade_mode = os.environ.get("DOTFILES_UPGRADE", "0") == "1"
 # -----------------------------------------------------------------------------
 
 PACKAGES = {
-    "unwanted": {
-        "brew": [],
-        "pacman": [],
-        "apk": [],
-        "apt": [],
-    },
     "dev": {
         "brew": ["zig"],
         "pacman": ["zig"],
@@ -180,8 +174,6 @@ BREW_TAPS = ["pulumi/tap"]
 
 
 def link_config_dir(source, target, exclude=None):
-    import os
-
     if exclude is None:
         exclude = []
 
@@ -373,8 +365,6 @@ link_config_dir(f"{home}/dot/home", home, exclude=[".ssh/authorized_keys"])
 # -----------------------------------------------------------------------------
 # Package management
 # -----------------------------------------------------------------------------
-
-install_packages("Remove unwanted packages", "unwanted", present=False)
 
 # Brew taps (macOS only)
 if pkg_manager == "brew":
@@ -688,7 +678,6 @@ if has_dist:
             commands=[f"[ ! -d {cuthulu_repo} ] || git -C {cuthulu_repo} fetch origin && git -C {cuthulu_repo} reset --hard origin/main"],
         )
 
-    if has_cuthulu:
         if not host.get_fact(Which, command="cargo"):
             raise Exception(
                 "cargo not found on PATH — install Rust before running configure.py "
@@ -879,11 +868,6 @@ go.packages(
 # -----------------------------------------------------------------------------
 
 if pkg_manager == "pacman" and not is_container():
-    # Refresh sudo credentials before AUR install (paru calls sudo internally)
-    # Skip this entirely - paru will handle sudo prompts itself if needed
-    # and we've already authenticated for earlier operations in this run
-    pass
-
     paru.packages(
         name="Install AUR packages",
         packages=[
