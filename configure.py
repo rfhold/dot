@@ -732,16 +732,6 @@ if has_dist:
                 _if=any_changed(cuthulu_install, plist_install),
             )
 
-            # Migration: remove old cuthulu-tray LaunchAgent
-            old_plist = f"{home}/Library/LaunchAgents/dev.rholden.cuthulu-tray.plist"
-            server.shell(
-                name="Remove old cuthulu-tray LaunchAgent",
-                commands=[
-                    f"launchctl bootout gui/$(id -u) dev.rholden.cuthulu-tray 2>/dev/null || true",
-                    f"rm -f {old_plist}",
-                ],
-            )
-
         else:  # Linux
             if pkg_manager == "pacman":
                 install_packages("Install Cuthulu Tauri dependencies", "cuthulu_tauri")
@@ -796,13 +786,6 @@ if has_dist:
                     commands=["systemctl --user restart cuthulu.service"],
                     _if=cuthulu_install.did_change,
                 )
-
-    # Migration: remove old cuthulu-tmux TPM plugin dir (hooks now managed by the app)
-    files.directory(
-        name="Remove old cuthulu-tmux TPM plugin directory",
-        path=f"{home}/.tmux/plugins/cuthulu-tmux",
-        present=False,
-    )
 
 # -----------------------------------------------------------------------------
 # Fish plugins
@@ -918,26 +901,6 @@ if pkg_manager == "pacman" and not is_container():
         running=True,
         enabled=True,
         user_mode=True,
-    )
-
-    # Disable old tmux-agent service (superseded by cuthulu-tray)
-    systemd.service(
-        name="Disable old tmux-agent service",
-        service="tmux-agent.service",
-        running=False,
-        enabled=False,
-        user_mode=True,
-        _ignore_errors=True,
-    )
-
-    # Disable old cuthulu-tray service (superseded by Cuthulu)
-    systemd.service(
-        name="Disable old cuthulu-tray service",
-        service="cuthulu-tray.service",
-        running=False,
-        enabled=False,
-        user_mode=True,
-        _ignore_errors=True,
     )
 
     # Enable Cuthulu user service
