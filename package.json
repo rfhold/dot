@@ -7,7 +7,8 @@
   "private": true,
   "dependencies": {
     "@opencode-ai/plugin": "^1.0.10",
-    "@opencode-ai/sdk": "^1.0.10"
+    "@opencode-ai/sdk": "^1.0.10",
+    "playwright": "^1.58.2"
   },
   "devDependencies": {
     "@types/bun": "latest"

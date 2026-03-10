@@ -1,49 +1,44 @@
 #!/usr/bin/env bash
-# Manage a persistent Chrome/Chromium browser for agent use via CDP.
+# Manage a persistent Playwright browser server for agent use.
 #
 # Usage:
-#   browser-agent            start browser (headed), print CDP endpoint when ready
-#   browser-agent --stop     kill the browser
-#   browser-agent --status   print running/stopped status
+#   launch-browser           start server, print WebSocket endpoint when ready
+#   launch-browser --stop    stop the server
+#   launch-browser --status  print running/stopped status and endpoint
 #
-# Agents connect via: chromium.connectOverCDP('http://localhost:9222')
+# Agents connect with:
+#   const browser = await chromium.connect(fs.readFileSync(STATE_FILE).trim())
+# where STATE_FILE = ~/.local/share/browser-agent/ws-endpoint
 
 set -euo pipefail
 
-CDP_PORT=9222
-CDP_URL="http://localhost:${CDP_PORT}"
 PROFILE_DIR="${HOME}/.local/share/browser-agent"
+STATE_FILE="${PROFILE_DIR}/ws-endpoint"
+PID_FILE="${PROFILE_DIR}/server.pid"
+SERVER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/launch-browser-server.mjs"
 
-find_chrome() {
-    if [[ "$(uname)" == "Darwin" ]]; then
-        local mac_chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-        if [[ -x "$mac_chrome" ]]; then
-            echo "$mac_chrome"
-            return
-        fi
-    fi
-    for candidate in google-chrome google-chrome-stable chromium-browser chromium; do
-        if command -v "$candidate" &>/dev/null; then
-            echo "$candidate"
-            return
-        fi
-    done
-    # Fall back to Playwright's bundled Chromium
-    if command -v bunx &>/dev/null || command -v npx &>/dev/null; then
-        echo "__playwright__"
-        return
-    fi
-    echo "" 
+runner() {
+    # Playwright's launchServer WS implementation requires Node; Bun's WS server is incompatible
+    if command -v node &>/dev/null; then echo "node"
+    elif command -v bun &>/dev/null; then echo "bun run"
+    else echo "npx"; fi
 }
 
 is_running() {
-    curl -sf "${CDP_URL}/json/version" > /dev/null 2>&1
+    [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
 }
 
-wait_for_cdp() {
+get_endpoint() {
+    [[ -f "$STATE_FILE" ]] && cat "$STATE_FILE"
+}
+
+wait_for_endpoint() {
     local attempts=20
     for ((i=0; i<attempts; i++)); do
-        if is_running; then
+        local ep
+        ep=$(get_endpoint)
+        if [[ -n "$ep" ]]; then
+            echo "$ep"
             return 0
         fi
         sleep 0.5
@@ -53,7 +48,9 @@ wait_for_cdp() {
 
 cmd_status() {
     if is_running; then
-        echo "running  ${CDP_URL}"
+        local ep
+        ep=$(get_endpoint)
+        echo "running  ${ep}"
     else
         echo "stopped"
     fi
@@ -61,65 +58,32 @@ cmd_status() {
 
 cmd_stop() {
     if ! is_running; then
-        echo "Browser is not running." >&2
+        echo "Browser server is not running." >&2
         exit 0
     fi
-    local pid
-    # Try platform-specific tools to find the PID bound to the CDP port
-    if [[ -x /usr/sbin/lsof ]]; then
-        pid=$(/usr/sbin/lsof -ti "tcp:${CDP_PORT}" 2>/dev/null | head -1)
-    elif command -v lsof &>/dev/null; then
-        pid=$(lsof -ti "tcp:${CDP_PORT}" 2>/dev/null | head -1)
-    elif command -v fuser &>/dev/null; then
-        pid=$(fuser "${CDP_PORT}/tcp" 2>/dev/null | awk '{print $1}')
-    elif command -v ss &>/dev/null; then
-        pid=$(ss -tlnp "sport = :${CDP_PORT}" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
-    fi
-    if [[ -n "${pid:-}" ]]; then
-        kill "$pid"
-        echo "Stopped (pid ${pid})."
-    else
-        echo "Could not determine PID; browser may still be running." >&2
-        exit 1
-    fi
+    kill "$(cat "$PID_FILE")"
+    rm -f "$PID_FILE"
+    echo "Stopped."
 }
 
 cmd_start() {
     if is_running; then
-        echo "${CDP_URL}"
+        get_endpoint
         exit 0
-    fi
-
-    local chrome
-    chrome=$(find_chrome)
-
-    if [[ -z "$chrome" ]]; then
-        echo "Error: No Chrome/Chromium binary found." >&2
-        exit 1
     fi
 
     mkdir -p "$PROFILE_DIR"
 
-    local args=(
-        "--remote-debugging-port=${CDP_PORT}"
-        "--user-data-dir=${PROFILE_DIR}"
-        "--no-first-run"
-        "--no-default-browser-check"
-    )
-
-    if [[ "$chrome" == "__playwright__" ]]; then
-        local runner="bunx"
-        command -v bunx &>/dev/null || runner="npx"
-        $runner playwright open "${args[@]/#/}" &>/dev/null &
-    else
-        "$chrome" "${args[@]}" &>/dev/null &
-    fi
+    # Run server script in background, capture its output (the ws endpoint)
+    $(runner) "$SERVER_SCRIPT" &>/dev/null &
+    echo $! > "$PID_FILE"
     disown
 
-    if wait_for_cdp; then
-        echo "${CDP_URL}"
+    if wait_for_endpoint; then
+        :
     else
-        echo "Error: Browser did not become ready within 10s." >&2
+        echo "Error: Browser server did not become ready within 10s." >&2
+        rm -f "$PID_FILE"
         exit 1
     fi
 }
