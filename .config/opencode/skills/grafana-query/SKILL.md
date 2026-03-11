@@ -98,34 +98,3 @@ Use the `jq` field to extract specific fields server-side and reduce response si
 { "action": "dashboards.panels", "dashboardUID": "xyz", "jq": "[.[] | select(.type == \"timeseries\")]" }
 ```
 
-## CLI Mirror
-
-The REST API at `/api/` mirrors all MCP actions for use from the CLI (`grafana-query` tool):
-
-```
-GET  /datasources
-GET  /alert-rules
-GET  /datasource-alert-rules/{uid}
-GET  /promql/query/{uid}?expr=...&time=...
-GET  /promql/query_range/{uid}?expr=...&start=...&end=...&step=...
-GET  /logql/query/{uid}?expr=...&time=...&limit=...
-GET  /logql/query_range/{uid}?expr=...&start=...&end=...&limit=...&direction=...
-GET  /traceql/search/{uid}?query=...&limit=...&start=...&end=...
-GET  /tempo/trace/{uid}/{traceID}
-GET  /dashboards?query=...&tag=...
-GET  /dashboards/tags
-GET  /dashboards/{uid}
-GET  /dashboards/{uid}/panels
-GET  /dashboards/{uid}/versions
-GET  /dashboards/{uid}/versions/{version}
-POST /dashboards        (create)
-POST /dashboards/clone  (clone)
-POST /dashboards/patch  (patch)
-POST /dashboards/rollback
-GET  /panels/render/{uid}/{panelID}?width=...&height=...&from=...&to=...
-POST /panels/add
-POST /panels/update
-POST /panels/remove
-```
-
-All responses are JSON. POST bodies mirror the MCP input fields.
