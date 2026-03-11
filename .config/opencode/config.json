@@ -8,6 +8,10 @@
   },
   "share": "disabled",
   "mcp": {
+    "super": {
+      "type": "remote",
+      "url": "https://preview-walter.holdenitdown.net/mcp/super"
+    },
     "firecrawl": {
       "type": "local",
       "command": [
