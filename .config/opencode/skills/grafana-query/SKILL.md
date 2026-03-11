@@ -98,3 +98,42 @@ Use the `jq` field to extract specific fields server-side and reduce response si
 { "action": "dashboards.panels", "dashboardUID": "xyz", "jq": "[.[] | select(.type == \"timeseries\")]" }
 ```
 
+## CLI (`grafana-query`)
+
+The `grafana-query` binary provides direct command-line access using `<resource>.<action>` syntax. Output is pretty-printed JSON.
+
+```
+grafana-query datasources.list
+grafana-query alert-rules.list
+grafana-query datasource-alert-rules.list <uid>
+
+grafana-query promql.query <uid> <expr> [--time=<timestamp>]
+grafana-query promql.query-range <uid> <expr> --start=<t> --end=<t> --step=<d>
+
+grafana-query logql.query <uid> <expr> [--time=<timestamp>] [--limit=<n>]
+grafana-query logql.query-range <uid> <expr> --start=<t> --end=<t> [--limit=<n>] [--direction=forward|backward]
+
+grafana-query traceql.search <uid> <expr> [--limit=<n>] [--start=<t>] [--end=<t>]
+grafana-query tempo.trace <uid> <traceID>
+
+grafana-query dashboards.search [--query=<q>] [--tag=<t>] [--limit=<n>] [--page=<n>]
+grafana-query dashboards.tags
+grafana-query dashboards.get <uid>
+grafana-query dashboards.panels <uid>
+grafana-query dashboards.create --title=<title> [--uid=<uid>] [--folder=<folderUID>] [--message=<msg>] [--overwrite]
+grafana-query dashboards.clone <sourceUID> --title=<title> [--uid=<uid>] [--folder=<folderUID>] [--message=<msg>]
+grafana-query dashboards.patch <uid> [--file=<patch.json>] [--message=<msg>] [--overwrite]
+grafana-query dashboards.versions <uid> [--limit=<n>] [--start=<n>]
+grafana-query dashboards.version-get <uid> <version>
+grafana-query dashboards.rollback <uid> <version> [--message=<msg>]
+
+grafana-query panels.add <dashboardUID> [--file=<panel.json>] [--message=<msg>] [--overwrite]
+grafana-query panels.update <dashboardUID> <panelID> [--file=<panel.json>] [--message=<msg>] [--overwrite]
+grafana-query panels.remove <dashboardUID> <panelID> [--message=<msg>] [--overwrite]
+grafana-query panels.render <dashboardUID> <panelID> [--width=<px>] [--height=<px>] [--from=<t>] [--to=<t>] [--theme=light|dark] [--tz=<tz>] [--var=<name>=<value>] [--out=<file.png>]
+```
+
+For `dashboards.patch`, `panels.add`, and `panels.update`, JSON is read from `--file=<path>` or stdin if `--file` is omitted.
+
+`panels.render` outputs PNG bytes to stdout unless `--out` is specified.
+
