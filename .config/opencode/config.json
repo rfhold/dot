@@ -10,7 +10,7 @@
   "mcp": {
     "super": {
       "type": "remote",
-      "url": "https://preview-walter.holdenitdown.net/mcp/super"
+      "url": "https://preview-walter.holdenitdown.net/mcp/super/"
     },
     "firecrawl": {
       "type": "local",
