@@ -43,8 +43,8 @@ PACKAGES = {
         "apt": ["gnupg", "pinentry-curses"],
     },
     "terminal": {
-        "brew": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop"],
-        "pacman": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop"],
+        "brew": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop", "direnv"],
+        "pacman": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop", "direnv"],
         "apk": [
             "fish",
             "tmux",
@@ -53,8 +53,9 @@ PACKAGES = {
             "fd",
             "fzf",
             "btop",
+            "direnv",
         ],  # fisher installed via curl
-        "apt": ["fish", "tmux", "neovim", "ripgrep", "fd-find", "fzf", "btop"],
+        "apt": ["fish", "tmux", "neovim", "ripgrep", "fd-find", "fzf", "btop", "direnv"],
     },
     "tools": {
         "brew": ["pulumi", "gh", "argon2"],
@@ -906,6 +907,59 @@ if pkg_manager == "pacman" and not is_container():
         daemon_reload=True,
         user_mode=True,
     )
+
+# -----------------------------------------------------------------------------
+# Org-scoped OpenCode skills
+# -----------------------------------------------------------------------------
+
+ORG_SKILLS = {
+    "rfhold": {
+        "src": "git@git.holdenitdown.net:rfhold/skills.git",
+        "dir": f"{home}/repos/rfhold",
+    },
+    "cfaintl": {
+        "src": "git@github.com:cfaintl/skills.git",
+        "dir": f"{home}/repos/cfaintl",
+    },
+}
+
+for org, config in ORG_SKILLS.items():
+    org_dir = config["dir"]
+    opencode_dir = f"{org_dir}/.opencode"
+    skills_dir = f"{opencode_dir}/skills"
+
+    org_exists = host.get_fact(
+        Command, command=f'test -d "{org_dir}" && echo yes || echo no'
+    ).strip()
+    if org_exists != "yes":
+        continue
+
+    files.directory(
+        name=f"Ensure {org} .opencode directory",
+        path=opencode_dir,
+        present=True,
+    )
+
+    git.repo(
+        name=f"Clone {org} skills repo",
+        src=config["src"],
+        dest=skills_dir,
+        pull=pull_mode,
+        ssh_keyscan=True,
+    )
+
+    files.line(
+        name=f"Write {org} .envrc for OPENCODE_CONFIG_DIR",
+        path=f"{org_dir}/.envrc",
+        line=f'export OPENCODE_CONFIG_DIR="{opencode_dir}"',
+        present=True,
+    )
+
+    server.shell(
+        name=f"Allow direnv for {org}",
+        commands=[f'direnv allow "{org_dir}/.envrc"'],
+    )
+
 
 # -----------------------------------------------------------------------------
 # OpenSSH Server (containers only - bare metal doesn't need incoming SSH)
