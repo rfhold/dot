@@ -12008,6 +12008,8 @@ var CuthuluPlugin = async ({ project, directory, serverUrl, client }) => {
         const resp = await client.session.list();
         for (const sess of resp.data ?? []) {
           serverClient.sendEvent("session.updated", { info: sess });
+          if (sess.id)
+            startSessionSpan(sess.id, sess.title ?? "", getTraceParent(sess.id));
         }
         const agentsResp = await client.app.agents();
         serverClient.sendEvent("app.agents", { agents: agentsResp.data ?? [] });
