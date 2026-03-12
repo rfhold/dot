@@ -42,8 +42,28 @@ PACKAGES = {
         "apt": ["gnupg", "pinentry-curses"],
     },
     "terminal": {
-        "brew": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop", "direnv"],
-        "pacman": ["fish", "fisher", "tmux", "neovim", "ripgrep", "fd", "fzf", "btop", "direnv"],
+        "brew": [
+            "fish",
+            "fisher",
+            "tmux",
+            "neovim",
+            "ripgrep",
+            "fd",
+            "fzf",
+            "btop",
+            "direnv",
+        ],
+        "pacman": [
+            "fish",
+            "fisher",
+            "tmux",
+            "neovim",
+            "ripgrep",
+            "fd",
+            "fzf",
+            "btop",
+            "direnv",
+        ],
         "apk": [
             "fish",
             "tmux",
@@ -54,7 +74,16 @@ PACKAGES = {
             "btop",
             "direnv",
         ],  # fisher installed via curl
-        "apt": ["fish", "tmux", "neovim", "ripgrep", "fd-find", "fzf", "btop", "direnv"],
+        "apt": [
+            "fish",
+            "tmux",
+            "neovim",
+            "ripgrep",
+            "fd-find",
+            "fzf",
+            "btop",
+            "direnv",
+        ],
     },
     "tools": {
         "brew": ["pulumi", "gh", "argon2"],
@@ -160,6 +189,16 @@ SYSTEM_DEPS = {
             "libsoup3",
         ],
     },
+    # Tauri runtime/build dependencies for Walter (Arch only)
+    "walter": {
+        "pacman": [
+            "webkit2gtk-4.1",
+            "libayatana-appindicator",
+            "gtk3",
+            "librsvg",
+            "libsoup3",
+        ],
+    },
 }
 
 CASKS = [
@@ -232,7 +271,7 @@ def link_config_dir(source, target, exclude=None):
         prefix = sub_dst + "/"
         for ex in exclude:
             if ex.startswith(prefix):
-                sub_excludes.append(ex[len(prefix):])
+                sub_excludes.append(ex[len(prefix) :])
         link_config_dir(
             subdir,
             f"{target}/{sub_dst}",
@@ -668,6 +707,12 @@ MANAGED_APPS = [
         "src": "git@git.holdenitdown.net:rfhold/cuthulu.git",
         "dest": f"{home}/repos/rfhold/cuthulu",
         "system_deps_key": "cuthulu",
+    },
+    {
+        "name": "walter",
+        "src": "git@git.holdenitdown.net:rfhold/walter.git",
+        "dest": f"{home}/repos/rfhold/walter",
+        "system_deps_key": "walter",
     },
 ]
 
