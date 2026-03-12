@@ -12,7 +12,6 @@ from pyinfra.operations import (
     server,
     cargo,
 )
-from pyinfra.operations.util import any_changed
 from pyinfra.facts.files import FindFiles, FindDirectories, File, Link
 from pyinfra.facts.server import Command, Home, Os, Which
 from pyinfra_fisher import operations as fisher
@@ -100,16 +99,6 @@ PACKAGES = {
         "pacman": ["docker", "docker-buildx", "docker-compose", "kubectl"],
         "apt": [],  # Added via add_apt_repo() below
     },
-    # Tauri runtime/build dependencies for Cuthulu (Arch only)
-    "cuthulu_tauri": {
-        "pacman": [
-            "webkit2gtk-4.1",
-            "libayatana-appindicator",
-            "gtk3",
-            "librsvg",
-            "libsoup3",
-        ],
-    },
     # Hyprland desktop environment (Arch bare metal only)
     "hyprland": {
         "pacman": [
@@ -155,6 +144,20 @@ PACKAGES = {
             # Fonts for waybar icons
             "ttf-font-awesome",
             "noto-fonts",
+        ],
+    },
+}
+
+# System-level build/runtime dependencies for specific apps (installed separately from PACKAGES)
+SYSTEM_DEPS = {
+    # Tauri runtime/build dependencies for Cuthulu (Arch only)
+    "cuthulu": {
+        "pacman": [
+            "webkit2gtk-4.1",
+            "libayatana-appindicator",
+            "gtk3",
+            "librsvg",
+            "libsoup3",
         ],
     },
 }
@@ -656,136 +659,52 @@ git.repo(
 )
 
 # -----------------------------------------------------------------------------
-# Cuthulu artifacts (from ~/dot/dist/)
+# Managed app repos (clone + make install)
 # -----------------------------------------------------------------------------
 
-dist_dir = f"{home}/dot/dist"
-has_dist = host.get_fact(File, path=f"{dist_dir}/cuthulu.js") is not None
-cuthulu_version_file = f"{dist_dir}/cuthulu-version"
-has_cuthulu = host.get_fact(File, path=cuthulu_version_file) is not None
+MANAGED_APPS = [
+    {
+        "name": "cuthulu",
+        "src": "git@git.holdenitdown.net:rfhold/cuthulu.git",
+        "dest": f"{home}/repos/rfhold/cuthulu",
+        "system_deps_key": "cuthulu",
+    },
+]
 
-if has_dist:
-    # --- cuthulu opencode plugin ---
+for app in MANAGED_APPS:
+    app_dest = app["dest"]
+    app_parent = "/".join(app_dest.rstrip("/").split("/")[:-1])
+
     files.directory(
-        name="Ensure opencode plugins directory",
-        path=f"{home}/.config/opencode/plugins",
+        name=f"Ensure parent dir for {app['name']}",
+        path=app_parent,
         present=True,
     )
-    files.put(
-        name="Install cuthulu opencode plugin",
-        src=f"{dist_dir}/cuthulu.js",
-        dest=f"{home}/.config/opencode/plugins/cuthulu.js",
-        mode="644",
+
+    # Install system-level build/runtime deps (e.g. Tauri libs on Arch)
+    sys_deps = SYSTEM_DEPS.get(app.get("system_deps_key", ""), {}).get(pkg_manager)
+    if sys_deps and not is_container():
+        if pkg_manager == "pacman":
+            pacman.packages(
+                name=f"Install {app['name']} system deps",
+                packages=sys_deps,
+                present=True,
+                _sudo=True,
+            )
+
+    clone = git.repo(
+        name=f"Clone {app['name']}",
+        src=app["src"],
+        dest=app_dest,
+        pull=upgrade_mode,
+        ssh_keyscan=True,
     )
 
-    # --- Cuthulu Tauri app ---
-    # Built natively from source via `make install-app` in the cuthulu repo.
-    # Requires: cargo, bun (both expected to be present on the machine).
-    cuthulu_repo = f"{home}/repos/rfhold/cuthulu"
-
-    if has_cuthulu:
-        server.shell(
-            name="Pull latest cuthulu repo",
-            commands=[f"[ ! -d {cuthulu_repo} ] || git -C {cuthulu_repo} fetch origin && git -C {cuthulu_repo} reset --hard origin/main"],
-        )
-
-        if not host.get_fact(Which, command="cargo"):
-            raise Exception(
-                "cargo not found on PATH — install Rust before running configure.py "
-                "(see https://rustup.rs)"
-            )
-
-        if os_name == "Darwin":
-            cuthulu_app_path = f"{home}/Applications/Cuthulu.app"
-            cuthulu_bin_path = f"{cuthulu_app_path}/Contents/MacOS/cuthulu"
-
-            cuthulu_install = server.shell(
-                name="Build and install Cuthulu (native, macOS)",
-                commands=[f"make -C {cuthulu_repo} install-app"],
-            )
-            server.shell(
-                name="Link cuthulu-tmux to PATH",
-                commands=[
-                    f"mkdir -p {home}/.local/bin",
-                    f"ln -sf {home}/Applications/Cuthulu.app/Contents/MacOS/cuthulu-tmux {home}/.local/bin/cuthulu-tmux",
-                ],
-                _if=cuthulu_install.did_change,
-            )
-
-            launchagent_path = f"{home}/Library/LaunchAgents/dev.rholden.cuthulu.plist"
-            plist_install = files.template(
-                name="Write Cuthulu LaunchAgent plist",
-                src=f"{home}/dot/etc/launchagents/cuthulu.plist",
-                dest=launchagent_path,
-                app_path=cuthulu_bin_path,
-            )
-            server.shell(
-                name="Reload Cuthulu LaunchAgent",
-                commands=[
-                    # If already bootstrapped, kickstart (kill+restart); otherwise bootstrap fresh.
-                    f"if launchctl list dev.rholden.cuthulu &>/dev/null; then "
-                    f"launchctl kickstart -k gui/$(id -u)/dev.rholden.cuthulu; "
-                    f"else "
-                    f"launchctl bootstrap gui/$(id -u) {launchagent_path}; "
-                    f"fi",
-                ],
-                _if=any_changed(cuthulu_install, plist_install),
-            )
-
-        else:  # Linux
-            if pkg_manager == "pacman":
-                install_packages("Install Cuthulu Tauri dependencies", "cuthulu_tauri")
-
-            files.directory(
-                name="Ensure ~/.local/bin exists",
-                path=f"{home}/.local/bin",
-                present=True,
-            )
-
-            # Deploy systemd user unit
-            cuthulu_hostname = host.get_fact(Command, command="cat /etc/hostname").strip()
-            files.directory(
-                name="Ensure ~/.config/systemd/user exists",
-                path=f"{home}/.config/systemd/user",
-                present=True,
-            )
-            unit_install = files.template(
-                name="Deploy cuthulu systemd user unit",
-                src=f"{home}/dot/etc/systemd/user/cuthulu.service",
-                dest=f"{home}/.config/systemd/user/cuthulu.service",
-                hostname=cuthulu_hostname,
-            )
-
-            server.shell(
-                name="Stop Cuthulu before build",
-                commands=["systemctl --user stop cuthulu.service 2>/dev/null || true"],
-            )
-            cuthulu_install = server.shell(
-                name="Build and install Cuthulu (native, Linux)",
-                commands=[f"make -C {cuthulu_repo} install-app"],
-            )
-            server.shell(
-                name="Install cuthulu-tmux to PATH",
-                commands=[
-                    f'TRIPLE=$(rustc -Vv | awk \'/^host/{{print $2}}\') && cp {cuthulu_repo}/app/src-tauri/target/$TRIPLE/release/cuthulu-tmux {home}/.local/bin/cuthulu-tmux',
-                    f"chmod 755 {home}/.local/bin/cuthulu-tmux",
-                ],
-                _if=cuthulu_install.did_change,
-            )
-            if has_systemd():
-                server.shell(
-                    name="Reload systemd user daemon and enable Cuthulu",
-                    commands=[
-                        "systemctl --user daemon-reload",
-                        "systemctl --user enable cuthulu.service",
-                    ],
-                    _if=unit_install.did_change,
-                )
-                server.shell(
-                    name="Restart Cuthulu service after install",
-                    commands=["systemctl --user restart cuthulu.service"],
-                    _if=cuthulu_install.did_change,
-                )
+    server.shell(
+        name=f"Install {app['name']}",
+        commands=[f"make -C {app_dest} install"],
+        _if=clone.did_change,
+    )
 
 # -----------------------------------------------------------------------------
 # Fish plugins
@@ -895,16 +814,6 @@ if pkg_manager == "pacman" and not is_container():
         service="docker.socket",
         running=True,
         enabled=True,
-        user_mode=True,
-    )
-
-    # Enable Cuthulu user service
-    systemd.service(
-        name="Enable Cuthulu user service",
-        service="cuthulu.service",
-        running=True,
-        enabled=True,
-        daemon_reload=True,
         user_mode=True,
     )
 
