@@ -11874,20 +11874,30 @@ var OTLPTraceExporter = function(_super) {
 
 // src/tracing.ts
 var import_semantic_conventions3 = __toESM(require_src7(), 1);
-var endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "https://telemetry.holdenitdown.net:4318";
-var resource = new Resource({
-  [import_semantic_conventions3.ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? "cuthulu-plugin"
-});
-var exporter = new OTLPTraceExporter({ url: `${endpoint}/v1/traces` });
-var provider = new BasicTracerProvider({
-  resource,
-  spanProcessors: [new BatchSpanProcessor(exporter)]
-});
-provider.register();
-var tracer = provider.getTracer("cuthulu");
+var import_api8 = __toESM(require_src(), 1);
+var tracer;
+var shutdown;
+try {
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "https://telemetry.holdenitdown.net:4318";
+  const resource = new Resource({
+    [import_semantic_conventions3.ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? "cuthulu-plugin"
+  });
+  const exporter = new OTLPTraceExporter({ url: `${endpoint}/v1/traces` });
+  const provider = new BasicTracerProvider({
+    resource,
+    spanProcessors: [new BatchSpanProcessor(exporter)]
+  });
+  provider.register();
+  tracer = provider.getTracer("cuthulu");
+  shutdown = () => provider.shutdown();
+} catch (err) {
+  console.error("[cuthulu] tracing init failed:", err);
+  tracer = import_api8.trace.getTracer("cuthulu");
+  shutdown = () => Promise.resolve();
+}
 
 // src/session-spans.ts
-var import_api8 = __toESM(require_src(), 1);
+var import_api9 = __toESM(require_src(), 1);
 var sessionSpans = new Map;
 var messageSpans = new Map;
 var toolSpans = new Map;
@@ -11898,13 +11908,13 @@ function startSessionSpan(sessionID, title, traceparent) {
   let span;
   if (traceparent) {
     const carrier = { traceparent };
-    const remoteCtx = import_api8.propagation.extract(import_api8.context.active(), carrier);
+    const remoteCtx = import_api9.propagation.extract(import_api9.context.active(), carrier);
     span = tracer.startSpan("session", {}, remoteCtx);
   } else {
     span = tracer.startSpan("session");
   }
   span.setAttributes({ "session.id": sessionID, "session.title": title });
-  const ctx = import_api8.trace.setSpan(import_api8.context.active(), span);
+  const ctx = import_api9.trace.setSpan(import_api9.context.active(), span);
   sessionSpans.set(sessionID, { span, ctx });
 }
 function endSessionSpan(sessionID, errorMessage) {
@@ -11912,7 +11922,7 @@ function endSessionSpan(sessionID, errorMessage) {
   if (!entry)
     return;
   if (errorMessage) {
-    entry.span.setStatus({ code: import_api8.SpanStatusCode.ERROR, message: errorMessage });
+    entry.span.setStatus({ code: import_api9.SpanStatusCode.ERROR, message: errorMessage });
   }
   endAllMessageSpans(sessionID);
   entry.span.end();
@@ -11951,7 +11961,7 @@ function endToolSpan(callID, errorMessage) {
   if (!span)
     return;
   if (errorMessage) {
-    span.setStatus({ code: import_api8.SpanStatusCode.ERROR, message: errorMessage });
+    span.setStatus({ code: import_api9.SpanStatusCode.ERROR, message: errorMessage });
   }
   span.end();
   toolSpans.delete(callID);
@@ -11961,7 +11971,7 @@ function getToolSpanTraceparent(callID) {
   if (!span)
     return;
   const sc = span.spanContext();
-  if (!import_api8.isSpanContextValid(sc))
+  if (!import_api9.isSpanContextValid(sc))
     return;
   return `00-${sc.traceId}-${sc.spanId}-01`;
 }
@@ -12017,9 +12027,14 @@ var CuthuluPlugin = async ({ project, directory, serverUrl, client }) => {
               startSessionSpan(info.id, info.title ?? "", getTraceParent(info.id));
             break;
           }
-          case "session.idle":
-          case "session.deleted": {
+          case "session.idle": {
             const sessionID = event.properties?.sessionID;
+            if (sessionID)
+              endSessionSpan(sessionID);
+            break;
+          }
+          case "session.deleted": {
+            const sessionID = event.properties?.info?.id;
             if (sessionID)
               endSessionSpan(sessionID);
             break;
