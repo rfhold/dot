@@ -198,6 +198,10 @@ class LocalClient {
 }
 
 // src/commands.ts
+var traceParentCache = new Map;
+function getTraceParent(sessionID) {
+  return traceParentCache.get(sessionID);
+}
 function makeCommandHandler(opts) {
   return async (cmd) => {
     try {
@@ -292,6 +296,14 @@ function makeCommandHandler(opts) {
           }
           break;
         }
+        case "setTraceParent": {
+          const sessionId = cmd.setTraceParent?.sessionId ?? "";
+          const traceparent = cmd.setTraceParent?.traceparent ?? "";
+          if (sessionId && traceparent) {
+            traceParentCache.set(sessionId, traceparent);
+          }
+          break;
+        }
         default:
           opts.logger("warn", `unknown command payload: ${cmd.payload}`);
       }
@@ -345,6 +357,21 @@ var CuthuluPlugin = async ({ project, directory, serverUrl, client }) => {
       event: async ({ event }) => {
         const data = event.properties ?? event;
         serverClient.sendEvent(event.type, data);
+      },
+      "tool.execute.before": async (input, _output) => {
+        if (input.tool !== "Bash" && input.tool !== "Task")
+          return;
+        const tp = getTraceParent(input.sessionID);
+        if (tp) {
+          process.env.TRACEPARENT = tp;
+          process.env.OTEL_PROPAGATORS = "tracecontext";
+        }
+      },
+      "tool.execute.after": async (input, _output) => {
+        if (input.tool !== "Bash" && input.tool !== "Task")
+          return;
+        delete process.env.TRACEPARENT;
+        delete process.env.OTEL_PROPAGATORS;
       }
     };
   } catch (err) {
