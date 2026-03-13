@@ -714,6 +714,11 @@ MANAGED_APPS = [
         "dest": f"{home}/repos/rfhold/walter",
         "system_deps_key": "walter",
     },
+    {
+        "name": "waltr-grafana",
+        "src": "git@git.holdenitdown.net:rfhold/waltr-grafana.git",
+        "dest": f"{home}/repos/rfhold/waltr-grafana",
+    },
 ]
 
 for app in MANAGED_APPS:
