@@ -719,6 +719,11 @@ MANAGED_APPS = [
         "src": "git@git.holdenitdown.net:rfhold/waltr-grafana.git",
         "dest": f"{home}/repos/rfhold/waltr-grafana",
     },
+    {
+        "name": "axol-query",
+        "src": "git@git.holdenitdown.net:rfhold/axol.git",
+        "dest": f"{home}/repos/rfhold/axol",
+    },
 ]
 
 for app in MANAGED_APPS:
