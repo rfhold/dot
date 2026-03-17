@@ -50,6 +50,13 @@ The `org` field is the organization/namespace identifier configured in the gitop
 
 `runs.rerun` and `runs.cancel` return `{"status": "rerun triggered"}` / `{"status": "cancel triggered"}` on success.
 
+### Pipelines
+
+| Action | Required | Optional |
+|---|---|---|
+| `pipelines.list` | `org` | `repo` (required for GitHub/Gitea; ignored for Tekton) |
+| `pipelines.dispatch` | `org`, `repo`, `workflow` | `ref` (branch/tag/SHA), `params` (key/value map) |
+
 ### PRs
 
 | Action | Required | Optional |
@@ -85,10 +92,22 @@ gitops-query runs.wait <org> <repo> <runID> [--timeout=<secs>]
 gitops-query runs.rerun <org> <repo> <runID>
 gitops-query runs.cancel <org> <repo> <runID>
 
+gitops-query pipelines.list <org> [<repo>]
+gitops-query pipelines.dispatch <org> <repo> <workflow> [--ref=<branch>] [--param=key=value ...]
+
 gitops-query prs.list <org> [<repo>] [--state=open|closed|all] [--author=<username>]
 gitops-query prs.get <org> <repo> <number>
 gitops-query prs.runs <org> <repo> <number>
 
 gitops-query issues.list <org> [<repo>] [--state=open|closed|all] [--labels=label1,label2] [--author=<username>]
 gitops-query issues.get <org> <repo> <number>
+```
+
+## MCP/JSON Examples
+
+```json
+{"action": "pipelines.list", "org": "tekton"}
+{"action": "pipelines.list", "org": "rfhold", "repo": "waltr-gitops"}
+{"action": "pipelines.dispatch", "org": "rfhold", "repo": "waltr-gitops", "workflow": "ci.yml", "ref": "main"}
+{"action": "pipelines.dispatch", "org": "tekton", "repo": "waltr-gitops", "workflow": "build-push", "ref": "main", "params": {"imageTag": "v1.2.3"}}
 ```
