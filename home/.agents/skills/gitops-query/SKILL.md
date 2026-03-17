@@ -19,7 +19,7 @@ Use `gitops_query` to query CI runs, pull requests, issues, and repositories acr
 
 1. Call `orgs.list` to discover available org IDs — you need the `org` field for all other actions.
 2. Call `repos.list` to enumerate repositories within an org.
-3. Use resource-specific actions (`runs.*`, `prs.*`, `issues.*`) with the `org` and `repo` fields.
+3. Use resource-specific actions (`runs.*`, `prs.*`, `issues.*`) with the `org` and optional `repo` fields.
 
 ## Note on `org`
 
@@ -54,16 +54,20 @@ The `org` field is the organization/namespace identifier configured in the gitop
 
 | Action | Required | Optional |
 |---|---|---|
-| `prs.list` | `org`, `repo` | `state` (open/closed/all) |
+| `prs.list` | `org` | `repo`, `state` (open/closed/all), `author` |
 | `prs.get` | `org`, `repo`, `prNumber` (int) | — |
 | `prs.runs` | `org`, `repo`, `prNumber` (int) | — |
+
+When `repo` is omitted, `prs.list` fans out across all repos in the org and returns a merged list. Use `author` to filter by PR author username (e.g. `"author": "rfhold"`).
 
 ### Issues
 
 | Action | Required | Optional |
 |---|---|---|
-| `issues.list` | `org`, `repo` | `state` (open/closed/all), `labels` (comma-separated) |
+| `issues.list` | `org` | `repo`, `state` (open/closed/all), `labels` (comma-separated), `author` |
 | `issues.get` | `org`, `repo`, `issueNumber` (int) | — |
+
+When `repo` is omitted, `issues.list` fans out across all repos in the org and returns a merged list. Use `author` to filter by issue author username.
 
 ## CLI (`gitops-query`)
 
@@ -81,10 +85,10 @@ gitops-query runs.wait <org> <repo> <runID> [--timeout=<secs>]
 gitops-query runs.rerun <org> <repo> <runID>
 gitops-query runs.cancel <org> <repo> <runID>
 
-gitops-query prs.list <org> <repo> [--state=open|closed|all]
+gitops-query prs.list <org> [<repo>] [--state=open|closed|all] [--author=<username>]
 gitops-query prs.get <org> <repo> <number>
 gitops-query prs.runs <org> <repo> <number>
 
-gitops-query issues.list <org> <repo> [--state=open|closed|all] [--labels=label1,label2]
+gitops-query issues.list <org> [<repo>] [--state=open|closed|all] [--labels=label1,label2] [--author=<username>]
 gitops-query issues.get <org> <repo> <number>
 ```
