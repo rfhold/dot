@@ -1,0 +1,14 @@
+[registry."docker.io"]
+  mirrors = ["cr.holdenitdown.net/docker-hub"]
+
+[registry."ghcr.io"]
+  mirrors = ["cr.holdenitdown.net/ghcr"]
+
+[registry."nvcr.io"]
+  mirrors = ["cr.holdenitdown.net/nvcr"]
+
+[registry."gcr.io"]
+  mirrors = ["cr.holdenitdown.net/gcr"]
+
+[registry."quay.io"]
+  mirrors = ["cr.holdenitdown.net/quay"]

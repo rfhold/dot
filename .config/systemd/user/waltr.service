@@ -1,0 +1,18 @@
+[Unit]
+Description=WALTR desktop app
+After=network-online.target graphical-session.target
+Wants=network-online.target graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/waltr
+Environment=HOME=%h
+Environment=DISPLAY=:0
+Environment=WALTER_SERVER_URL=https://preview-walter.holdenitdown.net
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
