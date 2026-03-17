@@ -724,6 +724,16 @@ MANAGED_APPS = [
         "src": "git@git.holdenitdown.net:rfhold/axol.git",
         "dest": f"{home}/repos/rfhold/axol",
     },
+    {
+        "name": "waltr-atlassian",
+        "src": "git@git.holdenitdown.net:rfhold/waltr-atlassian.git",
+        "dest": f"{home}/repos/rfhold/waltr-atlassian",
+    },
+    {
+        "name": "waltr-gitops",
+        "src": "git@git.holdenitdown.net:rfhold/waltr-gitops.git",
+        "dest": f"{home}/repos/rfhold/waltr-gitops",
+    },
 ]
 
 for app in MANAGED_APPS:
