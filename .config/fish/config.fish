@@ -19,7 +19,7 @@ if command -q gpgconf; and test -S (gpgconf --list-dirs agent-ssh-socket 2>/dev/
     set -gx SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket)
     gpgconf --launch gpg-agent 2>/dev/null
     # Update agent's TTY to current terminal for pinentry
-    gpg-connect-agent updatestartuptty /bye 2>/dev/null
+    gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
 else if test -z "$SSH_AUTH_SOCK"
     # No GPG agent, fall back to system SSH agent
     if test -S "$HOME/.ssh/agent.sock"

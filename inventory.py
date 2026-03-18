@@ -1,4 +1,4 @@
 hosts = [
-    "rfhold@macbook.holdenitdown.net",
-    "rfhold@thinkpad.holdenitdown.net",
+    "macbook.holdenitdown.net",
+    "thinkpad.holdenitdown.net",
 ]
