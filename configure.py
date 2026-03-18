@@ -725,9 +725,9 @@ MANAGED_APPS = [
         "dest": f"{home}/repos/rfhold/axol",
     },
     {
-        "name": "waltr-atlassian",
-        "src": "git@git.holdenitdown.net:rfhold/waltr-atlassian.git",
-        "dest": f"{home}/repos/rfhold/waltr-atlassian",
+        "name": "atlassian-query",
+        "src": "git@git.holdenitdown.net:rfhold/atlassian-query.git",
+        "dest": f"{home}/repos/rfhold/atlassian-query",
     },
     {
         "name": "waltr-gitops",
