@@ -4,14 +4,14 @@ description: Query and manage Atlassian Jira issues and Confluence pages. Use wh
 metadata:
   author: rfhold
   category: project-management
-  source-repo: rfhold/waltr-atlassian
-  last-commit: ebc6863
-  last-updated: "2026-03-17"
+  source-repo: rfhold/atlassian-query
+  last-commit: 3326f12
+  last-updated: "2026-03-19"
 ---
 
 # Atlassian Query Skill
 
-> Last updated: 2026-03-17 | Source: [rfhold/waltr-atlassian](https://git.holdenitdown.net/rfhold/waltr-atlassian) @ `ebc6863`
+> Last updated: 2026-03-19 | Source: [rfhold/atlassian-query](https://git.holdenitdown.net/rfhold/atlassian-query) @ `3326f12`
 
 Use `atlassian_query` to interact with Jira and Confluence. The `action` field selects the operation.
 
@@ -33,6 +33,7 @@ Use `atlassian_query` to interact with Jira and Confluence. The `action` field s
 | Action | Required fields | Notes |
 |---|---|---|
 | `confluence.search` | `cql` | CQL page search; returns title, space, URL, excerpt |
+| `confluence.page` | `page_id` | Fetches full page content as markdown; returns `# Title\n\n<body>` |
 
 ## Transition notes
 
@@ -40,7 +41,7 @@ Use `atlassian_query` to interact with Jira and Confluence. The `action` field s
 
 ## CLI (`atlassian-query`)
 
-The `atlassian-query` binary provides direct command-line access. Output is pretty-printed JSON.
+The `atlassian-query` binary provides direct command-line access. Output is pretty-printed JSON except `confluence.page` which prints raw markdown.
 
 ```
 atlassian-query issues.search <jql>
@@ -50,6 +51,7 @@ atlassian-query issues.update <key> [--summary=<s>] [--description=<d>] [--assig
 atlassian-query issues.transition <key> <status-name>
 atlassian-query issues.comment <key> <body>
 atlassian-query confluence.search <cql>
+atlassian-query confluence.page <page-id>
 ```
 
 Base URL: `https://preview-atlassian-query.holdenitdown.net`
