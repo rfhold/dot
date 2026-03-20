@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Fetches GPG keys from smartcard and imports SSH host keys
+# Designed to run early in bootstrap before git operations
+#
+# Usage:
+#   setup-smartcard-keys              # Run setup
+#   setup-smartcard-keys --check      # Exit 0 if setup is complete, 1 if needed
+
+set -euo pipefail
+
+SSH_DIR="$HOME/.ssh"
+KNOWN_HOSTS="$SSH_DIR/known_hosts"
+
+# Hosts to add to known_hosts
+SSH_HOSTS=(
+    "github.com"
+    "git.holdenitdown.net"
+)
+
+# Check if a GPG smartcard is present
+has_smartcard() {
+    command -v gpg >/dev/null 2>&1 || return 1
+    gpg --card-status >/dev/null 2>&1
+}
+
+# Check if GPG key from smartcard is already imported
+gpg_key_imported() {
+    # Check if any secret key exists (smartcard creates shadow keys)
+    gpg --list-secret-keys --with-colons 2>/dev/null | grep -q "^sec"
+}
+
+# Fetch GPG public key from smartcard
+fetch_gpg_key_from_card() {
+    echo "[setup-smartcard-keys] Fetching GPG key from smartcard..."
+    # Use gpg --card-edit in batch mode
+    gpg --command-fd 0 --status-fd 2 --card-edit <<EOF
+fetch
+quit
+EOF
+    echo "[setup-smartcard-keys] GPG key fetched successfully"
+}
+
+# Check if host is already in known_hosts
+host_in_known_hosts() {
+    local host="$1"
+    [[ -f "$KNOWN_HOSTS" ]] && grep -q "^$host" "$KNOWN_HOSTS" 2>/dev/null
+}
+
+# Add host to known_hosts
+add_host_to_known_hosts() {
+    local host="$1"
+    echo "[setup-smartcard-keys] Adding $host to known_hosts..."
+    ssh-keyscan -H "$host" >> "$KNOWN_HOSTS" 2>/dev/null
+}
+
+# Setup SSH known_hosts
+setup_ssh_known_hosts() {
+    mkdir -p "$SSH_DIR"
+    chmod 700 "$SSH_DIR"
+    touch "$KNOWN_HOSTS"
+    chmod 600 "$KNOWN_HOSTS"
+
+    for host in "${SSH_HOSTS[@]}"; do
+        if ! host_in_known_hosts "$host"; then
+            add_host_to_known_hosts "$host"
+        fi
+    done
+}
+
+# Check if setup is current (--check mode)
+is_current() {
+    # Check SSH hosts
+    for host in "${SSH_HOSTS[@]}"; do
+        if ! host_in_known_hosts "$host"; then
+            return 1
+        fi
+    done
+
+    # Check if GPG key is imported (only if smartcard is present)
+    if has_smartcard && ! gpg_key_imported; then
+        return 1
+    fi
+
+    return 0
+}
+
+# Main logic
+if [[ "${1:-}" == "--check" ]]; then
+    if is_current; then
+        echo "current"
+        exit 0
+    else
+        echo "needs_update"
+        exit 1
+    fi
+fi
+
+# Run setup
+echo "[setup-smartcard-keys] Setting up smartcard keys and SSH hosts..."
+
+# Setup SSH known_hosts first (needed for git operations)
+setup_ssh_known_hosts
+
+# Fetch GPG key from smartcard if present
+if has_smartcard; then
+    if ! gpg_key_imported; then
+        fetch_gpg_key_from_card
+        # Run card-status to create shadow keys (may be needed for some cards)
+        gpg --card-status >/dev/null 2>&1 || true
+    else
+        echo "[setup-smartcard-keys] GPG key already imported"
+    fi
+else
+    echo "[setup-smartcard-keys] No smartcard detected, skipping GPG key fetch"
+fi
+
+echo "[setup-smartcard-keys] Setup complete"

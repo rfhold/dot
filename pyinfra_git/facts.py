@@ -43,3 +43,21 @@ class GpgAgentConfigCurrent(FactBase):
         if not output:
             return False
         return output[0].strip() == "current"
+
+
+class SmartcardKeysCurrent(FactBase):
+    """
+    Returns True if smartcard keys and SSH known_hosts are properly configured.
+
+    Uses the setup-smartcard-keys --check script to determine if:
+    1. SSH host keys for github.com and git.holdenitdown.net are in known_hosts
+    2. GPG key has been fetched from smartcard (if card is present)
+    """
+
+    def command(self, script_path: str):
+        return f"{script_path} --check 2>/dev/null || echo needs_update"
+
+    def process(self, output):
+        if not output:
+            return False
+        return output[0].strip() == "current"

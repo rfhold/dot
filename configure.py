@@ -18,7 +18,7 @@ from pyinfra_fisher import operations as fisher
 from pyinfra_paru import operations as paru
 from pyinfra_bun import operations as bun
 from pyinfra_go import operations as go
-from pyinfra_git.facts import GitSigningConfigCurrent, GpgAgentConfigCurrent
+from pyinfra_git.facts import GitSigningConfigCurrent, GpgAgentConfigCurrent, SmartcardKeysCurrent
 
 # Check if we're in upgrade mode
 upgrade_mode = os.environ.get("DOTFILES_UPGRADE", "0") == "1"
@@ -395,6 +395,21 @@ else:
     raise Exception(f"Unsupported OS: {os_name}")
 
 home = host.get_fact(Home)
+
+# -----------------------------------------------------------------------------
+# Smartcard and SSH key setup (must run before git operations)
+# -----------------------------------------------------------------------------
+
+smartcard_script = f"{home}/dot/bin/setup-smartcard-keys"
+smartcard_current = host.get_fact(
+    SmartcardKeysCurrent, script_path=smartcard_script
+)
+
+if not smartcard_current:
+    server.shell(
+        name="Setup smartcard GPG keys and SSH host keys",
+        commands=[smartcard_script],
+    )
 
 # -----------------------------------------------------------------------------
 # Dotfiles repo
