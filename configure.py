@@ -419,11 +419,6 @@ link_config_dir(f"{home}/dot/home", home, exclude=[".ssh/authorized_keys"])
 # Package management
 # -----------------------------------------------------------------------------
 
-# Brew taps (macOS only)
-if pkg_manager == "brew":
-    for tap in BREW_TAPS:
-        brew.tap(name=f"Add {tap} tap", src=tap)
-
 install_packages("Install dev packages", "dev")
 install_packages("Install GPG packages", "gpg")
 install_packages("Install terminal packages", "terminal")
@@ -678,6 +673,14 @@ if not gpg_agent_current:
         name="Configure GPG agent based on OS and desktop environment",
         commands=[gpg_agent_script],
     )
+
+# -----------------------------------------------------------------------------
+# Brew taps (macOS only) - after git config is set up
+# -----------------------------------------------------------------------------
+
+if pkg_manager == "brew":
+    for tap in BREW_TAPS:
+        brew.tap(name=f"Add {tap} tap", src=tap)
 
 # -----------------------------------------------------------------------------
 # Tmux Plugin Manager (TPM)

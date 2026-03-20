@@ -8,6 +8,13 @@ cd $HOME/dot
 # These may be installed by bootstrap.sh or previous runs
 export PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
+# Add Homebrew to PATH if installed (Apple Silicon or Intel)
+if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [[ -x /usr/local/bin/brew ]]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+fi
+
 # Parse flags
 UPGRADE=0
 PULL=0
