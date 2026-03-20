@@ -412,6 +412,26 @@ if not smartcard_current:
     )
 
 # -----------------------------------------------------------------------------
+# SSH directory setup (must be early for SSH key operations)
+# -----------------------------------------------------------------------------
+
+# Ensure .ssh is a real directory (not a symlink)
+server.shell(
+    name="Ensure .ssh directory exists",
+    commands=[
+        f'test -d "{home}/.ssh" -a ! -L "{home}/.ssh" || '
+        f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")',
+    ],
+)
+
+files.download(
+    name="Download GitHub public keys for rfhold",
+    src="https://github.com/rfhold.keys",
+    dest=f"{home}/.ssh/authorized_keys",
+    mode="600",
+)
+
+# -----------------------------------------------------------------------------
 # Dotfiles repo
 # -----------------------------------------------------------------------------
 
@@ -439,6 +459,43 @@ install_packages("Install GPG packages", "gpg")
 install_packages("Install terminal packages", "terminal")
 install_packages("Install tools", "tools")
 
+# -----------------------------------------------------------------------------
+# GPG agent configuration (must be before git signing)
+# -----------------------------------------------------------------------------
+
+gpg_agent_script = f"{home}/dot/bin/setup-gpg-agent"
+gpg_agent_current = host.get_fact(GpgAgentConfigCurrent, script_path=gpg_agent_script)
+
+if not gpg_agent_current:
+    server.shell(
+        name="Configure GPG agent based on OS and desktop environment",
+        commands=[gpg_agent_script],
+    )
+
+# -----------------------------------------------------------------------------
+# Git signing configuration
+# -----------------------------------------------------------------------------
+
+git_signing_script = f"{home}/dot/bin/setup-git-signing"
+git_signing_current = host.get_fact(
+    GitSigningConfigCurrent, script_path=git_signing_script
+)
+
+if not git_signing_current:
+    server.shell(
+        name="Configure git signing based on GPG key availability",
+        commands=[git_signing_script],
+    )
+
+# -----------------------------------------------------------------------------
+# Brew taps (macOS only) - after git config is set up
+# -----------------------------------------------------------------------------
+
+if pkg_manager == "brew":
+    for tap in BREW_TAPS:
+        brew.tap(name=f"Add {tap} tap", src=tap)
+
+# -----------------------------------------------------------------------------
 # Environment-specific packages
 if is_container():
     # Add Docker and Kubernetes repos for Debian (apt requires adding repos first)
@@ -660,42 +717,6 @@ else:
 # GUI apps (macOS only)
 if pkg_manager == "brew":
     brew.casks(name="Install GUI applications", casks=CASKS)
-
-# -----------------------------------------------------------------------------
-# Git signing configuration
-# -----------------------------------------------------------------------------
-
-git_signing_script = f"{home}/dot/bin/setup-git-signing"
-git_signing_current = host.get_fact(
-    GitSigningConfigCurrent, script_path=git_signing_script
-)
-
-if not git_signing_current:
-    server.shell(
-        name="Configure git signing based on GPG key availability",
-        commands=[git_signing_script],
-    )
-
-# -----------------------------------------------------------------------------
-# GPG agent configuration
-# -----------------------------------------------------------------------------
-
-gpg_agent_script = f"{home}/dot/bin/setup-gpg-agent"
-gpg_agent_current = host.get_fact(GpgAgentConfigCurrent, script_path=gpg_agent_script)
-
-if not gpg_agent_current:
-    server.shell(
-        name="Configure GPG agent based on OS and desktop environment",
-        commands=[gpg_agent_script],
-    )
-
-# -----------------------------------------------------------------------------
-# Brew taps (macOS only) - after git config is set up
-# -----------------------------------------------------------------------------
-
-if pkg_manager == "brew":
-    for tap in BREW_TAPS:
-        brew.tap(name=f"Add {tap} tap", src=tap)
 
 # -----------------------------------------------------------------------------
 # Tmux Plugin Manager (TPM)
@@ -965,22 +986,6 @@ if pkg_manager == "pacman":
         present=True,
         _sudo=True,
     )
-
-# Ensure .ssh is a real directory (not a symlink)
-server.shell(
-    name="Ensure .ssh directory exists",
-    commands=[
-        f'test -d "{home}/.ssh" -a ! -L "{home}/.ssh" || '
-        f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")',
-    ],
-)
-
-files.download(
-    name="Download GitHub public keys for rfhold",
-    src="https://github.com/rfhold.keys",
-    dest=f"{home}/.ssh/authorized_keys",
-    mode="600",
-)
 
 # SSH server configuration (containers only)
 if pkg_manager == "pacman" and is_container():
