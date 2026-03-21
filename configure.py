@@ -922,7 +922,7 @@ if pkg_manager == "pacman" and not is_container():
     )
 
 # -----------------------------------------------------------------------------
-# Org-scoped OpenCode skills
+# Org-scoped AI tool configuration (.agents for Claude Code + OpenCode)
 # -----------------------------------------------------------------------------
 
 ORG_SKILLS = {
@@ -938,8 +938,10 @@ ORG_SKILLS = {
 
 for org, config in ORG_SKILLS.items():
     org_dir = config["dir"]
-    opencode_dir = f"{org_dir}/.opencode"
-    skills_dir = f"{opencode_dir}/skills"
+    agents_dir = f"{org_dir}/.agents"
+    skills_dir = f"{agents_dir}/skills"
+    claude_md = f"{agents_dir}/CLAUDE.md"
+    envrc_path = f"{org_dir}/.envrc"
 
     org_exists = host.get_fact(
         Command, command=f'test -d "{org_dir}" && echo yes || echo no'
@@ -948,8 +950,8 @@ for org, config in ORG_SKILLS.items():
         continue
 
     files.directory(
-        name=f"Ensure {org} .opencode directory",
-        path=opencode_dir,
+        name=f"Ensure {org} .agents directory",
+        path=agents_dir,
         present=True,
     )
 
@@ -961,17 +963,58 @@ for org, config in ORG_SKILLS.items():
         ssh_keyscan=True,
     )
 
-    files.line(
-        name=f"Write {org} .envrc for OPENCODE_CONFIG_DIR",
-        path=f"{org_dir}/.envrc",
-        line=f'export OPENCODE_CONFIG_DIR="{opencode_dir}"',
-        present=True,
+    # Create CLAUDE.md if it doesn't exist
+    claude_md_exists = host.get_fact(File, path=claude_md)
+    if not claude_md_exists:
+        claude_content = f"""# {org.capitalize()} Organization Context
+
+This is the global context for Claude Code when working in {org} repositories.
+
+## Tech Stack
+- Add your preferred technologies here
+
+## Coding Standards
+- Add your coding conventions here
+
+## Common Commands
+```bash
+# Add frequently used commands
+```
+
+## Environment
+- Organization: {org}
+- Config directory: {agents_dir}
+"""
+        server.shell(
+            name=f"Create {org} CLAUDE.md",
+            commands=[f"cat > '{claude_md}' << 'EOF'\n{claude_content}\nEOF"],
+        )
+
+    # Write .envrc with both variables
+    envrc_content = f"""# AI tool configuration - managed by dotfiles/configure.py
+export CLAUDE_CONFIG_DIR="{agents_dir}"
+export OPENCODE_CONFIG_DIR="{agents_dir}"
+"""
+    server.shell(
+        name=f"Write {org} .envrc for AI tools",
+        commands=[f"cat > '{envrc_path}' << 'EOF'\n{envrc_content}\nEOF"],
     )
 
     server.shell(
         name=f"Allow direnv for {org}",
-        commands=[f'direnv allow "{org_dir}/.envrc"'],
+        commands=[f'direnv allow "{envrc_path}"'],
     )
+
+    # Migrate from old .opencode structure if it exists
+    old_opencode = f"{org_dir}/.opencode"
+    old_opencode_exists = host.get_fact(
+        Command, command=f'test -d "{old_opencode}" && echo yes || echo no'
+    ).strip()
+    if old_opencode_exists == "yes":
+        server.shell(
+            name=f"Remove old {org} .opencode directory",
+            commands=[f'rm -rf "{old_opencode}"'],
+        )
 
 
 # -----------------------------------------------------------------------------
