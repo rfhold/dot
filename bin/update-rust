@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -eu
+
+if command -v rustup &> /dev/null; then
+    echo "rustup found. Updating..."
+    rustup update stable
+else
+    echo "Installing rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+fi
+
+rustup default stable

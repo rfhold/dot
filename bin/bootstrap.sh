@@ -2,27 +2,14 @@
 
 set -eu
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 install_rustup() {
-    if command -v rustup &> /dev/null; then
-        echo "rustup found. Updating..."
-        rustup update stable
-    else
-        echo "Installing rustup..."
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source "$HOME/.cargo/env"
-    fi
-    rustup default stable
+    "$SCRIPT_DIR/update-rust"
 }
 
 install_uv() {
-    if command -v uv &> /dev/null; then
-        echo "uv found. Updating..."
-        uv self update
-    else
-        echo "Installing uv..."
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
-    fi
+    "$SCRIPT_DIR/update-uv"
 }
 
 install_bun() {
@@ -37,49 +24,7 @@ install_bun() {
 }
 
 install_go() {
-    local GO_VERSION="1.25.5"
-    local GO_INSTALL_DIR="/usr/local/go"
-    
-    # Determine architecture
-    local ARCH
-    case "$(uname -m)" in
-        x86_64) ARCH="amd64" ;;
-        aarch64|arm64) ARCH="arm64" ;;
-        *) echo "Unsupported architecture: $(uname -m)"; return 1 ;;
-    esac
-    
-    # Determine OS
-    local OS
-    case "$(uname -s)" in
-        Linux) OS="linux" ;;
-        Darwin) OS="darwin" ;;
-        *) echo "Unsupported OS: $(uname -s)"; return 1 ;;
-    esac
-    
-    # Check if Go is already installed at the correct version
-    if command -v go &> /dev/null; then
-        local CURRENT_VERSION
-        CURRENT_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
-        if [[ "$CURRENT_VERSION" == "$GO_VERSION" ]]; then
-            echo "Go $GO_VERSION already installed."
-            return 0
-        fi
-        echo "Go $CURRENT_VERSION found. Upgrading to $GO_VERSION..."
-    else
-        echo "Installing Go $GO_VERSION..."
-    fi
-    
-    local TARBALL="go${GO_VERSION}.${OS}-${ARCH}.tar.gz"
-    local URL="https://go.dev/dl/${TARBALL}"
-    
-    # Download and extract
-    curl -fsSL "$URL" -o "/tmp/$TARBALL"
-    sudo rm -rf "$GO_INSTALL_DIR"
-    sudo tar -C /usr/local -xzf "/tmp/$TARBALL"
-    rm "/tmp/$TARBALL"
-    
-    export PATH="$GO_INSTALL_DIR/bin:$PATH"
-    echo "Go $GO_VERSION installed successfully."
+    "$SCRIPT_DIR/update-go"
 }
 
 clone_dotfiles() {

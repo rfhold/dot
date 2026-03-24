@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -eu
+
+GO_VERSION="1.26.1"
+GO_INSTALL_DIR="/usr/local/go"
+
+# Determine architecture
+ARCH=""
+case "$(uname -m)" in
+    x86_64) ARCH="amd64" ;;
+    aarch64|arm64) ARCH="arm64" ;;
+    *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
+
+# Determine OS
+OS=""
+case "$(uname -s)" in
+    Linux) OS="linux" ;;
+    Darwin) OS="darwin" ;;
+    *) echo "Unsupported OS: $(uname -s)"; exit 1 ;;
+esac
+
+# Check if Go is already installed at the correct version
+if command -v go &> /dev/null; then
+    CURRENT_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+    if [[ "$CURRENT_VERSION" == "$GO_VERSION" ]]; then
+        echo "Go $GO_VERSION already installed."
+        exit 0
+    fi
+    echo "Go $CURRENT_VERSION found. Upgrading to $GO_VERSION..."
+else
+    echo "Installing Go $GO_VERSION..."
+fi
+
+TARBALL="go${GO_VERSION}.${OS}-${ARCH}.tar.gz"
+URL="https://go.dev/dl/${TARBALL}"
+
+# Download and extract
+curl -fsSL "$URL" -o "/tmp/$TARBALL"
+sudo rm -rf "$GO_INSTALL_DIR"
+sudo tar -C /usr/local -xzf "/tmp/$TARBALL"
+rm "/tmp/$TARBALL"
+
+export PATH="$GO_INSTALL_DIR/bin:$PATH"
+echo "Go $GO_VERSION installed successfully."
