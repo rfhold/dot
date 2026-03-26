@@ -8,15 +8,15 @@
 set -euo pipefail
 
 CONFIG="$HOME/.gnupg/gpg-agent.conf"
-LOG_FILE="~/.gnupg/gpg-agent.log"
+LOG_FILE="$HOME/.gnupg/gpg-agent.log"
 
-# Prefer a cross-platform path that works on macOS and Linux when dotfiles are synced
-PINENTRY="~/dot/bin/pinentry-auto"
+# Use absolute path - gpg-agent does not expand ~ in pinentry-program
+PINENTRY="$HOME/dot/bin/pinentry-auto"
 
 # Find pinentry-auto in the same directory as this script, or in PATH
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -x "$HOME/dot/bin/pinentry-auto" ]]; then
-    PINENTRY="~/dot/bin/pinentry-auto"
+    PINENTRY="$HOME/dot/bin/pinentry-auto"
 elif [[ -x "$SCRIPT_DIR/pinentry-auto" ]]; then
     PINENTRY="$SCRIPT_DIR/pinentry-auto"
 else
