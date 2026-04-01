@@ -933,13 +933,17 @@ ORG_SKILLS = {
     "cfaintl": {
         "src": "git@github.com:cfaintl/skills.git",
         "dir": f"{home}/repos/cfaintl",
+        "skills_subdir": "skills",
     },
 }
 
 for org, config in ORG_SKILLS.items():
     org_dir = config["dir"]
     agents_dir = f"{org_dir}/.agents"
-    skills_dir = f"{agents_dir}/skills"
+    skills_subdir = config.get("skills_subdir")
+    # When skills_subdir is set, clone into skills-src/ and symlink skills -> skills-src/<subdir>
+    clone_dest = f"{agents_dir}/skills-src" if skills_subdir else f"{agents_dir}/skills"
+    skills_dir = f"{clone_dest}/{skills_subdir}" if skills_subdir else clone_dest
     claude_md = f"{agents_dir}/CLAUDE.md"
     envrc_path = f"{org_dir}/.envrc"
 
@@ -958,10 +962,18 @@ for org, config in ORG_SKILLS.items():
     git.repo(
         name=f"Clone {org} skills repo",
         src=config["src"],
-        dest=skills_dir,
+        dest=clone_dest,
         pull=pull_mode,
         ssh_keyscan=True,
     )
+
+    if skills_subdir:
+        files.link(
+            name=f"Link {org} skills subdir",
+            path=f"{agents_dir}/skills",
+            target=skills_dir,
+            symbolic=True,
+        )
 
     # Create CLAUDE.md if it doesn't exist
     claude_md_exists = host.get_fact(File, path=claude_md)
