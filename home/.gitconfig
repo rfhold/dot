@@ -15,3 +15,5 @@
 	t = "!f() { git tag -a \"${1}\" -m \"${1}\" \"${@:2}\"; }; f"
 [include]
 	path = ~/.gitconfig.local
+[init]
+	defaultBranch = main
