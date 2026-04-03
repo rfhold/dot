@@ -107,6 +107,7 @@ PACKAGES = {
             "openresolv",
             "yubikey-manager",
             "bind-tools",
+            "inetutils",
             "jq",
         ],
         "apk": ["github-cli", "argon2"],
