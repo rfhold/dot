@@ -4,14 +4,14 @@ description: Query CI runs, pull requests, issues, and repositories across GitHu
 metadata:
   author: rfhold
   category: gitops
-  source-repo: rfhold/waltr-gitops
-  last-commit: 726803e
-  last-updated: "2026-03-17"
+  source-repo: rfhold/gitops-query
+  last-commit: c50fecb
+  last-updated: "2026-04-02"
 ---
 
 # GitOps Query Skill
 
-> Last updated: 2026-03-17 | Source: [rfhold/waltr-gitops](https://git.holdenitdown.net/rfhold/waltr-gitops) @ `726803e`
+> Last updated: 2026-04-02 | Source: [rfhold/gitops-query](https://git.holdenitdown.net/rfhold/gitops-query) @ `c50fecb`
 
 Use `gitops_query` to query CI runs, pull requests, issues, and repositories across GitHub, Gitea/Forgejo, and Tekton. The `action` field selects the operation.
 
@@ -23,7 +23,11 @@ Use `gitops_query` to query CI runs, pull requests, issues, and repositories acr
 
 ## Note on `org`
 
-The `org` field is the organization/namespace identifier configured in the gitops component. For Tekton it maps to the Kubernetes namespace. Use `orgs.list` to find valid values.
+The `org` field is the organization/namespace identifier configured in the gitops component. Use `orgs.list` to find valid values.
+
+Current orgs: `rfhold` (Forgejo + Tekton), `cfaintl` (GitHub), `stablekernel` (GitHub).
+
+When an org has workflow delegation configured, `runs.*` and `pipelines.*` automatically target the CI backend (Tekton); `prs.*`, `issues.*`, `repos.*`, and `commits.*` target the code forge (Forgejo/GitHub). This means you can query CI runs and dispatch pipelines using the same org ID as your code repos.
 
 ## Actions
 
@@ -54,7 +58,7 @@ The `org` field is the organization/namespace identifier configured in the gitop
 
 | Action | Required | Optional |
 |---|---|---|
-| `pipelines.list` | `org` | `repo` (required for GitHub/Gitea; ignored for Tekton) |
+| `pipelines.list` | `org` | `repo` (required for GitHub/Gitea orgs) |
 | `pipelines.dispatch` | `org`, `repo`, `workflow` | `ref` (branch/tag/SHA), `params` (key/value map) |
 
 ### PRs
@@ -106,8 +110,8 @@ gitops-query issues.get <org> <repo> <number>
 ## MCP/JSON Examples
 
 ```json
-{"action": "pipelines.list", "org": "tekton"}
+{"action": "pipelines.list", "org": "rfhold"}
 {"action": "pipelines.list", "org": "rfhold", "repo": "waltr-gitops"}
 {"action": "pipelines.dispatch", "org": "rfhold", "repo": "waltr-gitops", "workflow": "ci.yml", "ref": "main"}
-{"action": "pipelines.dispatch", "org": "tekton", "repo": "waltr-gitops", "workflow": "build-push", "ref": "main", "params": {"imageTag": "v1.2.3"}}
+{"action": "pipelines.dispatch", "org": "rfhold", "repo": "waltr-gitops", "workflow": "build-push", "ref": "main", "params": {"imageTag": "v1.2.3"}}
 ```
