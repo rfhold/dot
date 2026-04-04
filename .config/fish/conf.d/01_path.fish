@@ -15,6 +15,8 @@ export KUBE_EDITOR=nvim
 
 export OPENCODE_API=https://opencode-api.holdenitdown.net
 
+export CUTHULU_MACHINE=(hostname -f)
+
 # PATH
 if test (uname) = "Darwin"
     export PATH="$PATH:/opt/homebrew/bin"

@@ -28,6 +28,14 @@ from pyinfra_git.facts import (
 upgrade_mode = os.environ.get("DOTFILES_UPGRADE", "0") == "1"
 pull_mode = os.environ.get("DOTFILES_PULL", "0") == "1"
 
+# Tag filtering: comma-separated tags to run; empty = run all
+_tags_env = os.environ.get("DOTFILES_TAGS", "")
+active_tags = {t.strip() for t in _tags_env.split(",") if t.strip()}
+
+
+def has_tag(tag: str) -> bool:
+    return not active_tags or tag in active_tags
+
 # -----------------------------------------------------------------------------
 # Package definitions
 # -----------------------------------------------------------------------------
@@ -103,6 +111,7 @@ PACKAGES = {
             "openresolv",
             "yubikey-manager",
             "bind-tools",
+            "inetutils",
             "jq",
         ],
         "apk": ["github-cli", "argon2"],
@@ -404,339 +413,352 @@ home = host.get_fact(Home)
 # Smartcard and SSH key setup (must run before git operations)
 # -----------------------------------------------------------------------------
 
-smartcard_script = f"{home}/dot/bin/setup-smartcard-keys"
-smartcard_current = host.get_fact(SmartcardKeysCurrent, script_path=smartcard_script)
-
-if not smartcard_current:
-    server.shell(
-        name="Setup smartcard GPG keys and SSH host keys",
-        commands=[smartcard_script],
+if has_tag("core"):
+    smartcard_script = f"{home}/dot/bin/setup-smartcard-keys"
+    smartcard_current = host.get_fact(
+        SmartcardKeysCurrent, script_path=smartcard_script
     )
+
+    if not smartcard_current:
+        server.shell(
+            name="Setup smartcard GPG keys and SSH host keys",
+            commands=[smartcard_script],
+        )
 
 # -----------------------------------------------------------------------------
 # SSH directory setup (must be early for SSH key operations)
 # -----------------------------------------------------------------------------
 
-# Ensure .ssh is a real directory (not a symlink)
-server.shell(
-    name="Ensure .ssh directory exists",
-    commands=[
-        f'test -d "{home}/.ssh" -a ! -L "{home}/.ssh" || '
-        f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")',
-    ],
-)
+if has_tag("core"):
+    # Ensure .ssh is a real directory (not a symlink)
+    server.shell(
+        name="Ensure .ssh directory exists",
+        commands=[
+            f'test -d "{home}/.ssh" -a ! -L "{home}/.ssh" || '
+            f'(rm -f "{home}/.ssh" && mkdir -m 700 "{home}/.ssh")',
+        ],
+    )
 
-files.download(
-    name="Download GitHub public keys for rfhold",
-    src="https://github.com/rfhold.keys",
-    dest=f"{home}/.ssh/authorized_keys",
-    mode="600",
-)
+    files.download(
+        name="Download GitHub public keys for rfhold",
+        src="https://github.com/rfhold.keys",
+        dest=f"{home}/.ssh/authorized_keys",
+        mode="600",
+    )
 
 # -----------------------------------------------------------------------------
 # Dotfiles repo
 # -----------------------------------------------------------------------------
 
-git.repo(
-    name="Dotfiles repo",
-    src="git@git.holdenitdown.net:rfhold/dot.git",
-    dest=f"{home}/dot",
-    pull=pull_mode,
-    ssh_keyscan=True,
-)
+if has_tag("core"):
+    git.repo(
+        name="Dotfiles repo",
+        src="git@git.holdenitdown.net:rfhold/dot.git",
+        dest=f"{home}/dot",
+        pull=pull_mode,
+        ssh_keyscan=True,
+    )
 
 # -----------------------------------------------------------------------------
 # Symlink configs
 # -----------------------------------------------------------------------------
 
-link_config_dir(f"{home}/dot/.config", f"{home}/.config")
-link_config_dir(f"{home}/dot/home", home, exclude=[".ssh/authorized_keys"])
+if has_tag("core"):
+    link_config_dir(f"{home}/dot/.config", f"{home}/.config")
+    link_config_dir(f"{home}/dot/home", home, exclude=[".ssh/authorized_keys"])
 
 # -----------------------------------------------------------------------------
 # Package management
 # -----------------------------------------------------------------------------
 
-install_packages("Install dev packages", "dev")
-install_packages("Install GPG packages", "gpg")
-install_packages("Install terminal packages", "terminal")
-install_packages("Install tools", "tools")
+if has_tag("packages"):
+    install_packages("Install dev packages", "dev")
+    install_packages("Install GPG packages", "gpg")
+    install_packages("Install terminal packages", "terminal")
+    install_packages("Install tools", "tools")
 
 # -----------------------------------------------------------------------------
 # GPG agent configuration (must be before git signing)
 # -----------------------------------------------------------------------------
 
-gpg_agent_script = f"{home}/dot/bin/setup-gpg-agent"
-gpg_agent_current = host.get_fact(GpgAgentConfigCurrent, script_path=gpg_agent_script)
+if has_tag("git"):
+    gpg_agent_script = f"{home}/dot/bin/setup-gpg-agent"
+    gpg_agent_current = host.get_fact(GpgAgentConfigCurrent, script_path=gpg_agent_script)
 
-if not gpg_agent_current:
-    server.shell(
-        name="Configure GPG agent based on OS and desktop environment",
-        commands=[gpg_agent_script],
-    )
+    if not gpg_agent_current:
+        server.shell(
+            name="Configure GPG agent based on OS and desktop environment",
+            commands=[gpg_agent_script],
+        )
 
 # -----------------------------------------------------------------------------
 # Git signing configuration
 # -----------------------------------------------------------------------------
 
-git_signing_script = f"{home}/dot/bin/setup-git-signing"
-git_signing_current = host.get_fact(
-    GitSigningConfigCurrent, script_path=git_signing_script
-)
-
-if not git_signing_current:
-    server.shell(
-        name="Configure git signing based on GPG key availability",
-        commands=[git_signing_script],
+if has_tag("git"):
+    git_signing_script = f"{home}/dot/bin/setup-git-signing"
+    git_signing_current = host.get_fact(
+        GitSigningConfigCurrent, script_path=git_signing_script
     )
+
+    if not git_signing_current:
+        server.shell(
+            name="Configure git signing based on GPG key availability",
+            commands=[git_signing_script],
+        )
 
 # -----------------------------------------------------------------------------
 # Brew taps (macOS only) - after git config is set up
 # -----------------------------------------------------------------------------
 
-if pkg_manager == "brew":
+if has_tag("packages") and pkg_manager == "brew":
     for tap in BREW_TAPS:
         brew.tap(name=f"Add {tap} tap", src=tap)
 
 # -----------------------------------------------------------------------------
 # Environment-specific packages
-if is_container():
-    # Add Docker and Kubernetes repos for Debian (apt requires adding repos first)
-    if pkg_manager == "apt":
-        arch = host.get_fact(Command, command="dpkg --print-architecture").strip()
+# -----------------------------------------------------------------------------
 
-        add_apt_repo(
-            name="Docker",
-            key_url="https://download.docker.com/linux/debian/gpg",
-            keyring_name="docker.gpg",
-            repo_line=f"deb [arch={arch} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable",
-            filename="docker",
-        )
+if has_tag("packages"):
+    if is_container():
+        # Add Docker and Kubernetes repos for Debian (apt requires adding repos first)
+        if pkg_manager == "apt":
+            arch = host.get_fact(Command, command="dpkg --print-architecture").strip()
 
-        add_apt_repo(
-            name="Kubernetes",
-            key_url="https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key",
-            keyring_name="kubernetes-apt-keyring.gpg",
-            repo_line=f"deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /",
-            filename="kubernetes",
-        )
+            add_apt_repo(
+                name="Docker",
+                key_url="https://download.docker.com/linux/debian/gpg",
+                keyring_name="docker.gpg",
+                repo_line=f"deb [arch={arch} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable",
+                filename="docker",
+            )
 
-        # Update apt cache after adding repos
-        apt.update(
-            name="Update apt cache after adding repos",
-            _sudo=True,
-        )
+            add_apt_repo(
+                name="Kubernetes",
+                key_url="https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key",
+                keyring_name="kubernetes-apt-keyring.gpg",
+                repo_line=f"deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /",
+                filename="kubernetes",
+            )
 
-        # Install Docker and Kubernetes packages
-        apt.packages(
-            name="Install Docker CLI and kubectl",
-            packages=[
-                "docker-ce-cli",
-                "docker-buildx-plugin",
-                "docker-compose-plugin",
-                "kubectl",
-            ],
-            present=True,
-            _sudo=True,
-        )
-
-    install_packages("Install container packages", "container")
-else:
-    install_packages("Install bare metal packages", "bare_metal")
-
-    # Hyprland desktop environment (Arch only)
-    if pkg_manager == "pacman":
-        install_packages("Install Hyprland desktop", "hyprland")
-
-        # Add user to required groups for GPU/display access
-        username = host.get_fact(Command, command="whoami").strip()
-        current_groups = host.get_fact(Command, command="groups").strip().split()
-        required_groups = ["video", "input", "render"]
-        missing_groups = [g for g in required_groups if g not in current_groups]
-
-        if missing_groups:
-            server.user(
-                name="Add user to required groups for Hyprland",
-                user=username,
-                groups=missing_groups,
-                append=True,
+            # Update apt cache after adding repos
+            apt.update(
+                name="Update apt cache after adding repos",
                 _sudo=True,
             )
 
-        # Enable NetworkManager for network management
-        systemd.service(
-            name="Enable NetworkManager",
-            service="NetworkManager",
-            running=True,
-            enabled=True,
-            _sudo=True,
-        )
+            # Install Docker and Kubernetes packages
+            apt.packages(
+                name="Install Docker CLI and kubectl",
+                packages=[
+                    "docker-ce-cli",
+                    "docker-buildx-plugin",
+                    "docker-compose-plugin",
+                    "kubectl",
+                ],
+                present=True,
+                _sudo=True,
+            )
 
-        # Docker rootless setup (uses docker-rootless-extras AUR package)
-        # Configure subuid/subgid for rootless containers
-        files.line(
-            name="Configure subuid for rootless Docker",
-            path="/etc/subuid",
-            line=f"{username}:100000:65536",
-            present=True,
-            _sudo=True,
-        )
+        install_packages("Install container packages", "container")
+    else:
+        install_packages("Install bare metal packages", "bare_metal")
 
-        files.line(
-            name="Configure subgid for rootless Docker",
-            path="/etc/subgid",
-            line=f"{username}:100000:65536",
-            present=True,
-            _sudo=True,
-        )
+        # Hyprland desktop environment (Arch only)
+        if pkg_manager == "pacman":
+            install_packages("Install Hyprland desktop", "hyprland")
 
-        # Enable user lingering (allows user services to run at boot)
-        # Check if lingering is already enabled before running command
-        linger_status = host.get_fact(
-            Command,
-            command=f"loginctl show-user {username} --property=Linger 2>/dev/null || echo 'Linger=no'",
-        ).strip()
+            # Add user to required groups for GPU/display access
+            username = host.get_fact(Command, command="whoami").strip()
+            current_groups = host.get_fact(Command, command="groups").strip().split()
+            required_groups = ["video", "input", "render"]
+            missing_groups = [g for g in required_groups if g not in current_groups]
 
-        if linger_status != "Linger=yes":
+            if missing_groups:
+                server.user(
+                    name="Add user to required groups for Hyprland",
+                    user=username,
+                    groups=missing_groups,
+                    append=True,
+                    _sudo=True,
+                )
+
+            # Enable NetworkManager for network management
+            systemd.service(
+                name="Enable NetworkManager",
+                service="NetworkManager",
+                running=True,
+                enabled=True,
+                _sudo=True,
+            )
+
+            # Docker rootless setup (uses docker-rootless-extras AUR package)
+            # Configure subuid/subgid for rootless containers
+            files.line(
+                name="Configure subuid for rootless Docker",
+                path="/etc/subuid",
+                line=f"{username}:100000:65536",
+                present=True,
+                _sudo=True,
+            )
+
+            files.line(
+                name="Configure subgid for rootless Docker",
+                path="/etc/subgid",
+                line=f"{username}:100000:65536",
+                present=True,
+                _sudo=True,
+            )
+
+            # Enable user lingering (allows user services to run at boot)
+            # Check if lingering is already enabled before running command
+            linger_status = host.get_fact(
+                Command,
+                command=f"loginctl show-user {username} --property=Linger 2>/dev/null || echo 'Linger=no'",
+            ).strip()
+
+            if linger_status != "Linger=yes":
+                server.shell(
+                    name="Enable user lingering for rootless Docker",
+                    commands=[f"loginctl enable-linger {username}"],
+                    _sudo=True,
+                )
+
+            # Load iptables kernel modules at boot (required for Docker networking)
+            files.put(
+                name="Configure iptables modules to load at boot",
+                src=f"{home}/dot/etc/modules-load.d/docker-rootless.conf",
+                dest="/etc/modules-load.d/docker-rootless.conf",
+                mode="644",
+                user="root",
+                group="root",
+                _sudo=True,
+            )
+
+            # Disable rootful Docker (we use rootless instead)
+            systemd.service(
+                name="Disable rootful Docker socket",
+                service="docker.socket",
+                running=False,
+                enabled=False,
+                _sudo=True,
+            )
+
+            systemd.service(
+                name="Disable rootful Docker service",
+                service="docker.service",
+                running=False,
+                enabled=False,
+                _sudo=True,
+            )
+
+            # NOTE: Rootless Docker user service is enabled after AUR packages are installed
+            # (see end of file after paru.packages)
+
+            # Enable binfmt service for QEMU cross-arch builds
+            systemd.service(
+                name="Enable binfmt for QEMU cross-arch builds",
+                service="systemd-binfmt",
+                running=True,
+                enabled=True,
+                _sudo=True,
+            )
+
+            # -----------------------------------------------------------------
+            # Security hardening (Arch bare metal only)
+            # -----------------------------------------------------------------
+
+            install_packages("Install security packages", "security")
+
+            # Deploy nftables firewall configuration
+            files.put(
+                name="Deploy nftables firewall config",
+                src=f"{home}/dot/etc/nftables.conf",
+                dest="/etc/nftables.conf",
+                mode="644",
+                user="root",
+                group="root",
+                _sudo=True,
+            )
+
+            # nftables is a oneshot service - it loads rules and exits
+            # running=False prevents pyinfra from trying to "start" a oneshot
+            systemd.service(
+                name="Enable nftables firewall",
+                service="nftables",
+                running=False,
+                enabled=True,
+                _sudo=True,
+            )
+
+            # Deploy sysctl hardening configuration
+            sysctl_config = files.put(
+                name="Deploy sysctl hardening config",
+                src=f"{home}/dot/etc/sysctl.d/99-hardening.conf",
+                dest="/etc/sysctl.d/99-hardening.conf",
+                mode="644",
+                user="root",
+                group="root",
+                _sudo=True,
+            )
+
             server.shell(
-                name="Enable user lingering for rootless Docker",
-                commands=[f"loginctl enable-linger {username}"],
+                name="Apply sysctl hardening settings",
+                commands=["sysctl --system"],
+                _sudo=True,
+                _if=sysctl_config.did_change,
+            )
+
+            # Deploy NetworkManager MAC randomization config
+            files.directory(
+                name="Ensure NetworkManager conf.d directory exists",
+                path="/etc/NetworkManager/conf.d",
+                present=True,
+                mode="755",
+                user="root",
+                group="root",
                 _sudo=True,
             )
 
-        # Load iptables kernel modules at boot (required for Docker networking)
-        files.put(
-            name="Configure iptables modules to load at boot",
-            src=f"{home}/dot/etc/modules-load.d/docker-rootless.conf",
-            dest="/etc/modules-load.d/docker-rootless.conf",
-            mode="644",
-            user="root",
-            group="root",
-            _sudo=True,
-        )
+            nm_config = files.put(
+                name="Deploy NetworkManager MAC randomization config",
+                src=f"{home}/dot/etc/NetworkManager/conf.d/99-mac-randomization.conf",
+                dest="/etc/NetworkManager/conf.d/99-mac-randomization.conf",
+                mode="644",
+                user="root",
+                group="root",
+                _sudo=True,
+            )
 
-        # Disable rootful Docker (we use rootless instead)
-        systemd.service(
-            name="Disable rootful Docker socket",
-            service="docker.socket",
-            running=False,
-            enabled=False,
-            _sudo=True,
-        )
-
-        systemd.service(
-            name="Disable rootful Docker service",
-            service="docker.service",
-            running=False,
-            enabled=False,
-            _sudo=True,
-        )
-
-        # NOTE: Rootless Docker user service is enabled after AUR packages are installed
-        # (see end of file after paru.packages)
-
-        # Enable binfmt service for QEMU cross-arch builds
-        systemd.service(
-            name="Enable binfmt for QEMU cross-arch builds",
-            service="systemd-binfmt",
-            running=True,
-            enabled=True,
-            _sudo=True,
-        )
-
-        # ---------------------------------------------------------------------
-        # Security hardening (Arch bare metal only)
-        # ---------------------------------------------------------------------
-
-        install_packages("Install security packages", "security")
-
-        # Deploy nftables firewall configuration
-        files.put(
-            name="Deploy nftables firewall config",
-            src=f"{home}/dot/etc/nftables.conf",
-            dest="/etc/nftables.conf",
-            mode="644",
-            user="root",
-            group="root",
-            _sudo=True,
-        )
-
-        # nftables is a oneshot service - it loads rules and exits
-        # running=False prevents pyinfra from trying to "start" a oneshot
-        systemd.service(
-            name="Enable nftables firewall",
-            service="nftables",
-            running=False,
-            enabled=True,
-            _sudo=True,
-        )
-
-        # Deploy sysctl hardening configuration
-        sysctl_config = files.put(
-            name="Deploy sysctl hardening config",
-            src=f"{home}/dot/etc/sysctl.d/99-hardening.conf",
-            dest="/etc/sysctl.d/99-hardening.conf",
-            mode="644",
-            user="root",
-            group="root",
-            _sudo=True,
-        )
-
-        server.shell(
-            name="Apply sysctl hardening settings",
-            commands=["sysctl --system"],
-            _sudo=True,
-            _if=sysctl_config.did_change,
-        )
-
-        # Deploy NetworkManager MAC randomization config
-        files.directory(
-            name="Ensure NetworkManager conf.d directory exists",
-            path="/etc/NetworkManager/conf.d",
-            present=True,
-            mode="755",
-            user="root",
-            group="root",
-            _sudo=True,
-        )
-
-        nm_config = files.put(
-            name="Deploy NetworkManager MAC randomization config",
-            src=f"{home}/dot/etc/NetworkManager/conf.d/99-mac-randomization.conf",
-            dest="/etc/NetworkManager/conf.d/99-mac-randomization.conf",
-            mode="644",
-            user="root",
-            group="root",
-            _sudo=True,
-        )
-
-        server.shell(
-            name="Reload NetworkManager configuration",
-            commands=["nmcli general reload conf"],
-            _sudo=True,
-            _if=nm_config.did_change,
-        )
+            server.shell(
+                name="Reload NetworkManager configuration",
+                commands=["nmcli general reload conf"],
+                _sudo=True,
+                _if=nm_config.did_change,
+            )
 
 # GUI apps (macOS only)
-if pkg_manager == "brew":
+if has_tag("packages") and pkg_manager == "brew":
     brew.casks(name="Install GUI applications", casks=CASKS)
 
 # -----------------------------------------------------------------------------
 # Tmux Plugin Manager (TPM)
 # -----------------------------------------------------------------------------
 
-files.directory(
-    name="Ensure tmux plugins directory exists",
-    path=f"{home}/.tmux/plugins",
-    present=True,
-)
+if has_tag("tpm"):
+    files.directory(
+        name="Ensure tmux plugins directory exists",
+        path=f"{home}/.tmux/plugins",
+        present=True,
+    )
 
-git.repo(
-    name="Clone Tmux Plugin Manager (TPM)",
-    src="https://github.com/tmux-plugins/tpm",
-    dest=f"{home}/.tmux/plugins/tpm",
-    pull=upgrade_mode,
-    _env={"GIT_CONFIG_GLOBAL": "/dev/null"},
-)
+    git.repo(
+        name="Clone Tmux Plugin Manager (TPM)",
+        src="https://github.com/tmux-plugins/tpm",
+        dest=f"{home}/.tmux/plugins/tpm",
+        pull=upgrade_mode,
+        _env={"GIT_CONFIG_GLOBAL": "/dev/null"},
+    )
 
 # -----------------------------------------------------------------------------
 # Managed app repos (clone + make install)
@@ -777,133 +799,139 @@ MANAGED_APPS = [
     },
 ]
 
-for app in MANAGED_APPS:
-    app_dest = app["dest"]
-    app_parent = "/".join(app_dest.rstrip("/").split("/")[:-1])
+if has_tag("apps"):
+    for app in MANAGED_APPS:
+        app_dest = app["dest"]
+        app_parent = "/".join(app_dest.rstrip("/").split("/")[:-1])
 
-    files.directory(
-        name=f"Ensure parent dir for {app['name']}",
-        path=app_parent,
-        present=True,
-    )
+        files.directory(
+            name=f"Ensure parent dir for {app['name']}",
+            path=app_parent,
+            present=True,
+        )
 
-    # Install system-level build/runtime deps (e.g. Tauri libs on Arch)
-    sys_deps = SYSTEM_DEPS.get(app.get("system_deps_key", ""), {}).get(pkg_manager)
-    if sys_deps and not is_container():
-        if pkg_manager == "pacman":
-            pacman.packages(
-                name=f"Install {app['name']} system deps",
-                packages=sys_deps,
-                present=True,
-                _sudo=True,
-            )
+        # Install system-level build/runtime deps (e.g. Tauri libs on Arch)
+        sys_deps = SYSTEM_DEPS.get(app.get("system_deps_key", ""), {}).get(pkg_manager)
+        if sys_deps and not is_container():
+            if pkg_manager == "pacman":
+                pacman.packages(
+                    name=f"Install {app['name']} system deps",
+                    packages=sys_deps,
+                    present=True,
+                    _sudo=True,
+                )
 
-    clone = git.repo(
-        name=f"Clone {app['name']}",
-        src=app["src"],
-        dest=app_dest,
-        pull=upgrade_mode,
-        ssh_keyscan=True,
-    )
+        clone = git.repo(
+            name=f"Clone {app['name']}",
+            src=app["src"],
+            dest=app_dest,
+            pull=upgrade_mode,
+            ssh_keyscan=True,
+        )
 
-    server.shell(
-        name=f"Install {app['name']}",
-        commands=[f"make -C {app_dest} install"],
-        _if=clone.did_change,
-    )
+        server.shell(
+            name=f"Install {app['name']}",
+            commands=[f"make -C {app_dest} install"],
+            _if=clone.did_change,
+        )
 
 # -----------------------------------------------------------------------------
 # Fish plugins
 # -----------------------------------------------------------------------------
 
-fisher.packages(
-    name="Install Fish plugins",
-    packages=[
-        "jorgebucaran/nvm.fish",
-        "realiserad/fish-ai",
-    ],
-    present=True,
-)
-
-# Ensure fish-ai venv is set up (fisher install may not trigger hooks properly)
-fish_ai_venv = f"{home}/.local/share/fish-ai"
-fish_ai_python = f"{fish_ai_venv}/bin/python"
-
-# Check if venv exists and has python binary (more thorough check)
-venv_exists = host.get_fact(File, path=fish_ai_python) is not None
-
-if not venv_exists:
-    server.shell(
-        name="Setup fish-ai venv using uv",
-        commands=[
-            f"uv venv --seed --python 3.13 {fish_ai_venv}",
-            f"{fish_ai_venv}/bin/pip install fish-ai@git+https://github.com/realiserad/fish-ai",
+if has_tag("fish"):
+    fisher.packages(
+        name="Install Fish plugins",
+        packages=[
+            "jorgebucaran/nvm.fish",
+            "realiserad/fish-ai",
         ],
+        present=True,
     )
+
+    # Ensure fish-ai venv is set up (fisher install may not trigger hooks properly)
+    fish_ai_venv = f"{home}/.local/share/fish-ai"
+    fish_ai_python = f"{fish_ai_venv}/bin/python"
+
+    # Check if venv exists and has python binary (more thorough check)
+    venv_exists = host.get_fact(File, path=fish_ai_python) is not None
+
+    if not venv_exists:
+        server.shell(
+            name="Setup fish-ai venv using uv",
+            commands=[
+                f"uv venv --seed --python 3.13 {fish_ai_venv}",
+                f"{fish_ai_venv}/bin/pip install fish-ai@git+https://github.com/realiserad/fish-ai",
+            ],
+        )
 
 # -----------------------------------------------------------------------------
 # Node.js (via nvm.fish)
 # -----------------------------------------------------------------------------
 
-# Install node and set default (nvm_default_version only activates on interactive shells)
-# Also symlink to ~/.local/bin so node is available in non-fish shells
-if not host.get_fact(Which, command="node"):
-    server.shell(
-        name="Install Node.js LTS via nvm and set as default",
-        commands=[
-            "fish -c 'nvm install lts && set --universal nvm_default_version lts'",
-            f"mkdir -p {home}/.local/bin",
-            f"ln -sf {home}/.local/share/nvm/*/bin/node {home}/.local/bin/node",
-            f"ln -sf {home}/.local/share/nvm/*/bin/npm {home}/.local/bin/npm",
-            f"ln -sf {home}/.local/share/nvm/*/bin/npx {home}/.local/bin/npx",
-        ],
-    )
+if has_tag("node"):
+    # Install node and set default (nvm_default_version only activates on interactive shells)
+    # Also symlink to ~/.local/bin so node is available in non-fish shells
+    if not host.get_fact(Which, command="node"):
+        server.shell(
+            name="Install Node.js LTS via nvm and set as default",
+            commands=[
+                "fish -c 'nvm install lts && set --universal nvm_default_version lts'",
+                f"mkdir -p {home}/.local/bin",
+                f"ln -sf {home}/.local/share/nvm/*/bin/node {home}/.local/bin/node",
+                f"ln -sf {home}/.local/share/nvm/*/bin/npm {home}/.local/bin/npm",
+                f"ln -sf {home}/.local/share/nvm/*/bin/npx {home}/.local/bin/npx",
+            ],
+        )
 
 # -----------------------------------------------------------------------------
 # Bun packages (bun installed via bootstrap.sh)
 # -----------------------------------------------------------------------------
 
-bun.packages(
-    name="Install global Bun packages",
-    packages=[
-        "opencode-ai",
-    ],
-    present=True,
-    update=upgrade_mode,
-)
+if has_tag("bun"):
+    bun.packages(
+        name="Install global Bun packages",
+        packages=[
+            "opencode-ai",
+        ],
+        present=True,
+        update=upgrade_mode,
+    )
 
 # -----------------------------------------------------------------------------
 # Cargo packages (installed via cargo for consistency across all platforms)
 # -----------------------------------------------------------------------------
 
-cargo.packages(
-    name="Install cargo packages",
-    packages=["starship"],
-    present=True,
-)
+if has_tag("cargo"):
+    cargo.packages(
+        name="Install cargo packages",
+        packages=["starship"],
+        present=True,
+    )
 
 # -----------------------------------------------------------------------------
 # Go packages (installed via go for consistency across all platforms)
 # -----------------------------------------------------------------------------
 
-go.packages(
-    name="Install Go tools",
-    packages=[
-        "github.com/charmbracelet/gum@latest",
-        "github.com/jesseduffield/lazygit@latest",
-        "github.com/jesseduffield/lazydocker@latest",
-        "github.com/derailed/k9s@latest",
-    ],
-    present=True,
-    update=upgrade_mode,
-)
+if has_tag("go"):
+    go.packages(
+        name="Install Go tools",
+        packages=[
+            "github.com/charmbracelet/gum@latest",
+            "github.com/jesseduffield/lazygit@latest",
+            "github.com/jesseduffield/lazydocker@latest",
+            "github.com/derailed/k9s@latest",
+        ],
+        present=True,
+        update=upgrade_mode,
+    )
 
 
 # -----------------------------------------------------------------------------
 # AUR packages (Arch only)
 # -----------------------------------------------------------------------------
 
-if pkg_manager == "pacman" and not is_container():
+if has_tag("aur") and pkg_manager == "pacman" and not is_container():
     paru.packages(
         name="Install AUR packages",
         packages=[
@@ -935,40 +963,53 @@ ORG_SKILLS = {
     "cfaintl": {
         "src": "git@github.com:cfaintl/skills.git",
         "dir": f"{home}/repos/cfaintl",
+        "skills_subdir": "skills",
     },
 }
 
-for org, config in ORG_SKILLS.items():
-    org_dir = config["dir"]
-    agents_dir = f"{org_dir}/.agents"
-    skills_dir = f"{agents_dir}/skills"
-    claude_md = f"{agents_dir}/CLAUDE.md"
-    envrc_path = f"{org_dir}/.envrc"
+if has_tag("skills"):
+    for org, config in ORG_SKILLS.items():
+        org_dir = config["dir"]
+        agents_dir = f"{org_dir}/.agents"
+        skills_subdir = config.get("skills_subdir")
+        # When skills_subdir is set, clone into skills-src/ and symlink skills -> skills-src/<subdir>
+        clone_dest = f"{agents_dir}/skills-src" if skills_subdir else f"{agents_dir}/skills"
+        skills_dir = f"{clone_dest}/{skills_subdir}" if skills_subdir else clone_dest
+        claude_md = f"{agents_dir}/CLAUDE.md"
+        envrc_path = f"{org_dir}/.envrc"
 
-    org_exists = host.get_fact(
-        Command, command=f'test -d "{org_dir}" && echo yes || echo no'
-    ).strip()
-    if org_exists != "yes":
-        continue
+        org_exists = host.get_fact(
+            Command, command=f'test -d "{org_dir}" && echo yes || echo no'
+        ).strip()
+        if org_exists != "yes":
+            continue
 
-    files.directory(
-        name=f"Ensure {org} .agents directory",
-        path=agents_dir,
-        present=True,
-    )
+        files.directory(
+            name=f"Ensure {org} .agents directory",
+            path=agents_dir,
+            present=True,
+        )
 
-    git.repo(
-        name=f"Clone {org} skills repo",
-        src=config["src"],
-        dest=skills_dir,
-        pull=pull_mode,
-        ssh_keyscan=True,
-    )
+        git.repo(
+            name=f"Clone {org} skills repo",
+            src=config["src"],
+            dest=clone_dest,
+            pull=pull_mode,
+            ssh_keyscan=True,
+        )
 
-    # Create CLAUDE.md if it doesn't exist
-    claude_md_exists = host.get_fact(File, path=claude_md)
-    if not claude_md_exists:
-        claude_content = f"""# {org.capitalize()} Organization Context
+        if skills_subdir:
+            files.link(
+                name=f"Link {org} skills subdir",
+                path=f"{agents_dir}/skills",
+                target=skills_dir,
+                symbolic=True,
+            )
+
+        # Create CLAUDE.md if it doesn't exist
+        claude_md_exists = host.get_fact(File, path=claude_md)
+        if not claude_md_exists:
+            claude_content = f"""# {org.capitalize()} Organization Context
 
 This is the global context for Claude Code when working in {org} repositories.
 
@@ -987,76 +1028,77 @@ This is the global context for Claude Code when working in {org} repositories.
 - Organization: {org}
 - Config directory: {agents_dir}
 """
-        server.shell(
-            name=f"Create {org} CLAUDE.md",
-            commands=[f"cat > '{claude_md}' << 'EOF'\n{claude_content}\nEOF"],
-        )
+            server.shell(
+                name=f"Create {org} CLAUDE.md",
+                commands=[f"cat > '{claude_md}' << 'EOF'\n{claude_content}\nEOF"],
+            )
 
-    # Write .envrc with both variables
-    envrc_content = f"""# AI tool configuration - managed by dotfiles/configure.py
+        # Write .envrc with both variables
+        envrc_content = f"""# AI tool configuration - managed by dotfiles/configure.py
 export CLAUDE_CONFIG_DIR="{agents_dir}"
 export OPENCODE_CONFIG_DIR="{agents_dir}"
 """
-    server.shell(
-        name=f"Write {org} .envrc for AI tools",
-        commands=[f"cat > '{envrc_path}' << 'EOF'\n{envrc_content}\nEOF"],
-    )
-
-    server.shell(
-        name=f"Allow direnv for {org}",
-        commands=[f'direnv allow "{envrc_path}"'],
-    )
-
-    # Migrate from old .opencode structure if it exists
-    old_opencode = f"{org_dir}/.opencode"
-    old_opencode_exists = host.get_fact(
-        Command, command=f'test -d "{old_opencode}" && echo yes || echo no'
-    ).strip()
-    if old_opencode_exists == "yes":
         server.shell(
-            name=f"Remove old {org} .opencode directory",
-            commands=[f'rm -rf "{old_opencode}"'],
+            name=f"Write {org} .envrc for AI tools",
+            commands=[f"cat > '{envrc_path}' << 'EOF'\n{envrc_content}\nEOF"],
         )
+
+        server.shell(
+            name=f"Allow direnv for {org}",
+            commands=[f'direnv allow "{envrc_path}"'],
+        )
+
+        # Migrate from old .opencode structure if it exists
+        old_opencode = f"{org_dir}/.opencode"
+        old_opencode_exists = host.get_fact(
+            Command, command=f'test -d "{old_opencode}" && echo yes || echo no'
+        ).strip()
+        if old_opencode_exists == "yes":
+            server.shell(
+                name=f"Remove old {org} .opencode directory",
+                commands=[f'rm -rf "{old_opencode}"'],
+            )
 
 
 # -----------------------------------------------------------------------------
 # OpenSSH Server (containers only - bare metal doesn't need incoming SSH)
 # -----------------------------------------------------------------------------
 
-# SSH client is useful everywhere, but SSH server only in containers
-if pkg_manager == "pacman":
-    pacman.packages(
-        name="Install OpenSSH",
-        packages=["openssh"],
-        present=True,
-        _sudo=True,
-    )
-
-# SSH server configuration (containers only)
-if pkg_manager == "pacman" and is_container():
-    files.put(
-        name="Configure sshd for key-only authentication",
-        src=f"{home}/dot/etc/sshd_config.d/99-key-only.conf",
-        dest="/etc/ssh/sshd_config.d/99-key-only.conf",
-        mode="644",
-        user="root",
-        group="root",
-        _sudo=True,
-    )
-
-    if has_systemd():
-        # If systemd is running, use the proper operation to enable and start
-        systemd.service(
-            name="Enable and start sshd",
-            service="sshd",
-            running=True,
-            enabled=True,
+if has_tag("ssh-server"):
+    # SSH client is useful everywhere, but SSH server only in containers
+    if pkg_manager == "pacman":
+        pacman.packages(
+            name="Install OpenSSH",
+            packages=["openssh"],
+            present=True,
             _sudo=True,
         )
-    else:
-        # During Docker build, systemd isn't running - just enable for boot
-        server.shell(
-            name="Enable sshd for boot",
-            commands=["systemctl enable sshd.service"],
+
+    # SSH server configuration (containers only)
+    if pkg_manager == "pacman" and is_container():
+        files.put(
+            name="Configure sshd for key-only authentication",
+            src=f"{home}/dot/etc/sshd_config.d/99-key-only.conf",
+            dest="/etc/ssh/sshd_config.d/99-key-only.conf",
+            mode="644",
+            user="root",
+            group="root",
             _sudo=True,
         )
+
+        if has_systemd():
+            # If systemd is running, use the proper operation to enable and start
+            systemd.service(
+                name="Enable and start sshd",
+                service="sshd",
+                running=True,
+                enabled=True,
+                _sudo=True,
+            )
+        else:
+            # During Docker build, systemd isn't running - just enable for boot
+            server.shell(
+                name="Enable sshd for boot",
+                commands=["systemctl enable sshd.service"],
+                _sudo=True,
+            )
