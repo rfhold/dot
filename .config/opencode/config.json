@@ -8,21 +8,9 @@
   },
   "share": "disabled",
   "mcp": {
-    "super": {
+    "research": {
       "type": "remote",
-      "url": "https://preview-walter.holdenitdown.net/mcp/super/"
-    },
-    "firecrawl": {
-      "type": "local",
-      "command": [
-        "bunx",
-        "firecrawl-mcp"
-      ],
-      "enabled": true,
-      "environment": {
-        "FIRECRAWL_API_URL": "https://firecrawl.holdenitdown.net",
-        "FIRECRAWL_API_KEY": "no-auth-required"
-      }
+      "url": "https://re-search.holdenitdown.net/mcp"
     },
     "playwright": {
       "type": "local",
@@ -47,7 +35,6 @@
     "list_sessions": "deny",
     "export_session": "deny",
     "websearch": "deny",
-    "firecrawl_*": "deny",
     "bash": {
       "*": "allow",
       "pkexe *": "ask",
