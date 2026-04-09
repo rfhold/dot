@@ -1,6 +1,9 @@
+vim.opt.termguicolors = true
+
 require("config.lazy")
 require("config.keymap")
 require("config.display")
+require("config.treesitter")
 
 -- system
 vim.opt.clipboard = "unnamedplus"

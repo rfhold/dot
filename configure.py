@@ -905,12 +905,67 @@ if has_tag("bun"):
 if has_tag("cargo"):
     cargo.packages(
         name="Install cargo packages",
-        packages=["starship"],
+        packages=["starship", "tree-sitter-cli"],
         present=True,
     )
 
 # -----------------------------------------------------------------------------
-# Go packages (installed via go for consistency across all platforms)
+# Tree-sitter parsers for Neovim 0.12+ (native treesitter support)
+# -----------------------------------------------------------------------------
+
+if has_tag("treesitter"):
+    TREESITTER_LANGS = {
+        "bash": "tree-sitter/tree-sitter-bash",
+        "go": "tree-sitter/tree-sitter-go",
+        "javascript": "tree-sitter/tree-sitter-javascript",
+        "json": "tree-sitter/tree-sitter-json",
+        "lua": "tree-sitter-grammars/tree-sitter-lua",
+        "markdown": "tree-sitter-grammars/tree-sitter-markdown",
+        "python": "tree-sitter/tree-sitter-python",
+        "rust": "tree-sitter/tree-sitter-rust",
+        "toml": "tree-sitter/tree-sitter-toml",
+        "typescript": "tree-sitter/tree-sitter-typescript",
+        "yaml": "tree-sitter-grammars/tree-sitter-yaml",
+    }
+    TREESITTER_BUILD_SUBDIRS = {
+        "markdown": "tree-sitter-markdown",
+        "typescript": "typescript",
+    }
+
+    parser_dir = f"{home}/.local/share/nvim/site/parser"
+    files.directory(
+        name="Ensure nvim treesitter parser directory exists",
+        path=parser_dir,
+        present=True,
+    )
+
+    for lang, repo in TREESITTER_LANGS.items():
+        parser_path = f"{parser_dir}/{lang}.so"
+        repo_url = f"https://github.com/{repo}.git"
+        clone_dir = f"{home}/.cache/tree-sitter-parsers/{lang}"
+        build_subdir = TREESITTER_BUILD_SUBDIRS.get(lang)
+        build_dir = f"{clone_dir}/{build_subdir}" if build_subdir else clone_dir
+
+        # Check if parser already exists
+        parser_exists = host.get_fact(File, path=parser_path)
+        if not parser_exists:
+            # Clone the grammar repo
+            clone = git.repo(
+                name=f"Clone {lang} treesitter grammar",
+                src=repo_url,
+                dest=clone_dir,
+                pull=False,
+            )
+
+            # Build the parser
+            server.shell(
+                name=f"Build {lang} parser",
+                commands=[
+                    f"cd {build_dir} && tree-sitter build --output {parser_path}",
+                ],
+                _if=clone.did_change,
+            )
+
 # -----------------------------------------------------------------------------
 
 if has_tag("go"):
