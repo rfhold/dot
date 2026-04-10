@@ -26,3 +26,5 @@ home/.gnupg/gpg-agent.log
 .config/opencode/plugins/cuthulu.js
 .config/systemd/user/default.target.wants/
 pyinfra-debug.log
+docs/plans/
+.claude/settings.local.json
