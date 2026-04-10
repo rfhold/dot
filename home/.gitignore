@@ -1,6 +1,5 @@
 .DS_Store
 .aider*
-opencode.jsonc
 .gitconfig.local
 .gnupg/gpg-agent.log
 .gnupg/S.*
