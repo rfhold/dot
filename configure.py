@@ -36,6 +36,7 @@ active_tags = {t.strip() for t in _tags_env.split(",") if t.strip()}
 def has_tag(tag: str) -> bool:
     return not active_tags or tag in active_tags
 
+
 # -----------------------------------------------------------------------------
 # Package definitions
 # -----------------------------------------------------------------------------
@@ -483,7 +484,9 @@ if has_tag("packages"):
 
 if has_tag("git"):
     gpg_agent_script = f"{home}/dot/bin/setup-gpg-agent"
-    gpg_agent_current = host.get_fact(GpgAgentConfigCurrent, script_path=gpg_agent_script)
+    gpg_agent_current = host.get_fact(
+        GpgAgentConfigCurrent, script_path=gpg_agent_script
+    )
 
     if not gpg_agent_current:
         server.shell(
@@ -997,6 +1000,15 @@ if has_tag("aur") and pkg_manager == "pacman" and not is_container():
         present=True,
     )
 
+    # Reconcile older direct service startups back to socket activation.
+    systemd.service(
+        name="Disable direct rootless Docker service",
+        service="docker.service",
+        running=False,
+        enabled=False,
+        user_mode=True,
+    )
+
     # Enable rootless Docker user service (now that docker-rootless-extras is installed)
     systemd.service(
         name="Enable rootless Docker socket",
@@ -1028,7 +1040,9 @@ if has_tag("skills"):
         agents_dir = f"{org_dir}/.agents"
         skills_subdir = config.get("skills_subdir")
         # When skills_subdir is set, clone into skills-src/ and symlink skills -> skills-src/<subdir>
-        clone_dest = f"{agents_dir}/skills-src" if skills_subdir else f"{agents_dir}/skills"
+        clone_dest = (
+            f"{agents_dir}/skills-src" if skills_subdir else f"{agents_dir}/skills"
+        )
         skills_dir = f"{clone_dest}/{skills_subdir}" if skills_subdir else clone_dest
         claude_md = f"{agents_dir}/CLAUDE.md"
         envrc_path = f"{org_dir}/.envrc"
