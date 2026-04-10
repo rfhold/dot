@@ -127,6 +127,7 @@
   },
   "autoupdate": false,
   "plugin": [
-    "@franlol/opencode-md-table-formatter@0.0.3"
+    "@franlol/opencode-md-table-formatter@0.0.3",
+    "superpowers@git+https://github.com/obra/superpowers.git"
   ]
 }
