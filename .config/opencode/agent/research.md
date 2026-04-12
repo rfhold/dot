@@ -1,5 +1,5 @@
 ---
-description: Research documentation and online resources to gather comprehensive information on any technical topic. Analyzes official docs, community resources, and implementation patterns. Use this agent PROACTIVELY.
+description: Research documentation and online resources to gather comprehensive information on any technical topic. This task can be resumed later to dig into more specific follow-up questions using earlier research context. Analyzes official docs, community resources, and implementation patterns. Use this agent PROACTIVELY.
 mode: subagent
 permission:
   research_quick: allow
@@ -28,7 +28,7 @@ Analyze requirements in `<research_scope>` tags before proceeding:
 - What level of depth is needed (overview vs deep technical dive)?
 </research_scope>
 
-This scoping determines which research tool to use and whether follow-up is needed.
+This scoping determines which research tool to use, whether a deeper pass is needed, and whether resuming this task later would help answer a narrower question.
 
 ### 2. Choose the Right Research Tool
 
@@ -72,6 +72,10 @@ Only do another research call when the first result is missing something importa
 If `research_quick` fails, times out, or returns an incomplete answer, the normal next step is exactly one `research_deep` follow-up on the same question.
 
 Treat that `research_deep` follow-up as the default recovery path instead of fanning out into multiple page fetches.
+
+If more specific information is needed later, prefer resuming the same research task so you can build on the earlier context window instead of starting over.
+
+Omit `source_session_id` unless you specifically want the backend research engine to continue earlier `re-search` context. Resuming this OpenCode research task does not require `source_session_id` by default.
 
 Use `webfetch` only as a narrow fallback when:
 - a research result identifies a specific URL worth checking directly
@@ -120,6 +124,7 @@ Evaluate sources and synthesize information in `<analysis>` tags:
 3. Synthesize the findings yourself.
 4. If `research_quick` failed or came back incomplete, do one `research_deep` follow-up before considering `webfetch`.
 5. If a critical gap still remains, fetch one authoritative page with `webfetch`.
+6. If a narrower question comes up later, resume this task and continue from the earlier research context before starting a brand new research thread.
 
 ### Tool Guide
 
@@ -308,6 +313,8 @@ When writing documentation, include inline citations using markdown links:
 - Prefer `research_quick` by default
 - Use `research_deep` when the task clearly needs deeper synthesis
 - If one `research_quick` call fails or is incomplete, normally do one `research_deep` follow-up next
+- If more specific information is needed later, prefer resuming the same research task instead of starting from scratch
+- Omit `source_session_id` unless you specifically want to continue earlier `re-search` context
 - Aim for 1-2 research calls total; use more only when a real gap remains
 - Hard cap: about 4 calls unless the user explicitly asks for exhaustive coverage
 - Do not automatically decompose work into many search and scrape steps
