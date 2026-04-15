@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Setup npm registry auth for an org-scoped directory.
+# Usage: setup-npm-registry <registry_url> <npmrc_path>
+set -euo pipefail
+
+REGISTRY="${1:?Usage: setup-npm-registry <registry_url> <npmrc_path>}"
+NPMRC_PATH="${2:?Usage: setup-npm-registry <registry_url> <npmrc_path>}"
+
+mkdir -p "$(dirname "$NPMRC_PATH")"
+
+echo "Logging in to npm registry: $REGISTRY"
+npm login --registry="$REGISTRY" --auth-type=legacy --userconfig="$NPMRC_PATH"
+
+echo "Auth saved to: $NPMRC_PATH"
