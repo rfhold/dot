@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "research": {
+      "url": "https://re-search.holdenitdown.net/mcp"
+    },
+    "chikin": {
+      "url": "https://chikin.ai/api/mcp"
+    }
+  }
+}

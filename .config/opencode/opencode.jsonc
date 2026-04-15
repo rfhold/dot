@@ -4,7 +4,8 @@
   "mcp": {
     "research": {
       "type": "remote",
-      "url": "https://re-search.holdenitdown.net/mcp"
+      "url": "https://re-search.holdenitdown.net/mcp",
+      "timeout": 600000
     },
     "playwright": {
       "type": "local",

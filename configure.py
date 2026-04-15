@@ -1,3 +1,4 @@
+import json
 import os
 
 from pyinfra.context import host
@@ -1026,11 +1027,16 @@ ORG_SKILLS = {
     "rfhold": {
         "src": "git@git.holdenitdown.net:rfhold/skills.git",
         "dir": f"{home}/repos/rfhold",
+        "mcp_servers": {},
     },
     "cfaintl": {
         "src": "git@github.com:cfaintl/skills.git",
         "dir": f"{home}/repos/cfaintl",
         "skills_subdir": "skills",
+        "npm_registry": "https://cfa.jfrog.io/artifactory/api/npm/npm/",
+        "mcp_servers": {
+            "chikin": {"url": "https://chikin.ai/api/mcp"},
+        },
     },
 }
 
@@ -1075,12 +1081,11 @@ if has_tag("skills"):
                 symbolic=True,
             )
 
-        # Create CLAUDE.md if it doesn't exist
-        claude_md_exists = host.get_fact(File, path=claude_md)
-        if not claude_md_exists:
-            claude_content = f"""# {org.capitalize()} Organization Context
-
-This is the global context for Claude Code when working in {org} repositories.
+        # AGENTS.md is the single source of truth for instructions
+        agents_md = f"{agents_dir}/AGENTS.md"
+        agents_md_exists = host.get_fact(File, path=agents_md)
+        if not agents_md_exists:
+            agents_content = f"""# {org.capitalize()} Organization Context
 
 ## Tech Stack
 - Add your preferred technologies here
@@ -1098,15 +1103,29 @@ This is the global context for Claude Code when working in {org} repositories.
 - Config directory: {agents_dir}
 """
             server.shell(
-                name=f"Create {org} CLAUDE.md",
-                commands=[f"cat > '{claude_md}' << 'EOF'\n{claude_content}\nEOF"],
+                name=f"Create {org} AGENTS.md",
+                commands=[f"cat > '{agents_md}' << 'EOF'\n{agents_content}\nEOF"],
             )
 
-        # Write .envrc with both variables
+        # CLAUDE.md imports AGENTS.md (always overwritten to stay in sync)
+        server.shell(
+            name=f"Write {org} CLAUDE.md",
+            commands=[f"echo '@AGENTS.md' > '{claude_md}'"],
+        )
+
+        # Write .envrc with AI tool configuration
         envrc_content = f"""# AI tool configuration - managed by dotfiles/configure.py
 export CLAUDE_CONFIG_DIR="{agents_dir}"
 export OPENCODE_CONFIG_DIR="{agents_dir}"
+export OPENCODE_CONFIG="{agents_dir}/opencode.jsonc"
 """
+        npm_registry = config.get("npm_registry")
+        if npm_registry:
+            npm_auth_file = f"{home}/.config/npm/{org}-npmrc"
+            envrc_content += f'export NPM_CONFIG_USERCONFIG="{npm_auth_file}"\n'
+            envrc_content += (
+                f"export NPM_TOKEN=$(sed -n 's/.*:_authToken=//p' \"{npm_auth_file}\" 2>/dev/null)\n"
+            )
         server.shell(
             name=f"Write {org} .envrc for AI tools",
             commands=[f"cat > '{envrc_path}' << 'EOF'\n{envrc_content}\nEOF"],
@@ -1116,6 +1135,67 @@ export OPENCODE_CONFIG_DIR="{agents_dir}"
             name=f"Allow direnv for {org}",
             commands=[f'direnv allow "{envrc_path}"'],
         )
+
+        if npm_registry:
+            npm_auth_exists = host.get_fact(File, path=npm_auth_file)
+            if not npm_auth_exists:
+                print(
+                    f"\n*** npm registry auth missing for {org}. Run:\n"
+                    f"    setup-npm-registry '{npm_registry}' '{npm_auth_file}'\n"
+                )
+
+        # Generate org-level MCP configuration for OpenCode and Claude Code
+        mcp_servers = config.get("mcp_servers", {})
+
+        # OpenCode: opencode.jsonc with "mcp" key and "type": "remote"
+        opencode_mcp = {}
+        for srv_name, srv in mcp_servers.items():
+            opencode_mcp[srv_name] = {"type": "remote", "url": srv["url"]}
+        opencode_config_content = json.dumps({"mcp": opencode_mcp}, indent=2) + "\n"
+        opencode_config_path = f"{agents_dir}/opencode.jsonc"
+        server.shell(
+            name=f"Write {org} opencode.jsonc",
+            commands=[
+                f"cat > '{opencode_config_path}' << 'EOF'\n{opencode_config_content}EOF"
+            ],
+        )
+
+        # Claude Code: merge mcpServers into .claude.json with "type": "http"
+        if mcp_servers:
+            claude_json_path = f"{agents_dir}/.claude.json"
+            claude_mcp = {}
+            for srv_name, srv in mcp_servers.items():
+                claude_mcp[srv_name] = {"type": "http", "url": srv["url"]}
+
+            claude_json_exists = host.get_fact(File, path=claude_json_path)
+            if claude_json_exists:
+                # Heredoc with quoted delimiter avoids shell expansion issues
+                server.shell(
+                    name=f"Merge MCP servers into {org} .claude.json",
+                    commands=[
+                        f"""python3 << 'PYEOF'
+import json
+p = '{claude_json_path}'
+mcp = {json.dumps(claude_mcp)}
+with open(p) as f:
+    d = json.load(f)
+d['mcpServers'] = mcp
+with open(p, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\\n')
+PYEOF"""
+                    ],
+                )
+            else:
+                claude_json_content = (
+                    json.dumps({"mcpServers": claude_mcp}, indent=2) + "\n"
+                )
+                server.shell(
+                    name=f"Create {org} .claude.json with MCP servers",
+                    commands=[
+                        f"cat > '{claude_json_path}' << 'EOF'\n{claude_json_content}EOF"
+                    ],
+                )
 
         # Migrate from old .opencode structure if it exists
         old_opencode = f"{org_dir}/.opencode"
