@@ -782,11 +782,6 @@ MANAGED_APPS = [
         "system_deps_key": "walter",
     },
     {
-        "name": "waltr-grafana",
-        "src": "git@git.holdenitdown.net:rfhold/waltr-grafana.git",
-        "dest": f"{home}/repos/rfhold/waltr-grafana",
-    },
-    {
         "name": "axol-query",
         "src": "git@git.holdenitdown.net:rfhold/axol.git",
         "dest": f"{home}/repos/rfhold/axol",
@@ -795,11 +790,6 @@ MANAGED_APPS = [
         "name": "atlassian-query",
         "src": "git@git.holdenitdown.net:rfhold/atlassian-query.git",
         "dest": f"{home}/repos/rfhold/atlassian-query",
-    },
-    {
-        "name": "waltr-gitops",
-        "src": "git@git.holdenitdown.net:rfhold/waltr-gitops.git",
-        "dest": f"{home}/repos/rfhold/waltr-gitops",
     },
 ]
 
@@ -1027,16 +1017,52 @@ ORG_SKILLS = {
     "rfhold": {
         "src": "git@git.holdenitdown.net:rfhold/skills.git",
         "dir": f"{home}/repos/rfhold",
-        "mcp_servers": {},
+        "mcp_servers": {
+            "gitops": {"url": "https://preview-gitops-query.holdenitdown.net"},
+            "slack": {"url": "https://preview-slack-query.holdenitdown.net"},
+            "grafana": {"url": "https://preview-grafana-query.holdenitdown.net"},
+        },
+        "plugins": [
+            "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git",
+        ],
+        "skills_whitelist": [
+            "axol-query",
+            "cuthulu-query",
+            "forgejo-tea",
+            "gitops-query",
+            "grafana-query",
+            "homelab",
+            "kubectl",
+            "tekton-pac",
+            "walter",
+            "waltr-component",
+        ],
     },
     "cfaintl": {
         "src": "git@github.com:cfaintl/skills.git",
+        "branch": "rfh/superspec",
         "dir": f"{home}/repos/cfaintl",
         "skills_subdir": "skills",
         "npm_registry": "https://cfa.jfrog.io/artifactory/api/npm/npm/",
         "mcp_servers": {
             "chikin": {"url": "https://chikin.ai/api/mcp"},
         },
+        "skills_whitelist": [
+            "cfa-acronyms",
+            "cfaintl-environment",
+            "chikin-mcp",
+            "logql",
+            "promql",
+            "pulumi-go",
+            "traceql",
+            "brainstorming",
+            "code-review",
+            "execution",
+            "plan-review",
+            "review-changes",
+            "using-superspec",
+            "writing-specs",
+        ],
     },
 }
 
@@ -1045,9 +1071,12 @@ if has_tag("skills"):
         org_dir = config["dir"]
         agents_dir = f"{org_dir}/.agents"
         skills_subdir = config.get("skills_subdir")
-        # When skills_subdir is set, clone into skills-src/ and symlink skills -> skills-src/<subdir>
+        skills_whitelist = config.get("skills_whitelist") or []
+        # Whitelist or skills_subdir forces the clone into skills-src/ so
+        # .agents/skills can be curated separately.
+        use_src_tree = bool(skills_subdir) or bool(skills_whitelist)
         clone_dest = (
-            f"{agents_dir}/skills-src" if skills_subdir else f"{agents_dir}/skills"
+            f"{agents_dir}/skills-src" if use_src_tree else f"{agents_dir}/skills"
         )
         skills_dir = f"{clone_dest}/{skills_subdir}" if skills_subdir else clone_dest
         claude_md = f"{agents_dir}/CLAUDE.md"
@@ -1065,15 +1094,58 @@ if has_tag("skills"):
             present=True,
         )
 
+        # When moving to a curated layout, migrate any legacy full-repo clone
+        # that lives directly at .agents/skills so the subsequent clone can
+        # populate .agents/skills-src cleanly.
+        if use_src_tree:
+            legacy_clone = f"{agents_dir}/skills"
+            server.shell(
+                name=f"Migrate legacy {org} skills clone to skills-src",
+                commands=[
+                    f"if [ -d '{legacy_clone}/.git' ] && [ ! -L '{legacy_clone}' ]; then rm -rf '{legacy_clone}'; fi"
+                ],
+            )
+
         git.repo(
             name=f"Clone {org} skills repo",
             src=config["src"],
             dest=clone_dest,
+            branch=config.get("branch"),
             pull=pull_mode,
             ssh_keyscan=True,
         )
 
-        if skills_subdir:
+        if skills_whitelist:
+            allowed_list = " ".join(f"'{s}'" for s in skills_whitelist)
+            curate_cmd = f"""set -e
+if [ -L '{agents_dir}/skills' ]; then rm '{agents_dir}/skills'; fi
+mkdir -p '{agents_dir}/skills'
+src_root='{skills_dir}'
+cd '{agents_dir}/skills'
+for name in {allowed_list}; do
+  if [ -e "$src_root/$name" ]; then
+    ln -sfn "$src_root/$name" "$name"
+  else
+    echo "WARN: {org} skill '$name' missing from $src_root" >&2
+  fi
+done
+for entry in * .[!.]*; do
+  [ "$entry" = "*" ] && continue
+  [ "$entry" = ".[!.]*" ] && continue
+  if [ -L "$entry" ]; then
+    keep=no
+    for allowed in {allowed_list}; do
+      if [ "$entry" = "$allowed" ]; then keep=yes; break; fi
+    done
+    if [ "$keep" = "no" ]; then rm "$entry"; fi
+  fi
+done
+"""
+            server.shell(
+                name=f"Curate {org} .agents/skills tree",
+                commands=[curate_cmd],
+            )
+        elif skills_subdir:
             files.link(
                 name=f"Link {org} skills subdir",
                 path=f"{agents_dir}/skills",
@@ -1123,9 +1195,7 @@ export OPENCODE_CONFIG="{agents_dir}/opencode.jsonc"
         if npm_registry:
             npm_auth_file = f"{home}/.config/npm/{org}-npmrc"
             envrc_content += f'export NPM_CONFIG_USERCONFIG="{npm_auth_file}"\n'
-            envrc_content += (
-                f"export NPM_TOKEN=$(sed -n 's/.*:_authToken=//p' \"{npm_auth_file}\" 2>/dev/null)\n"
-            )
+            envrc_content += f"export NPM_TOKEN=$(sed -n 's/.*:_authToken=//p' \"{npm_auth_file}\" 2>/dev/null)\n"
         server.shell(
             name=f"Write {org} .envrc for AI tools",
             commands=[f"cat > '{envrc_path}' << 'EOF'\n{envrc_content}\nEOF"],
@@ -1151,7 +1221,11 @@ export OPENCODE_CONFIG="{agents_dir}/opencode.jsonc"
         opencode_mcp = {}
         for srv_name, srv in mcp_servers.items():
             opencode_mcp[srv_name] = {"type": "remote", "url": srv["url"]}
-        opencode_config_content = json.dumps({"mcp": opencode_mcp}, indent=2) + "\n"
+        opencode_config = {"mcp": opencode_mcp}
+        org_plugins = config.get("plugins") or []
+        if org_plugins:
+            opencode_config["plugin"] = list(org_plugins)
+        opencode_config_content = json.dumps(opencode_config, indent=2) + "\n"
         opencode_config_path = f"{agents_dir}/opencode.jsonc"
         server.shell(
             name=f"Write {org} opencode.jsonc",

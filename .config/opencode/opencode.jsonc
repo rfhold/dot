@@ -120,7 +120,6 @@
   "autoupdate": false,
   "plugin": [
     "@franlol/opencode-md-table-formatter@0.0.3",
-    "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git",
     "@tarquinen/opencode-dcp@beta"
   ]
 }

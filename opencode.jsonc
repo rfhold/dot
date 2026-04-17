@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git"
+  ]
+}
