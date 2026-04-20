@@ -9,6 +9,6 @@ NPMRC_PATH="${2:?Usage: setup-npm-registry <registry_url> <npmrc_path>}"
 mkdir -p "$(dirname "$NPMRC_PATH")"
 
 echo "Logging in to npm registry: $REGISTRY"
-npm login --registry="$REGISTRY" --auth-type=legacy --userconfig="$NPMRC_PATH"
+npm login --registry="$REGISTRY" --auth-type=web --userconfig="$NPMRC_PATH"
 
 echo "Auth saved to: $NPMRC_PATH"
