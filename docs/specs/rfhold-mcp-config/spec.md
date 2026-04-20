@@ -3,7 +3,8 @@ feature: rfhold-mcp-config
 title: rfhold MCP Configuration
 status: draft
 created: 2026-04-15
-updated: 2026-04-17
+updated: 2026-04-19
+last-change: plugin-based-opencode
 ---
 
 # rfhold MCP Configuration
@@ -53,102 +54,136 @@ It includes:
 
 ## Requirements
 
-### REQ-001: rfhold MCP Server Set
+### Requirement: rfhold MCP Server Set
+The system MUST deliver the rfhold MCP server set (`gitops`, `slack`, `grafana`) through plugins listed in the org `plugin` array and MUST NOT emit an inline `mcp` stanza for those servers in `~/repos/rfhold/.agents/opencode.jsonc`.
 
-**Statement:** `configure.py` MUST generate rfhold org AI configuration that exposes exactly three remote MCP servers named `gitops`, `slack`, and `grafana`.
+#### Scenario: OpenCode MCP comes from plugins
+Given the rfhold org plugin list includes the `gitops-query`, `slack-query`, and `grafana-query` plugins
+When OpenCode starts in `~/repos/rfhold/`
+Then the resolved MCP set MUST include `gitops`, `slack`, and `grafana`
+And `~/repos/rfhold/.agents/opencode.jsonc` MUST NOT contain `gitops`, `slack`, or `grafana` under a top-level `mcp` key
 
-**Acceptance Criteria:**
-- `~/repos/rfhold/.agents/opencode.jsonc` contains `gitops`, `slack`, and `grafana` under the `mcp` key.
-- No additional rfhold MCP servers are generated alongside those three entries.
-- When `~/repos/rfhold/.agents/.claude.json` is generated or updated, it contains matching `gitops`, `slack`, and `grafana` entries under `mcpServers`.
+#### Scenario: Claude Code retains inline MCP
+Given Claude Code does not support OpenCode plugins
+When `configure.py` generates `~/repos/rfhold/.agents/.claude.json`
+Then the file MUST contain `gitops`, `slack`, and `grafana` entries under `mcpServers` with `"type": "http"` and the approved preview URLs
 
-### REQ-002: Preview Endpoint Mapping
+### Requirement: Preview Endpoint Mapping
+The system MUST map each rfhold MCP server to the approved preview URL for its standalone query service.
 
-**Statement:** `configure.py` MUST map the rfhold MCP server set to the approved preview URLs for the standalone query services.
+#### Scenario: gitops preview endpoint
+Given `ORG_SKILLS["rfhold"]["mcp_servers"]["gitops"]` is configured
+When `configure.py` emits rfhold MCP configuration
+Then the `gitops` server URL MUST be `https://preview-gitops-query.holdenitdown.net`
 
-**Acceptance Criteria:**
-- `gitops` resolves to `https://preview-gitops-query.holdenitdown.net`.
-- `slack` resolves to `https://preview-slack-query.holdenitdown.net`.
-- `grafana` resolves to `https://preview-grafana-query.holdenitdown.net`.
-- OpenCode config uses the existing remote MCP shape with `"type": "remote"` for each configured server.
-- Claude config uses the existing HTTP MCP shape with `"type": "http"` for each configured server.
+#### Scenario: slack preview endpoint
+Given `ORG_SKILLS["rfhold"]["mcp_servers"]["slack"]` is configured
+When `configure.py` emits rfhold MCP configuration
+Then the `slack` server URL MUST be `https://preview-slack-query.holdenitdown.net`
 
-### REQ-003: rfhold-Only Activation Scope
+#### Scenario: grafana preview endpoint
+Given `ORG_SKILLS["rfhold"]["mcp_servers"]["grafana"]` is configured
+When `configure.py` emits rfhold MCP configuration
+Then the `grafana` server URL MUST be `https://preview-grafana-query.holdenitdown.net`
 
-**Statement:** `configure.py` MUST keep the MCP configuration active only within `rfhold/*` repos.
+#### Scenario: OpenCode uses remote MCP shape
+Given any of the three rfhold MCP servers
+When that entry is emitted into `~/repos/rfhold/.agents/opencode.jsonc`
+Then the entry MUST use `"type": "remote"`
 
-**Acceptance Criteria:**
-- `~/repos/rfhold/.envrc` continues to set `CLAUDE_CONFIG_DIR`, `OPENCODE_CONFIG_DIR`, and `OPENCODE_CONFIG` to paths under `~/repos/rfhold/.agents`.
-- No equivalent `gitops`, `slack`, or `grafana` MCP entries are added to non-`rfhold` org configuration.
-- Existing non-rfhold org MCP configuration remains unchanged.
+#### Scenario: Claude uses HTTP MCP shape
+Given any of the three rfhold MCP servers
+When that entry is emitted into `~/repos/rfhold/.agents/.claude.json`
+Then the entry MUST use `"type": "http"`
 
-### REQ-004: Remove Walter-Managed Local Installs
+### Requirement: rfhold-Only Activation Scope
+The system MUST keep rfhold MCP configuration active only within `rfhold/*` repositories and MUST NOT propagate those MCP entries to non-rfhold org configuration.
 
-**Statement:** `configure.py` MUST stop managing local installs for `waltr-grafana` and `waltr-gitops`, and MUST rely on the remote MCP endpoints instead of replacement local query repo management.
+#### Scenario: envrc scopes AI tool config to rfhold
+Given `configure.py` runs with the `skills` tag
+When `~/repos/rfhold/.envrc` is generated
+Then `.envrc` MUST set `CLAUDE_CONFIG_DIR`, `OPENCODE_CONFIG_DIR`, and `OPENCODE_CONFIG` to paths under `~/repos/rfhold/.agents`
 
-**Acceptance Criteria:**
-- `MANAGED_APPS` no longer includes `waltr-grafana`.
-- `MANAGED_APPS` no longer includes `waltr-gitops`.
-- `MANAGED_APPS` does not add `gitops-query`, `slack-query`, or `grafana-query`.
-- The managed app flow no longer invokes install commands for the removed Walter repos.
+#### Scenario: non-rfhold org config does not include rfhold MCP entries
+Given a non-rfhold org exists in `ORG_SKILLS`
+When `configure.py` generates that org's configuration
+Then the generated `opencode.jsonc` MUST NOT contain `gitops`, `slack`, or `grafana` entries that originate from the rfhold MCP server set
 
-### REQ-005: rfhold-Only superspec Plugin
+### Requirement: Remove Walter-Managed Local Installs
+The system MUST stop managing local installs for `waltr-grafana` and `waltr-gitops` and MUST NOT substitute local installs of `gitops-query`, `slack-query`, or `grafana-query` in their place.
 
-**Statement:** The `superspec` OpenCode plugin MUST be activated only within `rfhold/*` repos.
+#### Scenario: waltr-grafana removed from MANAGED_APPS
+Given the current `configure.py` definition
+When `MANAGED_APPS` is inspected
+Then `waltr-grafana` MUST NOT appear in `MANAGED_APPS`
 
-**Acceptance Criteria:**
-- `~/.config/opencode/opencode.jsonc` does not list `superspec` in its `plugin` array.
-- `~/repos/rfhold/.agents/opencode.jsonc` lists `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git` in its `plugin` array.
-- No non-rfhold org config includes `superspec` in its `plugin` array.
-- Running OpenCode inside a `rfhold/*` repo resolves `superspec` via OpenCode's plugin merge behavior across global and org-local config.
+#### Scenario: waltr-gitops removed from MANAGED_APPS
+Given the current `configure.py` definition
+When `MANAGED_APPS` is inspected
+Then `waltr-gitops` MUST NOT appear in `MANAGED_APPS`
 
-### REQ-006: Per-Org Skills Whitelist
+#### Scenario: query servers not added as managed apps
+Given the current `configure.py` definition
+When `MANAGED_APPS` is inspected
+Then `gitops-query`, `slack-query`, and `grafana-query` MUST NOT appear in `MANAGED_APPS`
 
-**Statement:** `configure.py` MUST support a per-org `skills_whitelist` entry inside `ORG_SKILLS` that declares which skill folder names are exposed to OpenCode.
+### Requirement: rfhold-Only superspec Plugin
+The system MUST treat `superspec` as one of several rfhold org-local plugins and MUST continue to list it in `~/repos/rfhold/.agents/opencode.jsonc`'s `plugin` array alongside the other rfhold plugins, while keeping it absent from global and non-rfhold org configuration.
 
-**Acceptance Criteria:**
-- `ORG_SKILLS[<org>]["skills_whitelist"]` accepts a list of skill folder names.
-- When `skills_whitelist` is set, only the listed skill folders SHALL be visible under `~/repos/<org>/.agents/skills/`.
-- Skill folders not present in `skills_whitelist` MUST NOT appear under `~/repos/<org>/.agents/skills/`.
-- Skill folders listed in `skills_whitelist` but missing from the cloned source tree MUST be skipped without aborting configuration.
+#### Scenario: rfhold plugin array contains superspec alongside peers
+Given `ORG_SKILLS["rfhold"]["plugins"]` lists multiple rfhold plugins including `superspec`
+When `configure.py` generates `~/repos/rfhold/.agents/opencode.jsonc`
+Then the `plugin` array MUST contain `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git`
+And it MUST also contain each additional plugin entry listed in `ORG_SKILLS["rfhold"]["plugins"]`
 
-### REQ-007: Filtered Skills Directory Generation
+#### Scenario: superspec absent from global and non-rfhold config
+Given the current global OpenCode configuration and any non-rfhold org configuration
+When `~/.config/opencode/opencode.jsonc` and the non-rfhold org `opencode.jsonc` are inspected
+Then neither file's `plugin` array MUST contain `superspec`
 
-**Statement:** When a `skills_whitelist` is set for an org, `configure.py` MUST clone the skills repo into an internal source directory and MUST expose the allowlisted skills through a curated `.agents/skills/` tree.
+### Requirement: Preserve Legacy Skills Layout
+When an org declares `skills_whitelist` without using the plugin-delivery model (such as `cfaintl`), the system MUST preserve the filtered skills-directory behavior; when an org declares neither `skills_whitelist` nor plugin-delivered skills, the system MUST preserve the full-repo layout; the initial `cfaintl` allowlist MUST ship with exactly the documented set of entries; and missing allowlisted folders MUST be skipped without aborting.
 
-**Acceptance Criteria:**
-- The skills repo clone destination MUST be a directory distinct from `.agents/skills` (for example `.agents/skills-src`).
-- `.agents/skills/` MUST contain only entries corresponding to allowlisted skills.
-- Each allowlisted entry MUST be a symlink that resolves to the matching skill folder inside the source tree (honoring the existing `skills_subdir` setting when present).
-- Re-running configuration MUST reconcile the curated tree with the current `skills_whitelist` without leaving stale entries that are no longer listed.
+#### Scenario: cfaintl retains filtered layout
+Given `ORG_SKILLS["cfaintl"]` declares `skills_whitelist` and no `plugins` list owns those skills
+When `configure.py` materializes `~/repos/cfaintl/.agents/skills/`
+Then the directory MUST contain only symlinks to allowlisted skills inside the internal `skills-src/` source tree
 
-### REQ-008: Preserve Legacy Skills Layout
+#### Scenario: cfaintl allowlist has exact entries
+Given the current `ORG_SKILLS` definition
+When `ORG_SKILLS["cfaintl"]["skills_whitelist"]` is read
+Then it MUST contain exactly: `cfa-acronyms`, `cfaintl-environment`, `chikin-mcp`, `logql`, `promql`, `pulumi-go`, `traceql`, `brainstorming`, `code-review`, `execution`, `plan-review`, `review-changes`, `using-superspec`, `writing-specs`
 
-**Statement:** When no `skills_whitelist` is set for an org, `configure.py` MUST preserve the existing skills directory behavior.
+#### Scenario: org without whitelist or plugins exposes full repo
+Given an org sets neither `skills_whitelist` nor `plugins`
+When `configure.py` materializes that org's `.agents/skills/`
+Then the directory MUST expose the full repo (or `skills_subdir` subtree when set) as before
 
-**Acceptance Criteria:**
-- Orgs without `skills_whitelist` continue to expose the full repo (or the `skills_subdir` subtree when set) under `.agents/skills/`.
-- Existing `.agents/skills` symlinks or clones for legacy orgs are not rewritten into a curated tree.
-- Removing `skills_whitelist` from an org's configuration restores legacy behavior on the next run.
+#### Scenario: missing allowlisted folder tolerated
+Given a `skills_whitelist` entry references a skill folder that does not exist in the cloned source tree
+When `configure.py` materializes the curated skills directory
+Then the configuration run MUST complete without aborting
+And the missing folder MUST be skipped silently
 
-### REQ-009: Initial Skill Allowlists
+### Requirement: Org-Level Plugin List
+The system MUST treat the org-level `plugins` list as the exclusive delivery path for rfhold MCP servers and skills, MUST emit the list verbatim into the generated org `opencode.jsonc`, and MUST NOT also emit an inline `mcp` stanza for any server owned by a listed plugin.
 
-**Statement:** `configure.py` MUST ship initial `skills_whitelist` values for both `rfhold` and `cfaintl`.
+#### Scenario: rfhold plugin array emitted verbatim
+Given `ORG_SKILLS["rfhold"]["plugins"]` is a non-empty ordered list of plugin specifiers
+When `configure.py` generates `~/repos/rfhold/.agents/opencode.jsonc`
+Then the generated file MUST contain a top-level `plugin` array whose entries equal the configured list in the same order
+And each entry MUST use the `<name>@git+ssh://...` form
 
-**Acceptance Criteria:**
-- The `rfhold` allowlist contains exactly: `axol-query`, `cuthulu-query`, `forgejo-tea`, `gitops-query`, `grafana-query`, `homelab`, `kubectl`, `tekton-pac`, `walter`, `waltr-component`.
-- The `cfaintl` allowlist contains exactly: `cfa-acronyms`, `cfaintl-environment`, `chikin-mcp`, `logql`, `promql`, `pulumi-go`, `traceql`, `brainstorming`, `code-review`, `execution`, `plan-review`, `review-changes`, `using-superspec`, `writing-specs`.
-- Allowlist entries MUST be listed explicitly; wildcard or "all" shorthand MUST NOT be used.
+#### Scenario: plugin-owned MCP not duplicated inline
+Given a plugin in `ORG_SKILLS["rfhold"]["plugins"]` registers an MCP server named `<name>`
+When `configure.py` generates `~/repos/rfhold/.agents/opencode.jsonc`
+Then the generated file MUST NOT contain `<name>` under a top-level `mcp` key
 
-### REQ-010: Org-Level Plugin List
-
-**Statement:** `ORG_SKILLS` MUST support an org-level `plugins` list that `configure.py` emits into the generated org `opencode.jsonc`.
-
-**Acceptance Criteria:**
-- `ORG_SKILLS[<org>]["plugins"]` accepts a list of OpenCode plugin specifiers.
-- When `plugins` is present, generated `opencode.jsonc` contains a `plugin` array with the same entries in the same order.
-- When `plugins` is absent or empty, generated `opencode.jsonc` MUST NOT include a `plugin` key.
-- The rfhold entry MUST list `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git` in its `plugins` list.
+#### Scenario: rfhold plugin list contains the required entries
+Given the current `ORG_SKILLS` definition
+When `ORG_SKILLS["rfhold"]["plugins"]` is read
+Then it MUST contain `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git`
+And it MUST contain one plugin entry per rfhold-owned MCP server or skill bundle declared by the `opencode-config` domain
 
 ## Non-Functional Requirements
 
