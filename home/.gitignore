@@ -11,3 +11,4 @@
 .gnupg/public-keys.d/
 .librewolf/
 .opencode/plans
+.opencode/package-lock.json
