@@ -10,18 +10,19 @@ updated: 2026-04-20
 
 ## Goal
 
-Define a macOS global push-to-talk shortcut that records microphone audio only while the user holds `right cmd+opt+/`, sends the captured audio to the existing Whisper transcription service on release, copies the transcript to the clipboard, and shows a notification for recording and transcription outcomes.
+Define macOS global push-to-talk shortcuts that record microphone audio only while the user holds `right cmd+/` or `right cmd+opt+/`, send the captured audio to the existing Whisper transcription service on release, and then either copy the transcript to the clipboard or type it into the focused application based on which shortcut was used.
 
 ## Scope
 
-This spec covers the local shortcut implementation in this dotfiles repo, including the Hammerspoon keybinding, the audio capture and transcription flow, clipboard integration, and user-visible notifications.
+This spec covers the local shortcut implementation in this dotfiles repo, including the Hammerspoon keybindings, the audio capture and transcription flow, clipboard integration, focused-application text insertion, and user-visible notifications.
 
 It includes:
-- a Hammerspoon-managed global shortcut for `right cmd+opt+/`
+- Hammerspoon-managed global shortcuts for `right cmd+/` and `right cmd+opt+/`
 - press-to-start and release-to-stop microphone recording
 - submission of recorded audio to `https://whisperx.holdenitdown.net/transcribe`
-- copying successful transcript output to the macOS clipboard
-- notifications for recording start, transcription success, and transcription failure
+- copying successful transcript output to the macOS clipboard for `right cmd+/`
+- typing successful transcript output into the focused application for `right cmd+opt+/` without changing clipboard contents
+- notifications for recording, transcription, and output outcomes
 - cleanup of temporary audio files and recorder processes
 
 ## Dependencies
@@ -33,33 +34,35 @@ It includes:
 
 ## Non-Goals
 
-- typing the transcript directly into the focused application
 - streaming partial transcription results while recording is still in progress
 - wake-word or always-on microphone listening
 - a GUI preferences screen for selecting shortcuts or output modes
 - non-macOS shortcut implementations
+- additional default shortcut/output combinations beyond the approved two
 
 ## Constraints
 
 - The shortcut implementation MUST target macOS and MUST use `Hammerspoon` as the global hotkey backend.
-- The default shortcut MUST be `right cmd+opt+/` unless an approved spec changes it.
+- The default copy shortcut MUST be `right cmd+/` and the default direct-type shortcut MUST be `right cmd+opt+/` unless an approved spec changes them.
 - Recording MUST occur only while the shortcut is held.
 - Transcription MUST use the existing Whisper service endpoint `https://whisperx.holdenitdown.net/transcribe` unless an approved spec changes it.
-- Successful output MUST be copied with macOS clipboard tooling and MUST NOT require manual terminal interaction.
-- Failed or empty transcription results MUST NOT overwrite the clipboard with empty content.
+- Successful output for `right cmd+/` MUST be copied with macOS clipboard tooling and MUST NOT require manual terminal interaction.
+- Successful output for `right cmd+opt+/` MUST be inserted into the focused application without first overwriting clipboard contents.
+- Failed or empty transcription results MUST NOT overwrite the clipboard with empty content and MUST NOT type empty text into the focused application.
 - Temporary capture artifacts MUST be removed after completion or failure.
 
 ## Requirements
 
 ### REQ-001: Global Shortcut Binding
 
-**Statement:** The system MUST register a global push-to-talk shortcut on `right cmd+opt+/` using `Hammerspoon`.
+**Statement:** The system MUST register global push-to-talk shortcuts on `right cmd+/` and `right cmd+opt+/` using `Hammerspoon`.
 
 **Acceptance Criteria:**
-- Pressing `right cmd+opt+/` triggers the recording start path without requiring terminal focus.
-- Releasing the shortcut triggers the recording stop and transcription path.
+- Pressing either approved shortcut triggers the recording start path without requiring terminal focus.
+- Releasing either approved shortcut triggers the recording stop and transcription path.
+- The shortcut invocation determines whether the success path copies to the clipboard or types into the focused application.
 - The shortcut remains available across applications, subject to normal macOS accessibility and input permission requirements.
-- No additional default shortcut is introduced alongside `right cmd+opt+/`.
+- No additional default shortcut is introduced alongside `right cmd+/` and `right cmd+opt+/`.
 
 ### REQ-002: Hold-To-Record Lifecycle
 
@@ -69,6 +72,7 @@ It includes:
 - Key down starts a new microphone capture session.
 - Key release stops the active microphone capture session for that shortcut invocation.
 - A new shortcut press after a completed capture starts a fresh session rather than reusing prior audio.
+- The output mode for an invocation is fixed by the shortcut that started the recording.
 - The implementation MUST prevent overlapping concurrent recordings from the same shortcut flow.
 
 ### REQ-003: Whisper Submission
@@ -81,15 +85,15 @@ It includes:
 - The transcription flow normalizes the returned transcript into a single plain-text string suitable for clipboard use.
 - If the Whisper service request fails, the flow surfaces a failure result to the user instead of silently succeeding.
 
-### REQ-004: Clipboard Output
+### REQ-004: Output Delivery
 
-**Statement:** A successful transcription MUST be copied to the macOS clipboard.
+**Statement:** A successful transcription MUST be delivered according to the shortcut that initiated the recording.
 
 **Acceptance Criteria:**
-- On success, the transcript is written to the clipboard with `pbcopy` or an equivalent macOS clipboard API.
-- The copied text matches the normalized transcript returned by the transcription flow.
-- The implementation does not attempt direct text insertion into the focused application.
-- If the transcript is empty after normalization, clipboard contents remain unchanged.
+- On success from `right cmd+/`, the transcript is written to the clipboard with `pbcopy` or an equivalent macOS clipboard API.
+- On success from `right cmd+opt+/`, the transcript is typed into the focused application with macOS input APIs without first changing clipboard contents.
+- The delivered text matches the normalized transcript returned by the transcription flow.
+- If the transcript is empty after normalization, clipboard contents and the focused application remain unchanged.
 
 ### REQ-005: User Notifications
 
@@ -97,7 +101,8 @@ It includes:
 
 **Acceptance Criteria:**
 - Starting a recording shows a notification that recording is in progress.
-- A successful transcription shows a notification that the transcript was copied to the clipboard.
+- Releasing the shortcut shows a notification that transcription is in progress.
+- A successful transcription shows a notification that the transcript was copied or typed, matching the invoked shortcut.
 - A failed recording or transcription shows a notification that the operation failed.
 - Notifications do not require an open terminal window to understand the result.
 
@@ -110,6 +115,7 @@ It includes:
 - Recorder processes started for a shortcut invocation are terminated when recording stops.
 - A failure in one invocation does not prevent a later shortcut press from starting a new recording.
 - Empty or malformed service responses are treated as failures.
+- Failed invocations do not modify the clipboard or insert partial text into the focused application.
 
 ### REQ-007: Reuse Existing Local Transcription Behavior
 
@@ -145,26 +151,28 @@ It includes:
 - shortcut boundary: `Hammerspoon` owns the global keybinding and press/release event delivery
 - audio boundary: local recorder tooling captures microphone input into a temporary audio file
 - transcription boundary: `https://whisperx.holdenitdown.net/transcribe` accepts uploaded audio and returns transcription data
-- clipboard boundary: macOS clipboard services store the final transcript for later paste actions
+- clipboard boundary: macOS clipboard services store the final transcript for the copy shortcut
+- text insertion boundary: macOS accessibility/input services insert the transcript into the focused application for the direct-type shortcut
 - notification boundary: macOS notification services surface status to the user outside the terminal
 
 ## Implementation Boundaries
 
-- Hammerspoon configuration owns shortcut registration and press/release orchestration.
+- Hammerspoon configuration owns shortcut registration, press/release orchestration, and direct text insertion into the focused application.
 - Local shell tooling owns recorder process management, temporary file lifecycle, Whisper submission, and transcript normalization.
 - Existing `bin/capture.sh` behavior is the starting point for shared transcription logic, but fixed-duration capture behavior may be split from hold-to-record behavior if needed.
-- This change does not add direct typing logic into the focused app.
+- Clipboard handling remains local to the copy shortcut path.
 - This change does not define a generalized shortcut framework for unrelated automation.
 
 ## Risks
 
-- `Hammerspoon` handling of `right cmd+opt+/` may require verification on the target keyboard layout and modifier mapping.
-- macOS microphone, input monitoring, accessibility, or notification permissions may block parts of the flow until granted.
+- `Hammerspoon` handling of `right cmd+/` and `right cmd+opt+/` may require verification on the target keyboard layout and modifier mapping.
+- macOS microphone, input monitoring, accessibility, text-insertion, or notification permissions may block parts of the flow until granted.
 - Recorder shutdown timing may truncate speech if the capture process is not stopped cleanly.
+- Focused applications may reject or transform synthetic text input differently from ordinary typing.
 - Whisper service availability or latency may affect perceived responsiveness after key release.
 
 ## Open Questions
 
-- Q1: Resolved. Successful transcripts are copied to the clipboard and confirmed with a notification instead of being typed into the focused application.
-- Q2: Resolved. The initial shortcut is `right cmd+opt+/`.
+- Q1: Resolved. `right cmd+/` copies successful transcripts to the clipboard, while `right cmd+opt+/` types successful transcripts into the focused application.
+- Q2: Resolved. The initial shortcuts are `right cmd+/` and `right cmd+opt+/`.
 - Q3: Resolved. `Hammerspoon` is the approved backend for press-and-hold shortcut handling on macOS.

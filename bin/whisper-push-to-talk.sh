@@ -4,7 +4,8 @@ set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
 usage() {
-  printf 'Usage: %s <start|stop>\n' "$0" >&2
+  printf 'Usage: %s start\n' "$0" >&2
+  printf '       %s stop [copy|emit]\n' "$0" >&2
 }
 
 require_command() {
@@ -150,9 +151,8 @@ start_recording() {
 }
 
 stop_recording_action() {
+  local output_mode="$1"
   local pid transcript
-
-  require_command pbcopy
 
   if [[ ! -f "$pid_file" ]]; then
     printf 'No active recording.\n' >&2
@@ -185,21 +185,44 @@ stop_recording_action() {
   fi
 
   transcript="$("$capture_script" --transcribe-file "$audio_file")"
-  printf '%s' "$transcript" | pbcopy
+
+  if [[ "$output_mode" == "copy" ]]; then
+    require_command pbcopy
+    printf '%s' "$transcript" | pbcopy
+  fi
+
   printf '%s\n' "$transcript"
 }
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -lt 1 || $# -gt 2 ]]; then
   usage
   exit 1
 fi
 
 case "$1" in
   start)
+    if [[ $# -ne 1 ]]; then
+      usage
+      exit 1
+    fi
+
     start_recording
     ;;
   stop)
-    stop_recording_action
+    if [[ $# -eq 1 ]]; then
+      stop_recording_action copy
+      exit 0
+    fi
+
+    case "$2" in
+      copy|emit)
+        stop_recording_action "$2"
+        ;;
+      *)
+        usage
+        exit 1
+        ;;
+    esac
     ;;
   *)
     usage
