@@ -1,7 +1,7 @@
 import json
 import os
 
-from pyinfra.context import host
+from pyinfra import host
 from pyinfra.operations import (
     files,
     brew,
@@ -1025,6 +1025,26 @@ ORG_SKILLS = {
         },
         "plugins": [
             "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git",
+            "gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git",
+            "slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git",
+            "grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git",
+            "atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git",
+            "gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git",
+            "axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git",
+            "cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git",
+            "homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git",
+            "walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git",
+        ],
+        "plugin_mcp_servers": [
+            "gitops",
+            "slack",
+            "grafana",
+            "atlassian",
+            "gsuite",
+            "axol",
+            "cuthulu",
+            "homelab",
+            "walter",
         ],
         "skills_whitelist": [
             "axol-query",
@@ -1222,8 +1242,17 @@ export OPENCODE_CONFIG="{agents_dir}/opencode.jsonc"
         opencode_mcp = {}
         for srv_name, srv in mcp_servers.items():
             opencode_mcp[srv_name] = {"type": "remote", "url": srv["url"]}
-        opencode_config = {"mcp": opencode_mcp}
         org_plugins = config.get("plugins") or []
+        plugin_mcp_servers = set(config.get("plugin_mcp_servers") or [])
+        if plugin_mcp_servers:
+            opencode_mcp = {
+                srv_name: srv
+                for srv_name, srv in opencode_mcp.items()
+                if srv_name not in plugin_mcp_servers
+            }
+        opencode_config = {}
+        if opencode_mcp:
+            opencode_config["mcp"] = opencode_mcp
         if org_plugins:
             opencode_config["plugin"] = list(org_plugins)
         opencode_config_content = json.dumps(opencode_config, indent=2) + "\n"
