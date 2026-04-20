@@ -218,6 +218,7 @@ SYSTEM_DEPS = {
 
 CASKS = [
     "ghostty",
+    "hammerspoon",
     "slack",
     "spotify",
     "obsidian",
