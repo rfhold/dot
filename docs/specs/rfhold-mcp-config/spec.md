@@ -128,12 +128,12 @@ When `MANAGED_APPS` is inspected
 Then `gitops-query`, `slack-query`, and `grafana-query` MUST NOT appear in `MANAGED_APPS`
 
 ### Requirement: rfhold-Only superspec Plugin
-The system MUST treat `superspec` as one of several rfhold org-local plugins and MUST continue to list it in `~/repos/rfhold/.agents/opencode.jsonc`'s `plugin` array alongside the other rfhold plugins, while keeping it absent from global and non-rfhold org configuration.
+The system MUST treat `superspec` as one of several rfhold org-local plugins and MUST continue to list it in `~/repos/rfhold/.agents/opencode.jsonc`'s `plugin` array alongside the other rfhold plugins with an OpenCode release tag, while keeping it absent from global and non-rfhold org configuration.
 
 #### Scenario: rfhold plugin array contains superspec alongside peers
 Given `ORG_SKILLS["rfhold"]["plugins"]` lists multiple rfhold plugins including `superspec`
 When `configure.py` generates `~/repos/rfhold/.agents/opencode.jsonc`
-Then the `plugin` array MUST contain `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git`
+Then the `plugin` array MUST contain `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0`
 And it MUST also contain each additional plugin entry listed in `ORG_SKILLS["rfhold"]["plugins"]`
 
 #### Scenario: superspec absent from global and non-rfhold config
@@ -166,13 +166,13 @@ Then the configuration run MUST complete without aborting
 And the missing folder MUST be skipped silently
 
 ### Requirement: Org-Level Plugin List
-The system MUST treat the org-level `plugins` list as the exclusive delivery path for rfhold MCP servers and rfhold-scoped skills, MUST emit the list verbatim into the generated org `opencode.jsonc`, and MUST NOT also emit an inline `mcp` stanza for any server owned by a listed plugin. The configured `ORG_SKILLS["rfhold"]["plugins"]` list MUST contain exactly these entries in this order: `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git`, `gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git`, `slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git`, `grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git`, `atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git`, `gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git`, `axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git`, `cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git`, `homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git`, and `walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git`.
+The system MUST treat the org-level `plugins` list as the exclusive delivery path for rfhold MCP servers and rfhold-scoped skills, MUST emit the list verbatim into the generated org `opencode.jsonc`, and MUST NOT also emit an inline `mcp` stanza for any server owned by a listed plugin. The configured `ORG_SKILLS["rfhold"]["plugins"]` list MUST contain exactly these entries in this order: `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0`, `gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git#opencode/v0.1.0`, `slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git#opencode/v0.1.0`, `grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git#opencode/v0.1.0`, `atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git#opencode/v0.1.0`, `gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git#opencode/v0.1.0`, `axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git#opencode/v0.1.0`, `cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git#opencode/v0.1.0`, `homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git#opencode/v0.1.0`, and `walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git#opencode/v0.1.0`.
 
 #### Scenario: rfhold plugin array emitted verbatim
 Given `ORG_SKILLS["rfhold"]["plugins"]` is a non-empty ordered list of plugin specifiers
 When `configure.py` generates `~/repos/rfhold/.agents/opencode.jsonc`
 Then the generated file MUST contain a top-level `plugin` array whose entries equal the configured list in the same order
-And each entry MUST use the `<name>@git+ssh://...` form
+And each rfhold git entry MUST use the `<name>@git+ssh://...#opencode/vX.Y.Z` form
 
 #### Scenario: plugin-owned MCP not duplicated inline
 Given a plugin in `ORG_SKILLS["rfhold"]["plugins"]` registers an MCP server named `<name>`
@@ -182,7 +182,7 @@ Then the generated file MUST NOT contain `<name>` under a top-level `mcp` key
 #### Scenario: rfhold plugin list contains the canonical entries in order
 Given the current `ORG_SKILLS` definition
 When `ORG_SKILLS["rfhold"]["plugins"]` is read
-Then it MUST equal this ordered list: `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git`, `gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git`, `slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git`, `grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git`, `atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git`, `gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git`, `axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git`, `cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git`, `homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git`, and `walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git`
+Then it MUST equal this ordered list: `superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0`, `gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git#opencode/v0.1.0`, `slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git#opencode/v0.1.0`, `grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git#opencode/v0.1.0`, `atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git#opencode/v0.1.0`, `gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git#opencode/v0.1.0`, `axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git#opencode/v0.1.0`, `cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git#opencode/v0.1.0`, `homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git#opencode/v0.1.0`, and `walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git#opencode/v0.1.0`
 
 ### Requirement: OpenCode Plugin Cache Refresh Helper
 The system MUST provide a helper script at `~/dot/bin/update-oc-plugins.sh` for forcing OpenCode to re-download cached plugin packages. That helper MUST remove cached package data under `~/.cache/opencode/packages/` instead of targeting only one named plugin package, and it MUST NOT update or pull plugin source repositories as part of that cache-refresh behavior.
