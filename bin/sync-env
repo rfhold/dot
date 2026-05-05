@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-REMOTE_HOST="thinkpad.holdenitdown.net"
+REMOTE_HOST_DEFAULT="thinkpad.holdenitdown.net"
+REMOTE_HOST="${SYNC_ENV_HOST:-$REMOTE_HOST_DEFAULT}"
 REMOTE_USER="rfhold"
-REMOTE="$REMOTE_USER@$REMOTE_HOST"
 DOT_DIR="$HOME/dot"
 ENV_DIR="$DOT_DIR/env"
 SYNC_DIRS=("encrypted" "kubeconfig")
@@ -13,7 +13,7 @@ DRY_RUN=false
 VERBOSE=false
 
 usage() {
-    echo "Usage: sync-env [--dry-run] [--verbose]"
+    echo "Usage: sync-env [--host HOST] [--dry-run] [--verbose]"
     exit 1
 }
 
@@ -21,13 +21,44 @@ log() { echo "$*"; }
 verbose() { $VERBOSE && echo "$*" || true; }
 dry() { $DRY_RUN && echo "[dry-run] $*" || true; }
 
-for arg in "$@"; do
-    case "$arg" in
-        --dry-run) DRY_RUN=true ;;
-        --verbose) VERBOSE=true ;;
-        *) usage ;;
+hash_file() {
+    local path="$1"
+
+    if command -v sha256sum &>/dev/null; then
+        sha256sum "$path" | awk '{print $1}'
+    elif command -v shasum &>/dev/null; then
+        shasum -a 256 "$path" | awk '{print $1}'
+    else
+        echo "No SHA-256 checksum tool found (need sha256sum or shasum)." >&2
+        exit 1
+    fi
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=true
+            ;;
+        --verbose)
+            VERBOSE=true
+            ;;
+        --host)
+            shift
+            [[ $# -gt 0 ]] || usage
+            REMOTE_HOST="$1"
+            ;;
+        --host=*)
+            REMOTE_HOST="${1#*=}"
+            [[ -n "$REMOTE_HOST" ]] || usage
+            ;;
+        *)
+            usage
+            ;;
     esac
+    shift
 done
+
+REMOTE="$REMOTE_USER@$REMOTE_HOST"
 
 # Build a checksum map from lines of "checksum  path"
 # Usage: parse_checksums <output_var_prefix> < <lines>
@@ -37,28 +68,56 @@ declare -A REMOTE_SUMS=()
 collect_local() {
     local rel_dir="$1"
     local abs_dir="$ENV_DIR/$rel_dir"
+    local -a files=("$abs_dir"/*)
+
     [[ -d "$abs_dir" ]] || return 0
-    while IFS= read -r -d '' f; do
+    [[ -e "${files[0]}" ]] || return 0
+
+    for f in "${files[@]}"; do
+        [[ -f "$f" ]] || continue
+        [[ "$(basename "$f")" == ._* ]] && continue
+
         local rel="${rel_dir}/$(basename "$f")"
         local sum
-        if command -v sha256sum &>/dev/null; then
-            sum=$(sha256sum "$f" | awk '{print $1}')
-        else
-            sum=$(shasum -a 256 "$f" | awk '{print $1}')
-        fi
+        sum=$(hash_file "$f")
         LOCAL_SUMS["$rel"]="$sum"
         verbose "  local  $rel  $sum"
-    done < <(find "$abs_dir" -maxdepth 1 -type f -not -name '._*' -print0 | sort -z)
+    done
 }
 
 collect_remote() {
     local rel_dir="$1"
-    local remote_dir="\$HOME/dot/env/$rel_dir"
+    local remote_dir="dot/env/$rel_dir"
     local output
-    output=$(ssh "$REMOTE" bash -c "'
-        if [ ! -d $remote_dir ]; then exit 0; fi
-        find $remote_dir -maxdepth 1 -type f -not -name \"._*\" | sort | xargs sha256sum
-    '" 2>/dev/null) || true
+    output=$(ssh "$REMOTE" "REMOTE_DIR=$remote_dir REL_DIR=$rel_dir bash -s" <<'EOF'
+set -euo pipefail
+
+hash_file() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    else
+        echo "No SHA-256 checksum tool found on remote host." >&2
+        exit 1
+    fi
+}
+
+if [ ! -d "$REMOTE_DIR" ]; then
+    exit 0
+fi
+
+shopt -s nullglob
+for f in "$REMOTE_DIR"/*; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in
+        ._*) continue ;;
+    esac
+    printf '%s  %s/%s\n' "$(hash_file "$f")" "$REL_DIR" "$(basename "$f")"
+done
+EOF
+)
+
     while IFS= read -r line; do
         # Only process lines that look like checksum output (64 hex chars + space + path)
         [[ "$line" =~ ^([0-9a-f]{64})[[:space:]]+(.+)$ ]] || continue
@@ -73,13 +132,14 @@ collect_remote() {
 transfer_to_remote() {
     local rel="$1"
     local local_path="$ENV_DIR/$rel"
-    local remote_path="\$HOME/dot/env/$rel"
-    local remote_dir="\$HOME/dot/env/$(dirname "$rel")"
+    local remote_path="dot/env/$rel"
+    local remote_dir="dot/env/$(dirname "$rel")"
+
     if $DRY_RUN; then
         dry "push $rel"
     else
-        ssh "$REMOTE" bash -c "'mkdir -p $remote_dir'"
-        cat "$local_path" | ssh "$REMOTE" bash -c "'cat > $remote_path'"
+        ssh "$REMOTE" "mkdir -p $remote_dir"
+        scp -q "$local_path" "$REMOTE:$remote_path"
         log "  pushed $rel"
     fi
 }
@@ -88,22 +148,17 @@ transfer_from_remote() {
     local rel="$1"
     local local_dir="$ENV_DIR/$(dirname "$rel")"
     local local_path="$ENV_DIR/$rel"
-    local remote_path="\$HOME/dot/env/$rel"
+    local remote_path="dot/env/$rel"
     local expected_sum="${REMOTE_SUMS[$rel]:-}"
+
     if $DRY_RUN; then
         dry "pull $rel"
     else
         mkdir -p "$local_dir"
-        ssh "$REMOTE" bash -c "'echo __SYNC_START__; base64 $remote_path; echo __SYNC_END__'" \
-            | sed -n '/__SYNC_START__/,/__SYNC_END__/{/__SYNC_START__/d;/__SYNC_END__/d;p;}' \
-            | base64 -d > "$local_path"
+        scp -q "$REMOTE:$remote_path" "$local_path"
         if [[ -n "$expected_sum" ]]; then
             local actual
-            if command -v sha256sum &>/dev/null; then
-                actual=$(sha256sum "$local_path" | awk '{print $1}')
-            else
-                actual=$(shasum -a 256 "$local_path" | awk '{print $1}')
-            fi
+            actual=$(hash_file "$local_path")
             if [[ "$actual" != "$expected_sum" ]]; then
                 log "  ERROR: checksum mismatch after pulling $rel (got $actual, expected $expected_sum)"
                 rm -f "$local_path"
@@ -143,7 +198,7 @@ prompt_conflict() {
 log "Collecting local file checksums..."
 for d in "${SYNC_DIRS[@]}"; do collect_local "$d"; done
 
-log "Collecting remote file checksums..."
+log "Collecting remote file checksums from $REMOTE_HOST..."
 for d in "${SYNC_DIRS[@]}"; do collect_remote "$d"; done
 
 # Build unified set of all known relative paths
