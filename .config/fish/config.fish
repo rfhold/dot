@@ -86,3 +86,8 @@ if test -d "$HOME/Android/Sdk"
     set -gx PATH $PATH "$HOME/Android/Sdk/tools/bin"
 end
 
+
+# Added by LM Studio CLI (lms)
+set -gx PATH $PATH /Users/rfhold/.lmstudio/bin
+# End of LM Studio CLI section
+

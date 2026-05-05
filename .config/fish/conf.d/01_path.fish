@@ -26,5 +26,6 @@ export PATH="$PATH:$GOPATH/bin"
 export PATH="$PATH:$HOME/.local/bin"
 export PATH="$PATH:$HOME/.cargo/bin"
 export PATH="$PATH:$HOME/.bun/bin"
+export PATH="$PATH:$HOME/.docker/bin"
 export PATH="$PATH:$DOTDIR/bin"
 
