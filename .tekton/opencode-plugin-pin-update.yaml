@@ -1,0 +1,81 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: opencode-plugin-pin-update
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[incoming]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/max-keep-runs: "2"
+spec:
+  params:
+    - name: repo-url
+      value: "{{ repo_url }}"
+    - name: revision
+      value: "{{ revision }}"
+  pipelineSpec:
+    params:
+      - name: repo-url
+        type: string
+      - name: revision
+        type: string
+    workspaces:
+      - name: source
+    tasks:
+      - name: update-plugin-pins
+        taskSpec:
+          params:
+            - name: repo-url
+              type: string
+            - name: revision
+              type: string
+          workspaces:
+            - name: source
+          volumes:
+            - name: git-auth
+              secret:
+                secretName: "{{ git_auth_secret }}"
+          steps:
+            - name: update
+              image: oven/bun:latest
+              workingDir: $(workspaces.source.path)
+              volumeMounts:
+                - name: git-auth
+                  mountPath: /etc/git-auth
+              script: |
+                #!/bin/sh
+                set -e
+
+                if ! command -v git >/dev/null 2>&1; then
+                  apt-get update
+                  apt-get install -y --no-install-recommends git ca-certificates
+                  rm -rf /var/lib/apt/lists/*
+                fi
+
+                export HOME=/tmp/git-home
+                mkdir -p "$HOME"
+                cp /etc/git-auth/.gitconfig "$HOME/.gitconfig"
+                cp /etc/git-auth/.git-credentials "$HOME/.git-credentials"
+                chmod 600 "$HOME/.gitconfig" "$HOME/.git-credentials"
+
+                git clone "$(params.repo-url)" .
+                git checkout "$(params.revision)"
+                git config user.name "dot plugin pin updater"
+                git config user.email "opencode-plugin-pin-update@holdenitdown.net"
+
+                bun scripts/update-opencode-plugin-pins.ts
+        params:
+          - name: repo-url
+            value: $(params.repo-url)
+          - name: revision
+            value: $(params.revision)
+        workspaces:
+          - name: source
+            workspace: source
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi

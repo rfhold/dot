@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: opencode-plugin-pin-updater
+  namespace: pipelines-as-code
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: trigger-update
+              image: curlimages/curl:8.16.0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PAC_INCOMING_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: pac-incoming-secret
+                      key: secret
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  curl --fail-with-body --silent --show-error \
+                    --request POST \
+                    --header "Content-Type: application/json" \
+                    --data "{\"repository\":\"pac-rfhold-dot\",\"branch\":\"main\",\"pipelinerun\":\"opencode-plugin-pin-update\",\"secret\":\"${PAC_INCOMING_SECRET}\"}" \
+                    https://pac.holdenitdown.net/incoming

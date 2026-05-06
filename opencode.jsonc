@@ -1,7 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0",
-    "grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git#opencode/v0.1.0"
+    "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0"
   ]
 }

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    [
+      "cfaintl-skills@git+ssh://git@github.com/cfaintl/skills.git#main",
+      {
+        "include": [
+          "cfa-acronyms",
+          "cfaintl-environment",
+          "chikin-mcp",
+          "logql",
+          "promql",
+          "pulumi-go",
+          "traceql",
+          "brainstorming",
+          "code-review",
+          "execution",
+          "plan-review",
+          "review-changes",
+          "using-superspec",
+          "writing-specs"
+        ]
+      }
+    ]
+  ]
+}

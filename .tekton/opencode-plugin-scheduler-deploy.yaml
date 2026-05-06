@@ -1,0 +1,74 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: opencode-plugin-scheduler-deploy
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[push]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/on-path-change: "[deploy/opencode-plugin-pin-updater/**, .tekton/opencode-plugin-scheduler-deploy.yaml]"
+    pipelinesascode.tekton.dev/max-keep-runs: "2"
+spec:
+  params:
+    - name: repo-url
+      value: "{{ repo_url }}"
+    - name: revision
+      value: "{{ revision }}"
+  pipelineSpec:
+    params:
+      - name: repo-url
+        type: string
+      - name: revision
+        type: string
+    workspaces:
+      - name: source
+    tasks:
+      - name: deploy-scheduler
+        taskSpec:
+          params:
+            - name: repo-url
+              type: string
+            - name: revision
+              type: string
+          workspaces:
+            - name: source
+          volumes:
+            - name: kubeconfig
+              secret:
+                secretName: tekton-cluster-kubeconfig
+          steps:
+            - name: deploy
+              image: alpine:latest
+              workingDir: $(workspaces.source.path)
+              env:
+                - name: KUBECONFIG
+                  value: /etc/kubeconfig/kubeconfig
+              volumeMounts:
+                - name: kubeconfig
+                  mountPath: /etc/kubeconfig
+                  readOnly: true
+              script: |
+                #!/bin/sh
+                set -e
+
+                apk add --no-cache ca-certificates git kubectl
+
+                git clone "$(params.repo-url)" .
+                git checkout "$(params.revision)"
+
+                kubectl --context pantheon apply -k deploy/opencode-plugin-pin-updater
+        params:
+          - name: repo-url
+            value: $(params.repo-url)
+          - name: revision
+            value: $(params.revision)
+        workspaces:
+          - name: source
+            workspace: source
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi

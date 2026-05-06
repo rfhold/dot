@@ -1,4 +1,3 @@
-import json
 import os
 
 from pyinfra import host
@@ -252,7 +251,8 @@ def link_config_dir(source, target, exclude=None):
         link_path = f"{target}/{dst}"
         link_info = host.get_fact(Link, path=link_path)
         # link_info is False when path exists but is a real directory (not a symlink)
-        if link_info is False:
+        replace_real_dir = dst == ".agents" and target.startswith(f"{home}/repos/")
+        if link_info is False and not replace_real_dir:
             real_dir_children.append(path)
             continue
         paths.append(path)
@@ -1014,93 +1014,12 @@ if has_tag("aur") and pkg_manager == "pacman" and not is_container():
 # Org-scoped AI tool configuration (.agents for Claude Code + OpenCode)
 # -----------------------------------------------------------------------------
 
-ORG_SKILLS = {
-    "rfhold": {
-        "src": "git@git.holdenitdown.net:rfhold/skills.git",
-        "dir": f"{home}/repos/rfhold",
-        "mcp_servers": {
-            "gitops": {"url": "https://preview-gitops-query.holdenitdown.net"},
-            "slack": {"url": "https://preview-slack-query.holdenitdown.net"},
-            "grafana": {"url": "https://preview-grafana-query.holdenitdown.net"},
-        },
-        "plugins": [
-            "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0",
-            "gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git#opencode/v0.1.0",
-            "slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git#opencode/v0.1.0",
-            "grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git#opencode/v0.1.0",
-            "atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git#opencode/v0.1.0",
-            "gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git#opencode/v0.1.0",
-            "axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git#opencode/v0.1.0",
-            "cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git#opencode/v0.1.0",
-            "homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git#opencode/v0.1.0",
-            "walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git#opencode/v0.1.0",
-        ],
-        "plugin_mcp_servers": [
-            "gitops",
-            "slack",
-            "grafana",
-            "atlassian",
-            "gsuite",
-            "axol",
-            "cuthulu",
-            "homelab",
-            "walter",
-        ],
-        "skills_whitelist": [
-            "axol-query",
-            "cuthulu-query",
-            "forgejo-tea",
-            "gitops-query",
-            "grafana-query",
-            "homelab",
-            "kubectl",
-            "tekton-pac",
-            "walter",
-            "waltr-component",
-        ],
-    },
-    "cfaintl": {
-        "src": "git@github.com:cfaintl/skills.git",
-        "branch": "rfh/superspec",
-        "dir": f"{home}/repos/cfaintl",
-        "skills_subdir": "skills",
-        "npm_registry": "https://cfa.jfrog.io/artifactory/api/npm/npm/",
-        "mcp_servers": {
-            "chikin": {"url": "https://chikin.ai/api/mcp"},
-        },
-        "skills_whitelist": [
-            "cfa-acronyms",
-            "cfaintl-environment",
-            "chikin-mcp",
-            "logql",
-            "promql",
-            "pulumi-go",
-            "traceql",
-            "brainstorming",
-            "code-review",
-            "execution",
-            "plan-review",
-            "review-changes",
-            "using-superspec",
-            "writing-specs",
-        ],
-    },
-}
+STATIC_ORG_AGENT_DIRS = ["rfhold", "cfaintl"]
 
 if has_tag("skills"):
-    for org, config in ORG_SKILLS.items():
-        org_dir = config["dir"]
-        agents_dir = f"{org_dir}/.agents"
-        skills_subdir = config.get("skills_subdir")
-        skills_whitelist = config.get("skills_whitelist") or []
-        # Whitelist or skills_subdir forces the clone into skills-src/ so
-        # .agents/skills can be curated separately.
-        use_src_tree = bool(skills_subdir) or bool(skills_whitelist)
-        clone_dest = (
-            f"{agents_dir}/skills-src" if use_src_tree else f"{agents_dir}/skills"
-        )
-        skills_dir = f"{clone_dest}/{skills_subdir}" if skills_subdir else clone_dest
-        claude_md = f"{agents_dir}/CLAUDE.md"
+    for org in STATIC_ORG_AGENT_DIRS:
+        source_dir = f"{home}/dot/home/repos/{org}"
+        org_dir = f"{home}/repos/{org}"
         envrc_path = f"{org_dir}/.envrc"
 
         org_exists = host.get_fact(
@@ -1109,208 +1028,12 @@ if has_tag("skills"):
         if org_exists != "yes":
             continue
 
-        files.directory(
-            name=f"Ensure {org} .agents directory",
-            path=agents_dir,
-            present=True,
-        )
-
-        # When moving to a curated layout, migrate any legacy full-repo clone
-        # that lives directly at .agents/skills so the subsequent clone can
-        # populate .agents/skills-src cleanly.
-        if use_src_tree:
-            legacy_clone = f"{agents_dir}/skills"
-            server.shell(
-                name=f"Migrate legacy {org} skills clone to skills-src",
-                commands=[
-                    f"if [ -d '{legacy_clone}/.git' ] && [ ! -L '{legacy_clone}' ]; then rm -rf '{legacy_clone}'; fi"
-                ],
-            )
-
-        git.repo(
-            name=f"Clone {org} skills repo",
-            src=config["src"],
-            dest=clone_dest,
-            branch=config.get("branch"),
-            pull=pull_mode,
-            ssh_keyscan=True,
-        )
-
-        if skills_whitelist:
-            allowed_list = " ".join(f"'{s}'" for s in skills_whitelist)
-            curate_cmd = f"""set -e
-if [ -L '{agents_dir}/skills' ]; then rm '{agents_dir}/skills'; fi
-mkdir -p '{agents_dir}/skills'
-src_root='{skills_dir}'
-cd '{agents_dir}/skills'
-for name in {allowed_list}; do
-  if [ -e "$src_root/$name" ]; then
-    ln -sfn "$src_root/$name" "$name"
-  else
-    echo "WARN: {org} skill '$name' missing from $src_root" >&2
-  fi
-done
-for entry in * .[!.]*; do
-  [ "$entry" = "*" ] && continue
-  [ "$entry" = ".[!.]*" ] && continue
-  if [ -L "$entry" ]; then
-    keep=no
-    for allowed in {allowed_list}; do
-      if [ "$entry" = "$allowed" ]; then keep=yes; break; fi
-    done
-    if [ "$keep" = "no" ]; then rm "$entry"; fi
-  fi
-done
-"""
-            server.shell(
-                name=f"Curate {org} .agents/skills tree",
-                commands=[curate_cmd],
-            )
-        elif skills_subdir:
-            files.link(
-                name=f"Link {org} skills subdir",
-                path=f"{agents_dir}/skills",
-                target=skills_dir,
-                symbolic=True,
-            )
-
-        # AGENTS.md is the single source of truth for instructions
-        agents_md = f"{agents_dir}/AGENTS.md"
-        agents_md_exists = host.get_fact(File, path=agents_md)
-        if not agents_md_exists:
-            agents_content = f"""# {org.capitalize()} Organization Context
-
-## Tech Stack
-- Add your preferred technologies here
-
-## Coding Standards
-- Add your coding conventions here
-
-## Common Commands
-```bash
-# Add frequently used commands
-```
-
-## Environment
-- Organization: {org}
-- Config directory: {agents_dir}
-"""
-            server.shell(
-                name=f"Create {org} AGENTS.md",
-                commands=[f"cat > '{agents_md}' << 'EOF'\n{agents_content}\nEOF"],
-            )
-
-        # CLAUDE.md imports AGENTS.md (always overwritten to stay in sync)
-        server.shell(
-            name=f"Write {org} CLAUDE.md",
-            commands=[f"echo '@AGENTS.md' > '{claude_md}'"],
-        )
-
-        # Write .envrc with AI tool configuration
-        envrc_content = f"""# AI tool configuration - managed by dotfiles/configure.py
-export CLAUDE_CONFIG_DIR="{agents_dir}"
-export OPENCODE_CONFIG_DIR="{agents_dir}"
-export OPENCODE_CONFIG="{agents_dir}/opencode.jsonc"
-"""
-        npm_registry = config.get("npm_registry")
-        if npm_registry:
-            npm_auth_file = f"{home}/.config/npm/{org}-npmrc"
-            envrc_content += f'export NPM_CONFIG_USERCONFIG="{npm_auth_file}"\n'
-            envrc_content += f"export NPM_TOKEN=$(sed -n 's/.*:_authToken=//p' \"{npm_auth_file}\" 2>/dev/null)\n"
-        server.shell(
-            name=f"Write {org} .envrc for AI tools",
-            commands=[f"cat > '{envrc_path}' << 'EOF'\n{envrc_content}\nEOF"],
-        )
+        link_config_dir(source_dir, org_dir)
 
         server.shell(
             name=f"Allow direnv for {org}",
             commands=[f'direnv allow "{envrc_path}"'],
         )
-
-        if npm_registry:
-            npm_auth_exists = host.get_fact(File, path=npm_auth_file)
-            if not npm_auth_exists:
-                print(
-                    f"\n*** npm registry auth missing for {org}. Run:\n"
-                    f"    setup-npm-registry '{npm_registry}' '{npm_auth_file}'\n"
-                )
-
-        # Generate org-level MCP configuration for OpenCode and Claude Code
-        mcp_servers = config.get("mcp_servers", {})
-
-        # OpenCode: opencode.jsonc with "mcp" key and "type": "remote"
-        opencode_mcp = {}
-        for srv_name, srv in mcp_servers.items():
-            opencode_mcp[srv_name] = {"type": "remote", "url": srv["url"]}
-        org_plugins = config.get("plugins") or []
-        plugin_mcp_servers = set(config.get("plugin_mcp_servers") or [])
-        if plugin_mcp_servers:
-            opencode_mcp = {
-                srv_name: srv
-                for srv_name, srv in opencode_mcp.items()
-                if srv_name not in plugin_mcp_servers
-            }
-        opencode_config = {}
-        if opencode_mcp:
-            opencode_config["mcp"] = opencode_mcp
-        if org_plugins:
-            opencode_config["plugin"] = list(org_plugins)
-        opencode_config_content = json.dumps(opencode_config, indent=2) + "\n"
-        opencode_config_path = f"{agents_dir}/opencode.jsonc"
-        server.shell(
-            name=f"Write {org} opencode.jsonc",
-            commands=[
-                f"cat > '{opencode_config_path}' << 'EOF'\n{opencode_config_content}EOF"
-            ],
-        )
-
-        # Claude Code: merge mcpServers into .claude.json with "type": "http"
-        if mcp_servers:
-            claude_json_path = f"{agents_dir}/.claude.json"
-            claude_mcp = {}
-            for srv_name, srv in mcp_servers.items():
-                claude_mcp[srv_name] = {"type": "http", "url": srv["url"]}
-
-            claude_json_exists = host.get_fact(File, path=claude_json_path)
-            if claude_json_exists:
-                # Heredoc with quoted delimiter avoids shell expansion issues
-                server.shell(
-                    name=f"Merge MCP servers into {org} .claude.json",
-                    commands=[
-                        f"""python3 << 'PYEOF'
-import json
-p = '{claude_json_path}'
-mcp = {json.dumps(claude_mcp)}
-with open(p) as f:
-    d = json.load(f)
-d['mcpServers'] = mcp
-with open(p, 'w') as f:
-    json.dump(d, f, indent=2)
-    f.write('\\n')
-PYEOF"""
-                    ],
-                )
-            else:
-                claude_json_content = (
-                    json.dumps({"mcpServers": claude_mcp}, indent=2) + "\n"
-                )
-                server.shell(
-                    name=f"Create {org} .claude.json with MCP servers",
-                    commands=[
-                        f"cat > '{claude_json_path}' << 'EOF'\n{claude_json_content}EOF"
-                    ],
-                )
-
-        # Migrate from old .opencode structure if it exists
-        old_opencode = f"{org_dir}/.opencode"
-        old_opencode_exists = host.get_fact(
-            Command, command=f'test -d "{old_opencode}" && echo yes || echo no'
-        ).strip()
-        if old_opencode_exists == "yes":
-            server.shell(
-                name=f"Remove old {org} .opencode directory",
-                commands=[f'rm -rf "{old_opencode}"'],
-            )
 
 
 # -----------------------------------------------------------------------------

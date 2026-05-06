@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0",
+    "gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git#opencode/v0.1.0",
+    "slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git#opencode/v0.1.0",
+    "grafana-query@git+ssh://git@git.holdenitdown.net/rfhold/grafana-query.git#opencode/v0.1.0",
+    "atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git#opencode/v0.1.0",
+    "gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git#opencode/v0.1.0",
+    "axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git#opencode/v0.1.0",
+    "cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git#opencode/v0.1.0",
+    "homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git#opencode/v0.1.0",
+    "walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git#opencode/v0.1.0"
+  ]
+}

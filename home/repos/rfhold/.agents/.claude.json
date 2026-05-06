@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "gitops": {
+      "type": "http",
+      "url": "https://preview-gitops-query.holdenitdown.net"
+    },
+    "slack": {
+      "type": "http",
+      "url": "https://preview-slack-query.holdenitdown.net"
+    },
+    "grafana": {
+      "type": "http",
+      "url": "https://preview-grafana-query.holdenitdown.net"
+    }
+  }
+}
