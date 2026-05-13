@@ -36,7 +36,7 @@ spec:
                 secretName: "{{ git_auth_secret }}"
           steps:
             - name: update
-              image: oven/bun:latest
+              image: cr.holdenitdown.net/rfhold/bun-ci:latest
               workingDir: $(workspaces.source.path)
               volumeMounts:
                 - name: git-auth

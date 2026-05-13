@@ -184,6 +184,12 @@ When the scheduled plugin pin updater runs
 Then the system MUST evaluate each plugin specifier in those dot-owned config files
 And the system MUST apply the same direct-to-main update behavior to every changed rfhold release-tag pin
 
+#### Scenario: Updater workflow has SSH-capable Git tooling
+
+Given the scheduled plugin pin updater resolves rfhold plugin tags through `git+ssh` URLs
+When the updater PipelineRun starts its update step
+Then the system MUST provide `bun`, `git`, `ssh`, and CA certificates from the shared Bun CI image
+
 ### Requirement: Dot-Owned Scheduler Deployment
 
 The system MUST define the scheduled updater as dot-owned Kustomize manifests and MUST deploy those manifests from a dot PAC pipeline on `main` pushes.
