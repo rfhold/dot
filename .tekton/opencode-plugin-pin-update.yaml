@@ -56,6 +56,10 @@ spec:
                 cp /etc/git-auth/.gitconfig "$HOME/.gitconfig"
                 cp /etc/git-auth/.git-credentials "$HOME/.git-credentials"
                 chmod 600 "$HOME/.gitconfig" "$HOME/.git-credentials"
+                mkdir -p "$HOME/.ssh"
+                ssh-keyscan git.holdenitdown.net >> "$HOME/.ssh/known_hosts"
+                chmod 700 "$HOME/.ssh"
+                chmod 600 "$HOME/.ssh/known_hosts"
 
                 git clone "$(params.repo-url)" .
                 git checkout "$(params.revision)"
