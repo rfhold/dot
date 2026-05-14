@@ -196,6 +196,12 @@ Given the scheduled plugin pin updater resolves rfhold plugin tags through `git+
 When the updater PipelineRun starts its update step
 Then the system MUST configure SSH host trust for `git.holdenitdown.net` before resolving plugin tags
 
+#### Scenario: Updater workflow uses pipeline credentials for rfhold lookups
+
+Given the scheduled plugin pin updater has PAC-provided git credentials for `git.holdenitdown.net`
+When the updater resolves rfhold plugin tags from `git+ssh://git@git.holdenitdown.net` specifiers
+Then the system MUST use the pipeline git credentials for those lookups without changing the stored plugin specifiers
+
 ### Requirement: Dot-Owned Scheduler Deployment
 
 The system MUST define the scheduled updater as dot-owned Kustomize manifests and MUST deploy those manifests from a dot PAC pipeline on `main` pushes.

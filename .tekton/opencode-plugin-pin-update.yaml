@@ -56,6 +56,7 @@ spec:
                 cp /etc/git-auth/.gitconfig "$HOME/.gitconfig"
                 cp /etc/git-auth/.git-credentials "$HOME/.git-credentials"
                 chmod 600 "$HOME/.gitconfig" "$HOME/.git-credentials"
+                git config --global url.https://git.holdenitdown.net/.insteadOf git+ssh://git@git.holdenitdown.net/
                 mkdir -p "$HOME/.ssh"
                 ssh-keyscan git.holdenitdown.net >> "$HOME/.ssh/known_hosts"
                 chmod 700 "$HOME/.ssh"
