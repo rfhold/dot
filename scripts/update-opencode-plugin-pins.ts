@@ -174,7 +174,7 @@ function commitUpdates(root: string, updates: PinUpdate[], push: boolean): void 
     throw new Error("Failed to inspect staged OpenCode plugin pin updates");
   }
 
-  execFileSync("git", ["commit", "-m", "Update OpenCode plugin pins"], { cwd: root, stdio: "inherit" });
+  execFileSync("git", ["commit", "-m", "chore: update opencode plugin pins"], { cwd: root, stdio: "inherit" });
 
   if (push) {
     execFileSync("git", ["push", "origin", "HEAD:main"], { cwd: root, stdio: "inherit" });
