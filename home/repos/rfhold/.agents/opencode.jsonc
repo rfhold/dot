@@ -10,6 +10,6 @@
     "axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git#opencode/v0.1.0",
     "cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git#opencode/v0.3.4",
     "homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git#opencode/v0.1.1",
-    "walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git#opencode/v0.1.1"
+    "walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git#opencode/v0.2.0"
   ]
 }
