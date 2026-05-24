@@ -58,6 +58,7 @@ sandbox <command>    # Run command in container
 Mounts:
 - Current directory at same path
 - `~/.local/share/opencode` for session persistence
+- Host Docker socket when available, exposed as `/var/run/docker.sock`
 
 This lets opencode run untrusted code, install packages, and make changes without affecting the host.
 

@@ -11,6 +11,7 @@
 # Mounts:
 #   - Current directory at the same path (e.g., /Users/rfhold/dot)
 #   - ~/.local/share/opencode for shared opencode session data
+#   - Docker socket when available, for container builds from inside sandbox
 
 
 set -euo pipefail
@@ -25,6 +26,22 @@ else
 fi
 CURRENT_DIR="$(pwd)"
 OPENCODE_DATA="${HOME}/.local/share/opencode"
+DOCKER_SOCKET=""
+
+if [[ "${DOCKER_HOST:-}" == unix://* ]]; then
+    candidate_socket="${DOCKER_HOST#unix://}"
+    if [[ -S "$candidate_socket" ]]; then
+        DOCKER_SOCKET="$candidate_socket"
+    fi
+fi
+
+if [[ -z "$DOCKER_SOCKET" && -S /var/run/docker.sock ]]; then
+    DOCKER_SOCKET="/var/run/docker.sock"
+fi
+
+if [[ -z "$DOCKER_SOCKET" && -n "${XDG_RUNTIME_DIR:-}" && -S "$XDG_RUNTIME_DIR/docker.sock" ]]; then
+    DOCKER_SOCKET="$XDG_RUNTIME_DIR/docker.sock"
+fi
 
 # Detect container engine - prefer podman, fall back to docker
 if command -v podman &>/dev/null; then
@@ -62,6 +79,12 @@ if [[ ! -d "$OPENCODE_DATA" ]]; then
 fi
 MOUNTS+=(-v "${OPENCODE_DATA}:/home/rfhold/.local/share/opencode")
 
+ENV_VARS=()
+if [[ -n "$DOCKER_SOCKET" ]]; then
+    MOUNTS+=(-v "${DOCKER_SOCKET}:/var/run/docker.sock")
+    ENV_VARS+=(-e DOCKER_HOST=unix:///var/run/docker.sock)
+fi
+
 # Determine command to run
 if [[ $# -gt 0 ]]; then
     CMD=("$@")
@@ -76,9 +99,22 @@ if [[ "$ENGINE" == "podman" ]]; then
     ENGINE_OPTS+=(--userns=keep-id)
 fi
 
-exec $ENGINE run --rm -it \
+RUN_OPTS=(--rm)
+if [[ -t 0 && -t 1 ]]; then
+    RUN_OPTS+=(-it)
+fi
+
+if [[ -n "$DOCKER_SOCKET" ]]; then
+    docker_gid=$(stat -c '%g' "$DOCKER_SOCKET" 2>/dev/null || true)
+    if [[ -n "$docker_gid" ]]; then
+        ENGINE_OPTS+=(--group-add "$docker_gid")
+    fi
+fi
+
+exec $ENGINE run "${RUN_OPTS[@]}" \
     ${ENGINE_OPTS[@]+"${ENGINE_OPTS[@]}"} \
     ${PORTS[@]+"${PORTS[@]}"} \
+    ${ENV_VARS[@]+"${ENV_VARS[@]}"} \
     "${MOUNTS[@]}" \
     "$IMAGE" \
     "${CMD[@]}"

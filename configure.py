@@ -131,6 +131,7 @@ PACKAGES = {
             "docker-compose",
             "rootlesskit",  # Required for rootless Docker
             "passt",  # Provides pasta for rootless Docker networking
+            "fuse-overlayfs",  # Recommended storage driver for rootless Docker
             "qemu-user-static",  # QEMU emulation binaries
             "qemu-user-static-binfmt",  # binfmt_misc registration
         ],
@@ -629,15 +630,22 @@ if has_tag("packages"):
                     _sudo=True,
                 )
 
-            # Load iptables kernel modules at boot (required for Docker networking)
+            # Load kernel modules at boot (required for rootless Docker networking)
             files.put(
-                name="Configure iptables modules to load at boot",
+                name="Configure rootless Docker modules to load at boot",
                 src=f"{home}/dot/etc/modules-load.d/docker-rootless.conf",
                 dest="/etc/modules-load.d/docker-rootless.conf",
                 mode="644",
                 user="root",
                 group="root",
                 _sudo=True,
+            )
+
+            server.shell(
+                name="Load rootless Docker kernel modules",
+                commands=[
+                    "pkexec sh -c 'if [ -d /lib/modules/$(uname -r) ]; then modprobe tun ip_tables iptable_nat iptable_filter; else echo \"Skipping module load: no modules installed for running kernel $(uname -r)\" >&2; fi'"
+                ],
             )
 
             # Disable rootful Docker (we use rootless instead)
@@ -998,6 +1006,7 @@ if has_tag("aur") and pkg_manager == "pacman" and not is_container():
         service="docker.service",
         running=False,
         enabled=False,
+        daemon_reload=True,
         user_mode=True,
     )
 
@@ -1007,6 +1016,7 @@ if has_tag("aur") and pkg_manager == "pacman" and not is_container():
         service="docker.socket",
         running=True,
         enabled=True,
+        daemon_reload=True,
         user_mode=True,
     )
 
