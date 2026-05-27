@@ -20,7 +20,6 @@
     ".cursor/rules/*.md"
   ],
   "permission": {
-    "research_*": "deny",
     "websearch": "deny",
     "bash": {
       "*": "allow",
@@ -119,6 +118,13 @@
             "context": 262144,
             "output": 8192
           }
+        },
+        "gpt-oss-120b": {
+          "name": "GPT-OSS-120B",
+          "headers": {
+            "x-model-name": "gpt-oss-120b"
+          },
+          "reasoning": true
         }
       }
     }
