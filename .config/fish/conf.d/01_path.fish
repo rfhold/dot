@@ -13,8 +13,6 @@ export RIPGREP_CONFIG_PATH=$HOME/.ripgreprc
 export EDITOR=nvim
 export KUBE_EDITOR=nvim
 
-export OPENCODE_API=https://opencode-api.holdenitdown.net
-
 export CUTHULU_MACHINE=(hostname -f)
 
 # PATH
@@ -28,4 +26,3 @@ export PATH="$PATH:$HOME/.cargo/bin"
 export PATH="$PATH:$HOME/.bun/bin"
 export PATH="$PATH:$HOME/.docker/bin"
 export PATH="$PATH:$DOTDIR/bin"
-
