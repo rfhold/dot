@@ -8,7 +8,7 @@
     "atlassian-query@git+ssh://git@git.holdenitdown.net/rfhold/atlassian-query.git#opencode/v0.1.1",
     "gsuite-query@git+ssh://git@git.holdenitdown.net/rfhold/gsuite-query.git#opencode/v0.1.1",
     "axol-query@git+ssh://git@git.holdenitdown.net/rfhold/axol.git#opencode/v0.1.0",
-    "cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git#opencode/v0.4.0",
+    "cuthulu@git+ssh://git@git.holdenitdown.net/rfhold/cuthulu.git#opencode/v0.5.0",
     "homelab@git+ssh://git@git.holdenitdown.net/rfhold/homelab.git#opencode/v0.2.0",
     "walter@git+ssh://git@git.holdenitdown.net/rfhold/walter.git#opencode/v0.2.0"
   ]
