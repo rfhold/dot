@@ -198,7 +198,7 @@
   "plugin": [
     "@franlol/opencode-md-table-formatter@0.0.3",
     "@tarquinen/opencode-dcp@beta",
-    "re-search@git+ssh://git@git.holdenitdown.net/rfhold/re-search.git#opencode/v0.14.0",
+    "re-search@git+ssh://git@git.holdenitdown.net/rfhold/re-search.git#opencode/v0.14.1",
     "rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v0.1.1"
   ]
 }
