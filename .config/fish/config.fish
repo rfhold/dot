@@ -14,13 +14,18 @@ end
 # Use GPG agent for SSH if available and configured, otherwise use system SSH agent
 set -gx GPG_TTY (tty)
 
-if command -q gpgconf; and test -S (gpgconf --list-dirs agent-ssh-socket 2>/dev/null)
-    # GPG agent is available, use it for SSH
-    set -gx SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket)
+if command -q gpgconf
     gpgconf --launch gpg-agent 2>/dev/null
-    # Update agent's TTY to current terminal for pinentry
+    set -l gpg_ssh_socket (gpgconf --list-dirs agent-ssh-socket 2>/dev/null)
+
+    if test -S "$gpg_ssh_socket"
+        set -gx SSH_AUTH_SOCK "$gpg_ssh_socket"
+    end
+
     gpg-connect-agent updatestartuptty /bye >/dev/null 2>&1
-else if test -z "$SSH_AUTH_SOCK"
+end
+
+if test -z "$SSH_AUTH_SOCK"
     # No GPG agent, fall back to system SSH agent
     if test -S "$HOME/.ssh/agent.sock"
         set -gx SSH_AUTH_SOCK "$HOME/.ssh/agent.sock"
@@ -90,4 +95,3 @@ end
 # Added by LM Studio CLI (lms)
 set -gx PATH $PATH /Users/rfhold/.lmstudio/bin
 # End of LM Studio CLI section
-
