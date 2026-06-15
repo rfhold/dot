@@ -1,6 +1,6 @@
-return {
-  "echasnovski/mini.nvim",
-  config = function()
+local M = {}
+
+function M.config()
     -- Better Around/Inside textobjects
     --
     -- Examples:
@@ -338,5 +338,6 @@ return {
 
       },
     })
-  end,
-}
+end
+
+return M
