@@ -1,6 +1,6 @@
 vim.opt.termguicolors = true
 
-require("config.lazy")
+require("config.packages")
 require("config.keymap")
 require("config.display")
 require("config.treesitter")

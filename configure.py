@@ -98,6 +98,42 @@ PACKAGES = {
             "direnv",
         ],
     },
+    "lsp": {
+        "brew": [
+            "bash-language-server",
+            "buf",
+            "clangd",
+            "dockerfile-language-server",
+            "gopls",
+            "lua-language-server",
+            "pyright",
+            "rust-analyzer",
+            "typescript-language-server",
+            "vscode-langservers-extracted",
+            "yaml-language-server",
+        ],
+        "pacman": [
+            "bash-language-server",
+            "buf",
+            "clang",
+            "dockerfile-language-server",
+            "gopls",
+            "lua-language-server",
+            "pyright",
+            "rust-analyzer",
+            "typescript",
+            "typescript-language-server",
+            "vscode-css-languageserver",
+            "vscode-json-languageserver",
+            "yaml-language-server",
+        ],
+        "apk": [],
+        "apt": [
+            "clangd",
+            "gopls",
+            "rust-analyzer",
+        ],
+    },
     "tools": {
         "brew": ["pulumi", "gh", "argon2"],
         "pacman": [
@@ -227,6 +263,31 @@ CASKS = [
 ]
 
 BREW_TAPS = ["pulumi/tap"]
+
+BUN_LSP_PACKAGES = {
+    "brew": ["sql-language-server"],
+    "pacman": ["sql-language-server"],
+    "apt": [
+        "bash-language-server",
+        "dockerfile-language-server-nodejs",
+        "pyright",
+        "sql-language-server",
+        "typescript",
+        "typescript-language-server",
+        "vscode-langservers-extracted",
+        "yaml-language-server",
+    ],
+    "apk": [
+        "bash-language-server",
+        "dockerfile-language-server-nodejs",
+        "pyright",
+        "sql-language-server",
+        "typescript",
+        "typescript-language-server",
+        "vscode-langservers-extracted",
+        "yaml-language-server",
+    ],
+}
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -479,6 +540,13 @@ if has_tag("packages"):
     install_packages("Install dev packages", "dev")
     install_packages("Install GPG packages", "gpg")
     install_packages("Install terminal packages", "terminal")
+    install_packages("Install LSP packages", "lsp")
+    bun.packages(
+        name="Install npm-distributed LSP packages",
+        packages=BUN_LSP_PACKAGES.get(pkg_manager, []),
+        present=True,
+        update=upgrade_mode,
+    )
     install_packages("Install tools", "tools")
 
 # -----------------------------------------------------------------------------
