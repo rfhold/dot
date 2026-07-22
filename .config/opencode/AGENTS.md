@@ -9,5 +9,5 @@
 ## Code Comments
 - Keep comments terse; avoid unnecessary comments like section separators or lines that merely restate what the code obviously does.
 
-## Code Quality
-- We strive to always have a working codebase. When you encounter something broken and are tempted to call it a pre-existing bug, treat that as your cue to fix it.
+## Worktrees
+- git worktrees go in a relative .worktrees directory, git exclude or ignore it. you may need to copy a .npmrc, if its git ignored, blindly copy it
