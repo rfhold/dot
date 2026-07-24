@@ -13,7 +13,7 @@ const pluginOwnedMcpServers = [
 ];
 
 const rfholdPluginRepos = new Map([
-  ["superspec", "superspec"],
+  ["rfhold-skills", "skills"],
   ["gitops-query", "gitops-query"],
   ["slack-query", "slack-query"],
   ["grafana-query", "grafana-query"],
@@ -160,10 +160,10 @@ function assertNoPluginOwnedInlineMcp(config: Record<string, unknown>, label: st
   }
 }
 
-function assertNoSuperspec(config: Record<string, unknown>, label: string): void {
+function assertNoPlugin(config: Record<string, unknown>, plugin: string, label: string): void {
   const plugins = config.plugin === undefined ? [] : asArray(config.plugin, `${label}.plugin`);
-  if (plugins.some((entry, index) => pluginName(entry, `${label}.plugin[${index}]`) === "superspec")) {
-    fail(`${label}: superspec must not be present outside dot/rfhold scoped config`);
+  if (plugins.some((entry, index) => pluginName(entry, `${label}.plugin[${index}]`) === plugin)) {
+    fail(`${label}: ${plugin} must not be present`);
   }
 }
 
@@ -209,7 +209,7 @@ function assertCfaintlOpenCode(): void {
   const plugins = asArray(config.plugin, "cfaintl opencode.plugin");
 
   assertNoPluginOwnedInlineMcp(config, "cfaintl opencode");
-  assertNoSuperspec(config, "cfaintl opencode");
+  assertNoPlugin(config, "superspec", "cfaintl opencode");
 
   if (plugins.length !== 1) {
     fail("cfaintl opencode.plugin: expected exactly one cfaintl skills plugin entry");
@@ -237,12 +237,24 @@ function assertCfaintlOpenCode(): void {
 function assertGlobalOpenCode(): void {
   const config = asRecord(readJsonc(".config/opencode/opencode.jsonc"), "global opencode");
   assertNoPluginOwnedInlineMcp(config, "global opencode");
-  assertNoSuperspec(config, "global opencode");
+  assertNoPlugin(config, "superspec", "global opencode");
+  assertNoPlugin(config, "rfhold-skills", "global opencode");
 }
 
 function assertDotOpenCode(): void {
   const config = asRecord(readJsonc("opencode.jsonc"), "dot opencode");
+  const plugins = asArray(config.plugin, "dot opencode.plugin");
   assertNoPluginOwnedInlineMcp(config, "dot opencode");
+
+  if (plugins.length !== 1) {
+    fail("dot opencode.plugin: expected exactly one rfhold-skills plugin entry");
+  }
+
+  const ref = pluginRef(plugins[0], "dot opencode.plugin[0]");
+  const expected = "rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v";
+  if (!ref.startsWith(expected) || !/^.+#opencode\/v\d+\.\d+\.\d+$/.test(ref)) {
+    fail(`dot opencode.plugin[0]: expected ${expected}X.Y.Z form`);
+  }
 }
 
 function assertNoGeneratedOrgAgentContent(): void {

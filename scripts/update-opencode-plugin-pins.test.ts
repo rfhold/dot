@@ -30,7 +30,7 @@ describe("updateOpenCodePluginPins", () => {
   test("leaves current pins unchanged", async () => {
     const root = makeRoot();
     const file = writeConfig(root, "opencode.jsonc", [
-      '"superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v1.2.3"',
+      '"rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.3"',
     ]);
 
     const updates = await updateOpenCodePluginPins({
@@ -62,12 +62,13 @@ describe("updateOpenCodePluginPins", () => {
   test("updates rfhold pins across global, project, and org config layers", async () => {
     const root = makeRoot();
     const global = writeConfig(root, ".config/opencode/opencode.jsonc", [
-      '"rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v0.1.0"',
+      '"re-search@git+ssh://git@git.holdenitdown.net/rfhold/re-search.git#opencode/v0.1.0"',
     ]);
     const project = writeConfig(root, "opencode.jsonc", [
-      '"superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0"',
+      '"rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v0.1.0"',
     ]);
     const org = writeConfig(root, "home/repos/rfhold/.agents/opencode.jsonc", [
+      '"rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v0.1.0"',
       '"gitops-query@git+ssh://git@git.holdenitdown.net/rfhold/gitops-query.git#opencode/v0.1.0"',
       '"slack-query@git+ssh://git@git.holdenitdown.net/rfhold/slack-query.git#opencode/v0.1.0"',
     ]);
@@ -85,9 +86,10 @@ describe("updateOpenCodePluginPins", () => {
 
     expect(updates.map((update) => update.plugin).sort()).toEqual([
       "gitops-query",
+      "re-search",
+      "rfhold-skills",
       "rfhold-skills",
       "slack-query",
-      "superspec",
     ]);
     expect(readFileSync(global, "utf8")).toContain("#opencode/v0.2.0");
     expect(readFileSync(project, "utf8")).toContain("#opencode/v0.2.0");
@@ -103,7 +105,7 @@ describe("updateOpenCodePluginPins", () => {
   test("dry-run reports updates without changing files", async () => {
     const root = makeRoot();
     const file = writeConfig(root, "opencode.jsonc", [
-      '"superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0"',
+      '"rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v0.1.0"',
     ]);
 
     const updates = await updateOpenCodePluginPins({
@@ -119,7 +121,7 @@ describe("updateOpenCodePluginPins", () => {
   test("ignores dangling symlinks in unrelated directories", async () => {
     const root = makeRoot();
     const file = writeConfig(root, "opencode.jsonc", [
-      '"superspec@git+ssh://git@git.holdenitdown.net/rfhold/superspec.git#opencode/v0.1.0"',
+      '"rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v0.1.0"',
     ]);
     const unrelated = join(root, ".config/systemd/user/default.target.wants");
     mkdirSync(unrelated, { recursive: true });
