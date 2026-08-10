@@ -5,6 +5,7 @@ export GOPATH="$HOME/go"
 export GOPRIVATE="github.com/cfaintl,git.holdenitdown.net"
 
 export OLLAMA_API_BASE="https://ollama.holdenitdown.net"
+export BAO_ADDR="https://openbao.holdenitdown.net"
 
 export DOTDIR="$HOME/dot"
 
