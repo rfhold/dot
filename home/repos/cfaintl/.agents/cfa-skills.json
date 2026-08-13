@@ -1,0 +1,9 @@
+{
+  "exclude": [
+    "environment-discovery",
+    "expense-report",
+    "grill-me",
+    "project-management",
+    "simphony"
+  ]
+}

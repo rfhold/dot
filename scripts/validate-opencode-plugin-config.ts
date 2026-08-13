@@ -33,21 +33,12 @@ const rfholdClaudePreviewUrls = new Map([
   ["grafana", "https://preview-grafana-query.holdenitdown.net"],
 ]);
 
-const cfaintlIncludes = [
-  "cfa-acronyms",
-  "cfaintl-environment",
-  "chikin-mcp",
-  "logql",
-  "promql",
-  "pulumi-go",
-  "traceql",
-  "brainstorming",
-  "code-review",
-  "execution",
-  "plan-review",
-  "review-changes",
-  "using-superspec",
-  "writing-specs",
+const cfaintlExcludes = [
+  "environment-discovery",
+  "expense-report",
+  "grill-me",
+  "project-management",
+  "simphony",
 ];
 
 function fail(message: string): never {
@@ -207,31 +198,34 @@ function assertRfholdClaude(): void {
 function assertCfaintlOpenCode(): void {
   const config = asRecord(readJsonc("home/repos/cfaintl/.agents/opencode.jsonc"), "cfaintl opencode");
   const plugins = asArray(config.plugin, "cfaintl opencode.plugin");
+  const cfaPlugins = plugins.filter(
+    (entry, index) => pluginName(entry, `cfaintl opencode.plugin[${index}]`) === "cfaintl-skills",
+  );
 
   assertNoPluginOwnedInlineMcp(config, "cfaintl opencode");
   assertNoPlugin(config, "superspec", "cfaintl opencode");
 
-  if (plugins.length !== 1) {
+  if (cfaPlugins.length !== 1) {
     fail("cfaintl opencode.plugin: expected exactly one cfaintl skills plugin entry");
   }
 
-  const [entry] = plugins;
-  if (!Array.isArray(entry) || entry.length !== 2) {
-    fail("cfaintl opencode.plugin[0]: expected [pluginRef, options] tuple");
-  }
-
+  const [entry] = cfaPlugins;
   const ref = pluginRef(entry, "cfaintl opencode.plugin[0]");
   if (ref !== "cfaintl-skills@git+ssh://git@github.com/cfaintl/skills.git#main") {
     fail("cfaintl opencode.plugin[0]: expected cfaintl skills main branch plugin reference");
   }
 
-  const options = asRecord(entry[1], "cfaintl opencode.plugin[0] options");
-  const include = asArray(options.include, "cfaintl opencode.plugin[0].include");
-  if (!include.every((item) => typeof item === "string")) {
-    fail("cfaintl opencode.plugin[0].include: all entries must be strings");
+  if (Array.isArray(entry)) {
+    fail("cfaintl opencode.plugin[0]: filters must be configured in cfa-skills.json");
   }
 
-  assertEqualArray(include as string[], cfaintlIncludes, "cfaintl include filter list");
+  const settings = asRecord(readJsonc("home/repos/cfaintl/.agents/cfa-skills.json"), "cfaintl skills");
+  const exclude = asArray(settings.exclude, "cfaintl skills.exclude");
+  if (!exclude.every((item) => typeof item === "string")) {
+    fail("cfaintl skills.exclude: all entries must be strings");
+  }
+
+  assertEqualArray(exclude as string[], cfaintlExcludes, "cfaintl exclude filter list");
 }
 
 function assertGlobalOpenCode(): void {
