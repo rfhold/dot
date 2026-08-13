@@ -161,6 +161,8 @@ And the plugin source repository has a newer semver release tag matching `openco
 When the scheduled plugin pin updater runs
 Then the system MUST replace that specifier with the newest matching `opencode/vX.Y.Z` tag
 And the system MUST commit and push the changed dot files directly to `main`
+And the commit subject MUST identify each plugin's resulting version
+And the commit body MUST identify each plugin's previous and resulting `opencode/vX.Y.Z` version
 And the system MUST NOT open a pull request for the update
 
 #### Scenario: No commit when pins are current

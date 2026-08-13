@@ -21,6 +21,19 @@ export type UpdateOptions = {
   tagLookup?: TagLookup;
 };
 
+export function pluginUpdateCommitBody(updates: PinUpdate[]): string {
+  return [
+    ...new Set(updates.map((update) => `${update.plugin}: ${update.from} -> ${update.to}`)),
+  ].sort().join("\n");
+}
+
+export function pluginUpdateCommitSubject(updates: PinUpdate[]): string {
+  const versions = [...new Set(updates.map((update) => `${update.plugin} ${update.to.replace("opencode/", "")}`))]
+    .sort()
+    .join(", ");
+  return `chore: update opencode plugin pins (${versions})`;
+}
+
 const rfholdPinnedPluginPattern = /([A-Za-z0-9._-]+)@(git\+ssh:\/\/git@git\.holdenitdown\.net\/rfhold\/[A-Za-z0-9._-]+\.git)#(opencode\/v\d+\.\d+\.\d+)/g;
 const excludedDirectories = new Set([
   ".bun",
@@ -174,7 +187,11 @@ function commitUpdates(root: string, updates: PinUpdate[], push: boolean): void 
     throw new Error("Failed to inspect staged OpenCode plugin pin updates");
   }
 
-  execFileSync("git", ["commit", "-m", "chore: update opencode plugin pins"], { cwd: root, stdio: "inherit" });
+  execFileSync(
+    "git",
+    ["commit", "-m", pluginUpdateCommitSubject(updates), "-m", pluginUpdateCommitBody(updates)],
+    { cwd: root, stdio: "inherit" },
+  );
 
   if (push) {
     execFileSync("git", ["push", "origin", "HEAD:main"], { cwd: root, stdio: "inherit" });

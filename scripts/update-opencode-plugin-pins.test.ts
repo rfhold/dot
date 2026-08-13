@@ -2,7 +2,13 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { discoverOpenCodeConfigFiles, latestOpenCodeTag, updateOpenCodePluginPins } from "./update-opencode-plugin-pins";
+import {
+  discoverOpenCodeConfigFiles,
+  latestOpenCodeTag,
+  pluginUpdateCommitBody,
+  pluginUpdateCommitSubject,
+  updateOpenCodePluginPins,
+} from "./update-opencode-plugin-pins";
 
 const tempRoots: string[] = [];
 
@@ -23,6 +29,59 @@ describe("latestOpenCodeTag", () => {
         "refs/tags/other/v9.9.9",
       ]),
     ).toBe("opencode/v1.10.0");
+  });
+});
+
+describe("pluginUpdateCommitBody", () => {
+  test("lists updated versions once per plugin transition", () => {
+    expect(
+      pluginUpdateCommitBody([
+        {
+          filePath: "/dot/opencode.jsonc",
+          plugin: "rfhold-skills",
+          repoUrl: "skills.git",
+          from: "opencode/v1.2.2",
+          to: "opencode/v1.3.0",
+        },
+        {
+          filePath: "/dot/home/repos/rfhold/.agents/opencode.jsonc",
+          plugin: "rfhold-skills",
+          repoUrl: "skills.git",
+          from: "opencode/v1.2.2",
+          to: "opencode/v1.3.0",
+        },
+        {
+          filePath: "/dot/home/repos/rfhold/.agents/opencode.jsonc",
+          plugin: "homelab",
+          repoUrl: "homelab.git",
+          from: "opencode/v0.2.0",
+          to: "opencode/v0.3.0",
+        },
+      ]),
+    ).toBe("homelab: opencode/v0.2.0 -> opencode/v0.3.0\nrfhold-skills: opencode/v1.2.2 -> opencode/v1.3.0");
+  });
+});
+
+describe("pluginUpdateCommitSubject", () => {
+  test("includes each resulting plugin version", () => {
+    expect(
+      pluginUpdateCommitSubject([
+        {
+          filePath: "/dot/opencode.jsonc",
+          plugin: "rfhold-skills",
+          repoUrl: "skills.git",
+          from: "opencode/v1.2.2",
+          to: "opencode/v1.3.0",
+        },
+        {
+          filePath: "/dot/home/repos/rfhold/.agents/opencode.jsonc",
+          plugin: "homelab",
+          repoUrl: "homelab.git",
+          from: "opencode/v0.2.0",
+          to: "opencode/v0.3.0",
+        },
+      ]),
+    ).toBe("chore: update opencode plugin pins (homelab v0.3.0, rfhold-skills v1.3.0)");
   });
 });
 
