@@ -16,6 +16,20 @@
   },
   "permission": {
     "websearch": "deny",
+    "external_directory": {
+      "~/Library/pnpm/store/**": "allow",
+      "~/.local/share/pnpm/store/**": "allow",
+      "~/.bun/install/cache/**": "allow",
+      "~/.npm/**": "allow",
+      "~/go/pkg/mod/**": "allow",
+      "~/Library/Caches/go-build/**": "allow",
+      "~/.cache/go-build/**": "allow",
+      "~/.cargo/registry/**": "allow",
+      "~/.cargo/git/**": "allow",
+      "~/Library/Caches/pip/**": "allow",
+      "~/.cache/pip/**": "allow",
+      "~/.cache/uv/**": "allow"
+    },
     "bash": {
       "*": "allow",
       "pkexe *": "ask",
