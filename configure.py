@@ -1092,7 +1092,7 @@ if has_tag("aur") and pkg_manager == "pacman" and not is_container():
 # Org-scoped AI tool configuration (.agents for Claude Code + OpenCode)
 # -----------------------------------------------------------------------------
 
-STATIC_ORG_AGENT_DIRS = ["rfhold", "cfaintl"]
+STATIC_ORG_AGENT_DIRS = ["rfhold", "cfaintl", "stablekernel"]
 
 if has_tag("skills"):
     for org in STATIC_ORG_AGENT_DIRS:

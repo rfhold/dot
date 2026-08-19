@@ -43,8 +43,5 @@
         "anthropic/claude-haiku-4-5": { "name": "Claude Haiku 4.5" }
       }
     }
-  },
-  "plugin": [
-    "cfaintl-skills@git+ssh://git@github.com/cfaintl/skills.git#main"
-  ]
+  }
 }

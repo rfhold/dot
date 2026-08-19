@@ -41,6 +41,36 @@ const cfaintlExcludes = [
   "simphony",
 ];
 
+const bifrostModels = [
+  "anthropic/claude-haiku-4-5",
+  "anthropic/claude-opus-4-5",
+  "anthropic/claude-opus-4-6",
+  "anthropic/claude-opus-4-7",
+  "anthropic/claude-opus-4-8",
+  "anthropic/claude-opus-5",
+  "anthropic/claude-sonnet-4-6",
+  "anthropic/claude-sonnet-5",
+  "bedrock/amazon.nova-pro-v1:0",
+  "bedrock/deepseek.v3.2",
+  "bedrock/google.gemma-3-27b-it",
+  "bedrock/minimax.minimax-m2.5",
+  "bedrock/mistral.devstral-2-123b",
+  "bedrock/mistral.mistral-large-3-675b-instruct",
+  "bedrock/moonshot.kimi-k2-thinking",
+  "bedrock/moonshotai.kimi-k2.5",
+  "bedrock/nvidia.nemotron-super-3-120b",
+  "bedrock/openai.gpt-5.6-luna",
+  "bedrock/openai.gpt-5.6-sol",
+  "bedrock/openai.gpt-5.6-terra",
+  "bedrock/openai.gpt-oss-120b-1:0",
+  "bedrock/qwen.qwen3-32b-v1:0",
+  "bedrock/qwen.qwen3-coder-30b-a3b-v1:0",
+  "bedrock/qwen.qwen3-coder-next",
+  "bedrock/zai.glm-4.7",
+  "bedrock/zai.glm-5",
+  "squid-pool/qwen3.8-27b",
+];
+
 function fail(message: string): never {
   throw new Error(message);
 }
@@ -195,6 +225,44 @@ function assertRfholdClaude(): void {
   }
 }
 
+function assertStableKernelBedrockProvider(config: Record<string, unknown>, label: string): void {
+  const providers = asRecord(config.provider, `${label}.provider`);
+  const bedrock = asRecord(providers["amazon-bedrock"], `${label}.provider.amazon-bedrock`);
+  const options = asRecord(bedrock.options, `${label}.provider.amazon-bedrock.options`);
+
+  if (options.region !== "us-east-1") {
+    fail(`${label}.provider.amazon-bedrock.options.region: expected us-east-1`);
+  }
+  if (options.profile !== "stablekernel-shrine") {
+    fail(`${label}.provider.amazon-bedrock.options.profile: expected stablekernel-shrine`);
+  }
+  if (config.model !== undefined || config.small_model !== undefined) {
+    fail(`${label}: Bedrock must not override the default model selection`);
+  }
+}
+
+function assertBifrostProvider(config: Record<string, unknown>, label: string): void {
+  const providers = asRecord(config.provider, `${label}.provider`);
+  const bifrost = asRecord(providers.bifrost, `${label}.provider.bifrost`);
+  const options = asRecord(bifrost.options, `${label}.provider.bifrost.options`);
+  const models = asRecord(bifrost.models, `${label}.provider.bifrost.models`);
+
+  if (bifrost.npm !== "@ai-sdk/openai-compatible") {
+    fail(`${label}.provider.bifrost.npm: expected @ai-sdk/openai-compatible`);
+  }
+  if (bifrost.name !== "Bifrost") {
+    fail(`${label}.provider.bifrost.name: expected Bifrost`);
+  }
+  if (options.baseURL !== "https://gateway.skysquid.net/openai") {
+    fail(`${label}.provider.bifrost.options.baseURL: expected https://gateway.skysquid.net/openai`);
+  }
+  if (options.apiKey !== undefined || options.headers !== undefined) {
+    fail(`${label}.provider.bifrost.options: credentials must come from opencode auth`);
+  }
+
+  assertEqualArray(Object.keys(models).sort(), bifrostModels, `${label} Bifrost model list`);
+}
+
 function assertCfaintlOpenCode(): void {
   const config = asRecord(readJsonc("home/repos/cfaintl/.agents/opencode.jsonc"), "cfaintl opencode");
   const plugins = asArray(config.plugin, "cfaintl opencode.plugin");
@@ -204,6 +272,8 @@ function assertCfaintlOpenCode(): void {
 
   assertNoPluginOwnedInlineMcp(config, "cfaintl opencode");
   assertNoPlugin(config, "superspec", "cfaintl opencode");
+  assertStableKernelBedrockProvider(config, "cfaintl opencode");
+  assertBifrostProvider(config, "cfaintl opencode");
 
   if (cfaPlugins.length !== 1) {
     fail("cfaintl opencode.plugin: expected exactly one cfaintl skills plugin entry");
@@ -226,6 +296,12 @@ function assertCfaintlOpenCode(): void {
   }
 
   assertEqualArray(exclude as string[], cfaintlExcludes, "cfaintl exclude filter list");
+}
+
+function assertStableKernelOpenCode(): void {
+  const config = asRecord(readJsonc("home/repos/stablekernel/.agents/opencode.jsonc"), "stablekernel opencode");
+  assertStableKernelBedrockProvider(config, "stablekernel opencode");
+  assertBifrostProvider(config, "stablekernel opencode");
 }
 
 function assertGlobalOpenCode(): void {
@@ -279,6 +355,7 @@ assertDotOpenCode();
 assertRfholdOpenCode();
 assertRfholdClaude();
 assertCfaintlOpenCode();
+assertStableKernelOpenCode();
 assertNoGeneratedOrgAgentContent();
 
 console.log("OpenCode plugin config validation passed.");
