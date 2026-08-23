@@ -54,7 +54,15 @@ def packages(packages=None, present=True):
         if to_install:
             # Install packages one by one for better error handling
             for package in to_install:
-                yield f'fish -c "fisher install {package}" </dev/null'
+                package_base = package.split('@')[0]
+                script = (
+                    'set --local manifest "$__fish_config_dir/fish_plugins"; '
+                    'test -r "$manifest"; and '
+                    f'contains -- "{package_base}" '
+                    '(string split -m 1 @ < "$manifest"); '
+                    f'or fisher install "{package}"'
+                )
+                yield f"fish -c '{script}' </dev/null"
     else:
         # Remove installed plugins
         to_remove = []

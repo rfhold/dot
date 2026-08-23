@@ -145,7 +145,6 @@ PACKAGES = {
             "tekton-cli",
             "p7zip",
             "wireguard-tools",
-            "openresolv",
             "yubikey-manager",
             "bind-tools",
             "inetutils",
@@ -153,10 +152,6 @@ PACKAGES = {
         ],
         "apk": ["github-cli", "argon2"],
         "apt": ["gh", "argon2"],
-    },
-    # Security hardening packages (Arch bare metal only)
-    "security": {
-        "pacman": ["nftables"],
     },
     # Packages only installed on bare metal (not in containers)
     "bare_metal": {
@@ -170,6 +165,7 @@ PACKAGES = {
             "fuse-overlayfs",  # Recommended storage driver for rootless Docker
             "qemu-user-static",  # QEMU emulation binaries
             "qemu-user-static-binfmt",  # binfmt_misc registration
+            "librewolf",
         ],
     },
     # Packages only installed inside containers
@@ -178,53 +174,6 @@ PACKAGES = {
         "apk": ["docker-cli", "docker-cli-compose", "docker-cli-buildx", "kubectl"],
         "pacman": ["docker", "docker-buildx", "docker-compose", "kubectl"],
         "apt": [],  # Added via add_apt_repo() below
-    },
-    # Hyprland desktop environment (Arch bare metal only)
-    "hyprland": {
-        "pacman": [
-            # Core Hyprland
-            "hyprland",
-            "xdg-desktop-portal-hyprland",
-            # Hypr ecosystem
-            "hyprpaper",
-            "hyprlock",
-            "hypridle",
-            "hyprpicker",
-            "hyprpolkitagent",
-            "hyprcursor",
-            # Desktop utilities
-            "waybar",
-            "fuzzel",
-            "mako",
-            "yazi",
-            # Screenshot & clipboard
-            "grim",
-            "slurp",
-            "wl-clipboard",
-            "cliphist",
-            # System utilities
-            "brightnessctl",
-            "pamixer",
-            "playerctl",
-            # Terminal
-            "ghostty",
-            # Notifications
-            "libnotify",
-            # Theming
-            "nwg-look",
-            "qt5ct",
-            "qt6ct",
-            "qt5-wayland",
-            "qt6-wayland",
-            # Network/Bluetooth
-            "networkmanager",
-            "network-manager-applet",
-            "blueman",
-            "kdeconnect",
-            # Fonts for waybar icons
-            "ttf-font-awesome",
-            "noto-fonts",
-        ],
     },
 }
 
@@ -530,7 +479,16 @@ if has_tag("core"):
 
 if has_tag("core"):
     link_config_dir(f"{home}/dot/.config", f"{home}/.config")
-    link_config_dir(f"{home}/dot/home", home, exclude=[".ssh/authorized_keys"])
+    files.directory(
+        name="Ensure repos directory exists",
+        path=f"{home}/repos",
+        present=True,
+    )
+    link_config_dir(
+        f"{home}/dot/home",
+        home,
+        exclude=[".ssh/authorized_keys", "repos"],
+    )
 
 # -----------------------------------------------------------------------------
 # Package management
@@ -638,33 +596,8 @@ if has_tag("packages"):
     else:
         install_packages("Install bare metal packages", "bare_metal")
 
-        # Hyprland desktop environment (Arch only)
         if pkg_manager == "pacman":
-            install_packages("Install Hyprland desktop", "hyprland")
-
-            # Add user to required groups for GPU/display access
             username = host.get_fact(Command, command="whoami").strip()
-            current_groups = host.get_fact(Command, command="groups").strip().split()
-            required_groups = ["video", "input", "render"]
-            missing_groups = [g for g in required_groups if g not in current_groups]
-
-            if missing_groups:
-                server.user(
-                    name="Add user to required groups for Hyprland",
-                    user=username,
-                    groups=missing_groups,
-                    append=True,
-                    _sudo=True,
-                )
-
-            # Enable NetworkManager for network management
-            systemd.service(
-                name="Enable NetworkManager",
-                service="NetworkManager",
-                running=True,
-                enabled=True,
-                _sudo=True,
-            )
 
             # Docker rootless setup (uses docker-rootless-extras AUR package)
             # Configure subuid/subgid for rootless containers
@@ -712,8 +645,9 @@ if has_tag("packages"):
             server.shell(
                 name="Load rootless Docker kernel modules",
                 commands=[
-                    "pkexec sh -c 'if [ -d /lib/modules/$(uname -r) ]; then modprobe tun ip_tables iptable_nat iptable_filter; else echo \"Skipping module load: no modules installed for running kernel $(uname -r)\" >&2; fi'"
+                    "if [ -d /lib/modules/$(uname -r) ]; then modprobe tun ip_tables iptable_nat iptable_filter; else echo \"Skipping module load: no modules installed for running kernel $(uname -r)\" >&2; fi"
                 ],
+                _sudo=True,
             )
 
             # Disable rootful Docker (we use rootless instead)
@@ -745,78 +679,6 @@ if has_tag("packages"):
                 _sudo=True,
             )
 
-            # -----------------------------------------------------------------
-            # Security hardening (Arch bare metal only)
-            # -----------------------------------------------------------------
-
-            install_packages("Install security packages", "security")
-
-            # Deploy nftables firewall configuration
-            files.put(
-                name="Deploy nftables firewall config",
-                src=f"{home}/dot/etc/nftables.conf",
-                dest="/etc/nftables.conf",
-                mode="644",
-                user="root",
-                group="root",
-                _sudo=True,
-            )
-
-            # nftables is a oneshot service - it loads rules and exits
-            # running=False prevents pyinfra from trying to "start" a oneshot
-            systemd.service(
-                name="Enable nftables firewall",
-                service="nftables",
-                running=False,
-                enabled=True,
-                _sudo=True,
-            )
-
-            # Deploy sysctl hardening configuration
-            sysctl_config = files.put(
-                name="Deploy sysctl hardening config",
-                src=f"{home}/dot/etc/sysctl.d/99-hardening.conf",
-                dest="/etc/sysctl.d/99-hardening.conf",
-                mode="644",
-                user="root",
-                group="root",
-                _sudo=True,
-            )
-
-            server.shell(
-                name="Apply sysctl hardening settings",
-                commands=["sysctl --system"],
-                _sudo=True,
-                _if=sysctl_config.did_change,
-            )
-
-            # Deploy NetworkManager MAC randomization config
-            files.directory(
-                name="Ensure NetworkManager conf.d directory exists",
-                path="/etc/NetworkManager/conf.d",
-                present=True,
-                mode="755",
-                user="root",
-                group="root",
-                _sudo=True,
-            )
-
-            nm_config = files.put(
-                name="Deploy NetworkManager MAC randomization config",
-                src=f"{home}/dot/etc/NetworkManager/conf.d/99-mac-randomization.conf",
-                dest="/etc/NetworkManager/conf.d/99-mac-randomization.conf",
-                mode="644",
-                user="root",
-                group="root",
-                _sudo=True,
-            )
-
-            server.shell(
-                name="Reload NetworkManager configuration",
-                commands=["nmcli general reload conf"],
-                _sudo=True,
-                _if=nm_config.did_change,
-            )
 
 # GUI apps (macOS only)
 if has_tag("packages") and pkg_manager == "brew":
@@ -871,9 +733,22 @@ MANAGED_APPS = [
 ]
 
 if has_tag("apps"):
+    files.directory(
+        name="Ensure Go binary directory exists",
+        path=f"{home}/go/bin",
+        present=True,
+    )
+    app_state_dir = f"{home}/.local/state/dot/apps"
+    files.directory(
+        name="Ensure managed app state directory exists",
+        path=app_state_dir,
+        present=True,
+    )
+
     for app in MANAGED_APPS:
         app_dest = app["dest"]
         app_parent = "/".join(app_dest.rstrip("/").split("/")[:-1])
+        install_marker = f"{app_state_dir}/{app['name']}"
 
         files.directory(
             name=f"Ensure parent dir for {app['name']}",
@@ -900,10 +775,19 @@ if has_tag("apps"):
             ssh_keyscan=True,
         )
 
+        files.file(
+            name=f"Mark {app['name']} for reinstall after update",
+            path=install_marker,
+            present=False,
+            _if=clone.did_change,
+        )
+
         server.shell(
             name=f"Install {app['name']}",
-            commands=[f"make -C {app_dest} install"],
-            _if=clone.did_change,
+            commands=[
+                f'test -f "{install_marker}" || '
+                f'{{ make -C "{app_dest}" install && touch "{install_marker}"; }}'
+            ],
         )
 
 # -----------------------------------------------------------------------------
@@ -1062,8 +946,7 @@ if has_tag("aur") and pkg_manager == "pacman" and not is_container():
         name="Install AUR packages",
         packages=[
             "docker-rootless-extras",  # Rootless Docker systemd user units
-            "librewolf-bin",
-            "maestro",
+            "maestro-bin",
         ],
         present=True,
     )
@@ -1100,11 +983,11 @@ if has_tag("skills"):
         org_dir = f"{home}/repos/{org}"
         envrc_path = f"{org_dir}/.envrc"
 
-        org_exists = host.get_fact(
-            Command, command=f'test -d "{org_dir}" && echo yes || echo no'
-        ).strip()
-        if org_exists != "yes":
-            continue
+        files.directory(
+            name=f"Ensure repo directory exists for {org}",
+            path=org_dir,
+            present=True,
+        )
 
         link_config_dir(source_dir, org_dir)
 

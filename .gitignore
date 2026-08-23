@@ -22,7 +22,6 @@ home/.ssh/authorized_keys
 home/.gnupg/gpg-agent.conf
 home/.gnupg/gpg-agent.log
 .config/fish/fish_variables
-.config/fish/fish_plugins
 .config/opencode/plugins/cuthulu.js
 .config/systemd/user/default.target.wants/
 pyinfra-debug.log
