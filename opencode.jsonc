@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.2"
+    "rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.4"
   ]
 }
