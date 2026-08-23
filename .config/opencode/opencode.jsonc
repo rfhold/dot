@@ -9,10 +9,10 @@
         "@playwright/mcp@latest",
         "--isolated",
         "--browser",
-        "chromium"
+        "chromium",
       ],
-      "enabled": false
-    }
+      "enabled": false,
+    },
   },
   "permission": {
     "websearch": "deny",
@@ -28,7 +28,7 @@
       "~/.cargo/git/**": "allow",
       "~/Library/Caches/pip/**": "allow",
       "~/.cache/pip/**": "allow",
-      "~/.cache/uv/**": "allow"
+      "~/.cache/uv/**": "allow",
     },
     "bash": {
       "*": "allow",
@@ -150,15 +150,15 @@
       "kubectl cluster-info *": "allow",
       "kubectl wait *": "allow",
       "kubectl diff *": "allow",
-      "sudo *": "deny"
-    }
+      "sudo *": "deny",
+    },
   },
   "provider": {
     "homelab": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Homelab",
       "options": {
-        "baseURL": "https://agent-gateway.holdenitdown.net/v1"
+        "baseURL": "https://agent-gateway.holdenitdown.net/v1",
       },
       "models": {
         "gemma-4-e2b": {
@@ -167,39 +167,37 @@
           "temperature": true,
           "limit": {
             "context": 131072,
-            "output": 8192
-          }
+            "output": 8192,
+          },
         },
-        "qwen3.6-35b-a3b": {
-          "name": "Qwen3.6 35B A3B",
+        "local-small": {
+          "name": "Qwen3.8 27B FP8",
+          "attachment": true,
+          "reasoning": true,
           "tool_call": true,
           "temperature": true,
-          "options": {
-            "temperature": 0.6,
-            "top_p": 0.95,
-            "top_k": 20,
-            "min_p": 0.0,
-            "presence_penalty": 0.0,
-            "repetition_penalty": 1.0
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
           },
           "limit": {
-            "context": 262144,
-            "output": 8192
-          }
+            "context": 131072,
+            "output": 8192,
+          },
         },
         "gpt-oss-120b": {
           "name": "GPT-OSS-120B",
           "headers": {
-            "x-model-name": "gpt-oss-120b"
+            "x-model-name": "gpt-oss-120b",
           },
-          "reasoning": true
-        }
-      }
-    }
+          "reasoning": true,
+        },
+      },
+    },
   },
   "autoupdate": false,
   "plugin": [
     "@franlol/opencode-md-table-formatter@0.0.3",
-    "@tarquinen/opencode-dcp@beta"
-  ]
+    "@tarquinen/opencode-dcp@beta",
+  ],
 }
