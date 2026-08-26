@@ -22,6 +22,7 @@
         "bedrock/openai.gpt-5.6-luna": { "name": "GPT-5.6 Luna" },
         "bedrock/openai.gpt-5.6-sol": { "name": "GPT-5.6 Sol" },
         "bedrock/openai.gpt-5.6-terra": { "name": "GPT-5.6 Terra" },
+        "fireworks/accounts/fireworks/models/deepseek-v4-flash-0731": { "name": "DeepSeek V4 Flash 0731 (Fireworks)" },
         "fireworks/accounts/fireworks/models/glm-5p2": { "name": "GLM 5.2 (Fireworks)" },
         "fireworks/accounts/fireworks/models/kimi-k3": { "name": "Kimi K3 (Fireworks)" },
         "fireworks/accounts/fireworks/models/qwen3p8-max": { "name": "Qwen 3.8 Max (Fireworks)" },
