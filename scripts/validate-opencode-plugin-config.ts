@@ -54,6 +54,7 @@ const bifrostModels = [
   "bedrock/zai.glm-4.7",
   "bedrock/zai.glm-5",
   "fireworks/accounts/fireworks/models/deepseek-v4-flash-0731",
+  "fireworks/accounts/fireworks/models/deepseek-v4-pro",
   "fireworks/accounts/fireworks/models/glm-5p2",
   "fireworks/accounts/fireworks/models/kimi-k3",
   "fireworks/accounts/fireworks/models/qwen3p8-max",
