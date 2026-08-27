@@ -171,7 +171,7 @@
           },
         },
         "local-small": {
-          "name": "Qwen3.8 27B FP8",
+          "name": "Qwen3.8 27B",
           "attachment": true,
           "reasoning": true,
           "tool_call": true,
@@ -181,7 +181,7 @@
             "output": ["text"],
           },
           "limit": {
-            "context": 131072,
+            "context": 262144,
             "output": 8192,
           },
         },
