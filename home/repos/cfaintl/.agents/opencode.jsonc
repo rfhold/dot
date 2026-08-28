@@ -6,36 +6,11 @@
         "region": "us-east-1",
         "profile": "stablekernel-shrine"
       }
-    },
-    "bifrost": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Bifrost",
-      "options": {
-        "baseURL": "https://gateway.skysquid.net/openai"
-      },
-      "models": {
-        "bedrock/moonshotai.kimi-k2.5": { "name": "Kimi K2.5" },
-        "bedrock/moonshot.kimi-k2-thinking": { "name": "Kimi K2 Thinking" },
-        "bedrock/minimax.minimax-m2.5": { "name": "MiniMax M2.5" },
-        "bedrock/zai.glm-5": { "name": "GLM-5" },
-        "bedrock/zai.glm-4.7": { "name": "GLM-4.7" },
-        "bedrock/openai.gpt-5.6-luna": { "name": "GPT-5.6 Luna" },
-        "bedrock/openai.gpt-5.6-sol": { "name": "GPT-5.6 Sol" },
-        "bedrock/openai.gpt-5.6-terra": { "name": "GPT-5.6 Terra" },
-        "fireworks/accounts/fireworks/models/deepseek-v4-flash-0731": { "name": "DeepSeek V4 Flash 0731 (Fireworks)" },
-        "fireworks/accounts/fireworks/models/deepseek-v4-pro": { "name": "DeepSeek V4 Pro (Fireworks)" },
-        "fireworks/accounts/fireworks/models/glm-5p2": { "name": "GLM 5.2 (Fireworks)" },
-        "fireworks/accounts/fireworks/models/kimi-k3": { "name": "Kimi K3 (Fireworks)" },
-        "fireworks/accounts/fireworks/models/qwen3p8-max": { "name": "Qwen 3.8 Max (Fireworks)" },
-        "fireworks/qwen3p7-plus": { "name": "Qwen 3.7 Plus (Fireworks)" },
-        "squid-pool/qwen3.8-27b": { "name": "Qwen 3.8 27B (Squid Pool)" },
-        "anthropic/claude-opus-4-8": { "name": "Claude Opus 4.8" },
-        "anthropic/claude-sonnet-5": { "name": "Claude Sonnet 5" },
-        "anthropic/claude-haiku-4-5": { "name": "Claude Haiku 4.5" }
-      }
     }
   },
   "plugin": [
-    "cfaintl-skills@git+ssh://git@github.com/cfaintl/skills.git#main"
+    "@stablekernel/opencode-bifrost",
+    "cfaintl-skills@git+ssh://git@github.com/cfaintl/skills.git#main",
+    "@tarquinen/opencode-dcp@beta"
   ]
 }
