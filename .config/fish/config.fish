@@ -95,3 +95,6 @@ end
 # Added by LM Studio CLI (lms)
 set -gx PATH $PATH /Users/rfhold/.lmstudio/bin
 # End of LM Studio CLI section
+
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f '/Users/rfhold/google-cloud-sdk/path.fish.inc' ]; . '/Users/rfhold/google-cloud-sdk/path.fish.inc'; end
