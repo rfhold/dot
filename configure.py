@@ -178,28 +178,7 @@ PACKAGES = {
 }
 
 # System-level build/runtime dependencies for specific apps (installed separately from PACKAGES)
-SYSTEM_DEPS = {
-    # Tauri runtime/build dependencies for Cuthulu (Arch only)
-    "cuthulu": {
-        "pacman": [
-            "webkit2gtk-4.1",
-            "libayatana-appindicator",
-            "gtk3",
-            "librsvg",
-            "libsoup3",
-        ],
-    },
-    # Tauri runtime/build dependencies for Walter (Arch only)
-    "walter": {
-        "pacman": [
-            "webkit2gtk-4.1",
-            "libayatana-appindicator",
-            "gtk3",
-            "librsvg",
-            "libsoup3",
-        ],
-    },
-}
+SYSTEM_DEPS = {}
 
 CASKS = [
     "ghostty",
@@ -708,18 +687,6 @@ if has_tag("tpm"):
 # -----------------------------------------------------------------------------
 
 MANAGED_APPS = [
-    {
-        "name": "cuthulu",
-        "src": "git@git.holdenitdown.net:rfhold/cuthulu.git",
-        "dest": f"{home}/repos/rfhold/cuthulu",
-        "system_deps_key": "cuthulu",
-    },
-    {
-        "name": "walter",
-        "src": "git@git.holdenitdown.net:rfhold/walter.git",
-        "dest": f"{home}/repos/rfhold/walter",
-        "system_deps_key": "walter",
-    },
     {
         "name": "axol-query",
         "src": "git@git.holdenitdown.net:rfhold/axol.git",

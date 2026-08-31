@@ -20,9 +20,7 @@ const rfholdPluginRepos = new Map([
   ["atlassian-query", "atlassian-query"],
   ["gsuite-query", "gsuite-query"],
   ["axol-query", "axol"],
-  ["cuthulu", "cuthulu"],
   ["homelab", "homelab"],
-  ["walter", "walter"],
 ]);
 
 const rfholdPluginOrder = [...rfholdPluginRepos.keys()];
@@ -184,6 +182,8 @@ function assertRfholdOpenCode(): void {
   const plugins = asArray(config.plugin, "rfhold opencode.plugin");
   const names = plugins.map((entry, index) => pluginName(entry, `rfhold opencode.plugin[${index}]`));
 
+  assertNoPlugin(config, "cuthulu", "rfhold opencode");
+  assertNoPlugin(config, "walter", "rfhold opencode");
   assertEqualArray(names, rfholdPluginOrder, "rfhold opencode plugin order");
   assertNoPluginOwnedInlineMcp(config, "rfhold opencode");
 

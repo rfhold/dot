@@ -97,22 +97,20 @@ Then the plugin MUST register the agent by adding an entry to `config.agent` key
 And the agent entry MUST reference the prompt file packaged inside the plugin
 And the plugin MUST also register the MCP server and the skill as defined by the query plugin contract
 
-### Requirement: Cuthulu Plugin Ownership
+### Requirement: Walter and Cuthulu Direct Plugin Exclusion
 
-The system MUST host the cuthulu OpenCode plugin inside the `rfhold/cuthulu` repository, and MUST NOT require operators to copy the plugin artifact into `~/.config/opencode/plugins/`.
+The system MUST NOT install Walter or Cuthulu as direct OpenCode plugins in active configuration and MUST NOT require operators to copy either plugin artifact into `~/.config/opencode/plugins/`.
 
-#### Scenario: Cuthulu plugin installed via opencode.jsonc
+#### Scenario: Walter and Cuthulu absent from direct plugin configuration
 
-Given `rfhold/cuthulu` ships its OpenCode plugin at `.opencode/plugins/cuthulu.ts`
-When the cuthulu plugin is listed in the active `opencode.jsonc` `plugin` array
-Then OpenCode MUST load the cuthulu session-monitoring functionality
-And OpenCode MUST register the `cuthulu` and `cuthulu-query` skills from the plugin's `skills/` directory
-And no `cuthulu.js` file MUST be required under `~/.config/opencode/plugins/`
+Given an active global, project, or org-scoped `opencode.jsonc`
+When its direct `plugin` array is inspected
+Then neither `cuthulu` nor `walter` MUST be listed
 
 #### Scenario: Legacy loose plugin file removed
 
 Given `~/.config/opencode/plugins/cuthulu.js` previously existed as a manual install
-When the plugin-based cuthulu integration is active
+When active OpenCode configuration is applied
 Then `~/.config/opencode/plugins/cuthulu.js` MUST NOT exist in the dot tree
 
 ### Requirement: Plugin Activation Scope

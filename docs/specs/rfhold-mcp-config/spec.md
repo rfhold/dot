@@ -110,7 +110,12 @@ When that org's `opencode.jsonc` is inspected
 Then the org `opencode.jsonc` MUST NOT contain `gitops`, `slack`, or `grafana` entries that originate from the rfhold MCP server set
 
 ### Requirement: Remove Walter-Managed Local Installs
-The system MUST stop managing local installs for `waltr-grafana` and `waltr-gitops` and MUST NOT substitute local installs of `gitops-query`, `slack-query`, or `grafana-query` in their place.
+The system MUST stop managing local installs for `walter`, `cuthulu`, `waltr-grafana`, and `waltr-gitops` and MUST NOT substitute local installs of `gitops-query`, `slack-query`, or `grafana-query` in their place. `SYSTEM_DEPS` MUST NOT retain app-specific dependencies for `walter` or `cuthulu`.
+
+#### Scenario: Walter and Cuthulu removed from local app management
+Given the current `configure.py` definition
+When `MANAGED_APPS` and `SYSTEM_DEPS` are inspected
+Then `walter` and `cuthulu` MUST NOT appear in either collection
 
 #### Scenario: waltr-grafana removed from MANAGED_APPS
 Given the current `configure.py` definition
@@ -168,7 +173,7 @@ Then it MUST NOT clone `cfaintl/skills` into an org-local `skills-src` directory
 And it MUST NOT materialize `~/repos/cfaintl/.agents/skills/` as a generated whitelist of symlinks
 
 ### Requirement: Org-Level Plugin List
-The system MUST treat the org-level `plugins` list as the exclusive delivery path for rfhold MCP servers and rfhold-scoped skills, MUST store the list in the static rfhold org `opencode.jsonc`, and MUST NOT also emit an inline `mcp` stanza for any server owned by a listed plugin. The static rfhold plugin list MUST contain exactly these plugin identities in this order, each pinned to a current `opencode/vX.Y.Z` release tag: `superspec`, `gitops-query`, `slack-query`, `grafana-query`, `atlassian-query`, `gsuite-query`, `axol-query`, `cuthulu`, `homelab`, and `walter`.
+The system MUST treat the org-level `plugins` list as the exclusive delivery path for rfhold MCP servers and rfhold-scoped skills, MUST store the list in the static rfhold org `opencode.jsonc`, and MUST NOT also emit an inline `mcp` stanza for any server owned by a listed plugin. The static rfhold plugin list MUST contain exactly these plugin identities in this order, each pinned to a current `opencode/vX.Y.Z` release tag: `superspec`, `gitops-query`, `slack-query`, `grafana-query`, `atlassian-query`, `gsuite-query`, `axol-query`, and `homelab`. It MUST NOT contain `cuthulu` or `walter`.
 
 #### Scenario: rfhold plugin array stored statically
 Given the static rfhold org OpenCode configuration is linked from the dot repository
@@ -184,7 +189,8 @@ Then the file MUST NOT contain `<name>` under a top-level `mcp` key
 #### Scenario: rfhold plugin list contains the canonical entries in order
 Given the static rfhold org OpenCode configuration is inspected
 When the rfhold `plugin` array is read
-Then the plugin identities MUST equal this ordered list: `superspec`, `gitops-query`, `slack-query`, `grafana-query`, `atlassian-query`, `gsuite-query`, `axol-query`, `cuthulu`, `homelab`, and `walter`
+Then the plugin identities MUST equal this ordered list: `superspec`, `gitops-query`, `slack-query`, `grafana-query`, `atlassian-query`, `gsuite-query`, `axol-query`, and `homelab`
+And the plugin identities MUST NOT include `cuthulu` or `walter`
 
 ### Requirement: Static Org Agent Directories
 The system MUST store org-scoped `.agents` directories as checked-in dot repository content and MUST make `configure.py` link `~/repos/<org>/.agents` to those static directories instead of generating or mutating their contents.
