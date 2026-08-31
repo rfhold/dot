@@ -154,6 +154,61 @@
     },
   },
   "provider": {
+    "codex": {
+      "npm": "@ai-sdk/openai",
+      "name": "Codex",
+      "options": {
+        "apiKey": "unused",
+        "baseURL": "https://agent-gateway.holdenitdown.net/v1",
+      },
+      "models": {
+        "gpt-5.6-sol": {
+          "id": "codex/gpt-5.6-sol",
+          "name": "GPT-5.6 Sol",
+          "reasoning": true,
+          "tool_call": true,
+        },
+        "gpt-5.6-sol-fast": {
+          "id": "codex/gpt-5.6-sol",
+          "name": "GPT-5.6 Sol Fast",
+          "reasoning": true,
+          "tool_call": true,
+          "options": {
+            "serviceTier": "priority",
+          },
+        },
+        "gpt-5.6-terra": {
+          "id": "codex/gpt-5.6-terra",
+          "name": "GPT-5.6 Terra",
+          "reasoning": true,
+          "tool_call": true,
+        },
+        "gpt-5.6-terra-fast": {
+          "id": "codex/gpt-5.6-terra",
+          "name": "GPT-5.6 Terra Fast",
+          "reasoning": true,
+          "tool_call": true,
+          "options": {
+            "serviceTier": "priority",
+          },
+        },
+        "gpt-5.6-luna": {
+          "id": "codex/gpt-5.6-luna",
+          "name": "GPT-5.6 Luna",
+          "reasoning": true,
+          "tool_call": true,
+        },
+        "gpt-5.6-luna-fast": {
+          "id": "codex/gpt-5.6-luna",
+          "name": "GPT-5.6 Luna Fast",
+          "reasoning": true,
+          "tool_call": true,
+          "options": {
+            "serviceTier": "priority",
+          },
+        },
+      },
+    },
     "homelab": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Homelab",
