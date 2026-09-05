@@ -245,6 +245,21 @@
             "serviceTier": "priority",
           },
         },
+        "gpt-6-astra": {
+          "id": "codex/gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "reasoning": true,
+          "tool_call": true,
+        },
+        "gpt-6-astra-fast": {
+          "id": "codex/gpt-6-astra",
+          "name": "GPT-6 Astra Fast",
+          "reasoning": true,
+          "tool_call": true,
+          "options": {
+            "serviceTier": "priority",
+          },
+        },
       },
     },
     "homelab": {
