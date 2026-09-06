@@ -279,7 +279,22 @@
           },
         },
         "local-small": {
-          "name": "Qwen3.8 27B",
+          "name": "Local Small",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "temperature": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
+          "limit": {
+            "context": 262144,
+            "output": 8192,
+          },
+        },
+        "local-fast": {
+          "name": "Local Fast",
           "attachment": true,
           "reasoning": true,
           "tool_call": true,
