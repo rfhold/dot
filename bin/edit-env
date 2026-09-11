@@ -1,191 +1,181 @@
 #!/bin/bash
 
-# Configuration
-DOTFILES_DIR="$HOME/dot"
-ENV_DIR="$DOTFILES_DIR/env"
-ENV_ENCRYPTED_DIR="$ENV_DIR/encrypted"
-ENV_TEMP_DIR="$ENV_DIR/.temp"
+set -o pipefail
+umask 077
 
-# Create necessary directories
-mkdir -p "$ENV_ENCRYPTED_DIR" "$ENV_TEMP_DIR"
+BAO_ENV_MOUNT="${BAO_ENV_MOUNT:-kv}"
+BAO_ENV_PREFIX="${BAO_ENV_PREFIX:-env}"
+BAO_OIDC_PATH="${BAO_OIDC_PATH:-oidc}"
+BAO_OIDC_ROLE="${BAO_OIDC_ROLE:-admin}"
 
-# Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Function to get GPG key ID
-get_gpg_key() {
-    local keys=$(gpg --list-secret-keys --keyid-format=long | grep -E "^sec" | awk '{print $2}' | cut -d'/' -f2)
-    if [ -z "$keys" ]; then
-        echo -e "${RED}No GPG keys found. Please create one first.${NC}" >&2
+TEMP_DIR=""
+DATA_FILE=""
+RESPONSE_FILE=""
+VALUE_FILE=""
+BAO_ERROR_FILE=""
+
+cleanup() {
+    [ -z "$TEMP_DIR" ] || rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
+
+bao_with_auth() {
+    : > "$BAO_ERROR_FILE"
+    if command bao "$@" 2>"$BAO_ERROR_FILE"; then
+        [ ! -s "$BAO_ERROR_FILE" ] || cat "$BAO_ERROR_FILE" >&2
+        return 0
+    fi
+
+    if ! grep -Eqi 'permission denied|missing client token|no token|code:[[:space:]]*403' "$BAO_ERROR_FILE"; then
+        cat "$BAO_ERROR_FILE" >&2
+        return 1
+    fi
+
+    : > "$BAO_ERROR_FILE"
+    if env -u VAULT_TOKEN -u BAO_TOKEN bao "$@" 2>"$BAO_ERROR_FILE"; then
+        [ ! -s "$BAO_ERROR_FILE" ] || cat "$BAO_ERROR_FILE" >&2
+        return 0
+    fi
+
+    if ! grep -Eqi 'permission denied|missing client token|no token|code:[[:space:]]*403' "$BAO_ERROR_FILE"; then
+        cat "$BAO_ERROR_FILE" >&2
+        return 1
+    fi
+
+    if ! env -u VAULT_TOKEN -u BAO_TOKEN bao login -no-print -method=oidc -path="$BAO_OIDC_PATH" role="$BAO_OIDC_ROLE" >&2; then
+        return 1
+    fi
+
+    env -u VAULT_TOKEN -u BAO_TOKEN bao "$@"
+}
+
+get_env_groups() {
+    bao_with_auth kv list -format=json -mount="$BAO_ENV_MOUNT" "$BAO_ENV_PREFIX" |
+        jq -r 'if type == "array" then .[] else .data.keys[] end | rtrimstr("/")' |
+        sort
+}
+
+validate_group_name() {
+    [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+}
+
+load_group() {
+    local group_name="$1"
+    local version
+
+    bao_with_auth kv get -format=json -mount="$BAO_ENV_MOUNT" "$BAO_ENV_PREFIX/$group_name" > "$RESPONSE_FILE" || return 1
+    if ! jq -e '.data.data | type == "object" and all(keys[]; test("^[A-Za-z_][A-Za-z0-9_]*$")) and all(.[]; type == "string" and (test("[\\r\\n]") | not))' "$RESPONSE_FILE" >/dev/null; then
+        echo -e "${RED}Environment group '$group_name' contains invalid data.${NC}" >&2
+        return 1
+    fi
+
+    version=$(jq -r '.data.metadata.version' "$RESPONSE_FILE") || return 1
+    jq '.data.data' "$RESPONSE_FILE" > "$DATA_FILE" || return 1
+    : > "$RESPONSE_FILE"
+    printf '%s\n' "$version"
+}
+
+main() {
+    local existing_groups
+    local options
+    local choice
+    local action
+    local group_name
+    local cas_version
+    local var_name
+
+    if ! command -v bao >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1 || ! command -v gum >/dev/null 2>&1; then
+        echo -e "${RED}Error: bao, jq, and gum are required.${NC}" >&2
         exit 1
     fi
-    
-    # If multiple keys, let user choose
-    local key_count=$(echo "$keys" | wc -l)
-    if [ "$key_count" -gt 1 ]; then
-        echo "$keys" | gum choose --header "Select GPG key to use:"
-    else
-        echo "$keys"
-    fi
-}
 
-# Function to get list of existing env groups
-get_env_groups() {
-    find "$ENV_ENCRYPTED_DIR" -name "*.gpg" -type f 2>/dev/null | \
-        xargs -I {} basename {} .gpg | sort
-}
+    TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/edit-env.XXXXXX") || exit 1
+    chmod 700 "$TEMP_DIR"
+    DATA_FILE="$TEMP_DIR/data.json"
+    RESPONSE_FILE="$TEMP_DIR/response.json"
+    VALUE_FILE="$TEMP_DIR/value"
+    BAO_ERROR_FILE="$TEMP_DIR/bao-error"
+    : > "$DATA_FILE"
+    : > "$RESPONSE_FILE"
+    : > "$VALUE_FILE"
+    : > "$BAO_ERROR_FILE"
+    chmod 600 "$DATA_FILE" "$RESPONSE_FILE" "$VALUE_FILE" "$BAO_ERROR_FILE"
 
-# Function to decrypt env file
-decrypt_env_file() {
-    local group_name="$1"
-    local encrypted_file="$ENV_ENCRYPTED_DIR/${group_name}.gpg"
-    local temp_file="$ENV_TEMP_DIR/${group_name}.env"
-    
-    if [ -f "$encrypted_file" ]; then
-        gpg --decrypt --quiet "$encrypted_file" > "$temp_file" 2>/dev/null
-        echo "$temp_file"
-    else
-        # Create empty temp file for new group
-        touch "$temp_file"
-        echo "$temp_file"
-    fi
-}
-
-# Function to encrypt env file
-encrypt_env_file() {
-    local group_name="$1"
-    local temp_file="$2"
-    local gpg_key="$3"
-    local encrypted_file="$ENV_ENCRYPTED_DIR/${group_name}.gpg"
-    
-    gpg --encrypt --recipient "$gpg_key" --armor --output "$encrypted_file" "$temp_file"
-    rm -f "$temp_file"
-}
-
-# Function to add/update environment variable
-add_env_var() {
-    local temp_file="$1"
-    local var_name="$2"
-    local var_value="$3"
-    
-    # Remove existing variable if present
-    if [ -f "$temp_file" ]; then
-        grep -v "^${var_name}=" "$temp_file" > "${temp_file}.tmp" || true
-        mv "${temp_file}.tmp" "$temp_file"
-    fi
-    
-    # Add new variable
-    echo "${var_name}=${var_value}" >> "$temp_file"
-}
-
-# Main script
-main() {
     echo -e "${GREEN}Environment Variable Manager${NC}"
     echo "=============================="
-    
-    # Get GPG key
-    GPG_KEY=$(get_gpg_key)
-    echo -e "${YELLOW}Using GPG key: ${NC}$GPG_KEY"
-    
-    # Get existing groups
-    existing_groups=$(get_env_groups)
-    
-    # Choose action
+
+    existing_groups=$(get_env_groups) || exit 1
     if [ -z "$existing_groups" ]; then
-        action="create"
+        action=create
         echo -e "${YELLOW}No existing environment groups found.${NC}"
     else
         options="Create new group"
         while IFS= read -r group; do
             options="$options\n$group"
         done <<< "$existing_groups"
-        
+
         choice=$(echo -e "$options" | gum choose --header "Select environment group to edit or create new:")
-        
         if [ "$choice" = "Create new group" ]; then
-            action="create"
-        else
-            action="edit"
+            action=create
+        elif [ -n "$choice" ]; then
+            action=edit
             group_name="$choice"
-        fi
-    fi
-    
-    # Get or create group name
-    if [ "$action" = "create" ]; then
-        group_name=$(gum input --prompt "Enter new group name (e.g., aws, openai): " --placeholder "my-secrets")
-        if [ -z "$group_name" ]; then
-            echo -e "${RED}Group name cannot be empty.${NC}"
+        else
             exit 1
         fi
     fi
-    
-    # Decrypt existing file or create new
-    temp_file=$(decrypt_env_file "$group_name")
-    
-    # Show existing variables if editing
-    if [ "$action" = "edit" ] && [ -s "$temp_file" ]; then
+
+    if [ "$action" = create ]; then
+        group_name=$(gum input --prompt "Enter new group name (e.g., aws, openai): " --placeholder "my-secrets")
+        if ! validate_group_name "$group_name"; then
+            echo -e "${RED}Group names may contain only letters, numbers, dots, underscores, and hyphens.${NC}"
+            exit 1
+        fi
+        printf '{}\n' > "$DATA_FILE"
+        cas_version=0
+    else
+        cas_version=$(load_group "$group_name") || exit 1
         echo -e "\n${YELLOW}Existing variables in ${group_name}:${NC}"
-        cat "$temp_file" | sed 's/=.*/=***/' | gum format
+        jq -r 'keys[] | "\(.)=***"' "$DATA_FILE" | gum format
     fi
-    
-    # Loop to add/update variables
+
     while true; do
         echo -e "\n${GREEN}Adding/updating environment variable${NC}"
-        
-        # Get variable name
         var_name=$(gum input --prompt "Enter variable name: " --placeholder "API_KEY")
-        if [ -z "$var_name" ]; then
-            echo -e "${RED}Variable name cannot be empty.${NC}"
+        if [[ ! "$var_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            echo -e "${RED}Variable names must be valid shell identifiers.${NC}"
             continue
         fi
-        
-        # Check if variable exists
-        existing_value=""
-        if grep -q "^${var_name}=" "$temp_file" 2>/dev/null; then
-            existing_value=$(grep "^${var_name}=" "$temp_file" | cut -d'=' -f2-)
+
+        if jq -e --arg name "$var_name" 'has($name)' "$DATA_FILE" >/dev/null; then
             echo -e "${YELLOW}Variable already exists. Current value will be replaced.${NC}"
         fi
-        
-        # Get variable value
-        if [ -n "$existing_value" ]; then
-            var_value=$(gum input --prompt "Enter new value: " --placeholder "Enter new value" --password)
-        else
-            var_value=$(gum input --prompt "Enter value: " --placeholder "Enter value" --password)
-        fi
-        
-        if [ -z "$var_value" ]; then
+
+        gum input --prompt "Enter value: " --placeholder "Enter value" --password > "$VALUE_FILE"
+        if ! jq -e -Rs 'rtrimstr("\n") | length > 0' "$VALUE_FILE" >/dev/null; then
             echo -e "${RED}Variable value cannot be empty.${NC}"
             continue
         fi
-        
-        # Add/update the variable
-        add_env_var "$temp_file" "$var_name" "$var_value"
-        echo -e "${GREEN}✓ Added/updated: ${NC}${var_name}"
-        
-        # Ask if want to add more
+
+        jq --arg name "$var_name" --rawfile value "$VALUE_FILE" '.[$name] = ($value | rtrimstr("\n"))' "$DATA_FILE" > "$DATA_FILE.next" || exit 1
+        : > "$VALUE_FILE"
+        mv "$DATA_FILE.next" "$DATA_FILE"
+        chmod 600 "$DATA_FILE"
+        echo -e "${GREEN}Added/updated: ${NC}${var_name}"
+
         if ! gum confirm "Add another variable?"; then
             break
         fi
     done
-    
-    # Encrypt the file
-    echo -e "\n${YELLOW}Encrypting environment file...${NC}"
-    encrypt_env_file "$group_name" "$temp_file" "$GPG_KEY"
-    
-    echo -e "${GREEN}✓ Environment group '${group_name}' has been saved and encrypted.${NC}"
-    echo -e "${YELLOW}Location: ${NC}$ENV_ENCRYPTED_DIR/${group_name}.gpg"
+
+    echo -e "\n${YELLOW}Saving environment group to OpenBao...${NC}"
+    bao_with_auth kv put -format=json -mount="$BAO_ENV_MOUNT" -cas="$cas_version" "$BAO_ENV_PREFIX/$group_name" "@$DATA_FILE" >/dev/null || exit 1
+    echo -e "${GREEN}Environment group '${group_name}' has been saved.${NC}"
 }
 
-# Cleanup function
-cleanup() {
-    rm -rf "$ENV_TEMP_DIR"
-}
-
-# Set trap to cleanup on exit
-trap cleanup EXIT
-
-# Run main function
 main

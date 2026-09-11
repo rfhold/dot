@@ -1,4 +1,4 @@
-function envl --description "Load encrypted environment variables into current session"
+function envl --description "Load OpenBao environment variables into current session"
     set -l dotfiles_dir "$HOME/dot"
     set -l env_script "$dotfiles_dir/bin/env-select"
     
@@ -10,13 +10,12 @@ function envl --description "Load encrypted environment variables into current s
     
     # If no argument provided, run interactive mode
     if test (count $argv) -eq 0
-        # Run interactive selection
-        set -l temp_file (mktemp)
-        $env_script 2>$temp_file
-        
-        # Check if user was instructed to run envl with a group name
-        set -l instruction (grep "envl\|env-load" $temp_file | sed -E 's/.*(envl|env-load)[[:space:]]+([^[:space:]]+).*/\2/')
-        rm -f $temp_file
+        set -l instruction ($env_script)
+        set -l env_status $status
+
+        if test $env_status -ne 0
+            return $env_status
+        end
         
         if test -n "$instruction"
             # Recursively call with the group name
@@ -31,32 +30,32 @@ function envl --description "Load encrypted environment variables into current s
     echo "Loading environment group: $group_name" >&2
     
     # Get the Fish commands from the script
-    set -l temp_output (mktemp)
-    $env_script --fish-output "$group_name" > $temp_output 2>/dev/null
-    
-    if test $status -ne 0
-        rm -f $temp_output
+    set -l commands ($env_script --fish-output "$group_name")
+    set -l env_status $status
+
+    if test $env_status -ne 0
         echo "Error: Failed to load environment group '$group_name'" >&2
         return 1
     end
-    
+
     # Execute each set command line by line
     set -l loaded_count 0
-    while read -l cmd
+    for cmd in $commands
         if test -n "$cmd"
-            eval $cmd
+            if not eval $cmd
+                echo "Error: Failed to set an environment variable from '$group_name'" >&2
+                return 1
+            end
             set loaded_count (math $loaded_count + 1)
         end
-    end < $temp_output
-    
-    rm -f $temp_output
-    
+    end
+
     echo "✓ Loaded $loaded_count environment variables from '$group_name'" >&2
 end
 
 
 
-function env-show --description "Show variables in an encrypted environment group"
+function env-show --description "Show variables in an OpenBao environment group"
     set -l dotfiles_dir "$HOME/dot"
     set -l env_script "$dotfiles_dir/bin/env-select"
     
@@ -78,19 +77,15 @@ end
 alias envs='env-show'
 
 function env-list --description "List all available environment groups"
-    set -l env_dir "$HOME/dot/env/encrypted"
-    
-    if not test -d "$env_dir"
-        echo "No environment groups found." >&2
+    set -l env_script "$HOME/dot/bin/env-select"
+    set -l groups ($env_script --groups)
+    if test $status -ne 0
         return 1
     end
-    
+
     echo "Available environment groups:"
-    for file in $env_dir/*.gpg
-        if test -f "$file"
-            set -l group_name (basename $file .gpg)
-            echo "  • $group_name"
-        end
+    for group_name in $groups
+        echo "  $group_name"
     end
 end
 
