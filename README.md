@@ -104,16 +104,16 @@ This dotfiles system includes several custom utilities for configuration and env
 
 ### Configuration Management
 - **`adopt-dot`** - Interactive tool to adopt existing config files from `~` or `~/.config` into your dotfiles repository
-- **`edit-env`** - Create and edit encrypted environment variable groups using GPG encryption
+- **`edit-env`** - Create and edit environment variable groups in OpenBao KV
 
 ### Environment Variable Management
-- **`env-load`** - Fish function to load encrypted environment variables into your shell session
-  - Includes aliases: `envl`, `envs`, `envls`
+- **`envl`** - Fish function to load OpenBao environment variables into your shell session
+  - Includes related commands: `envs` and `envls`
   - Provides tab completion for environment group names
-  - Calls `env-select` internally to decrypt and load variables
-- **`env-select`** - Decrypt and select environment variable groups from encrypted storage
+  - Calls `env-select` internally to fetch and load variables
+- **`env-select`** - Fetch and select environment variable groups from OpenBao KV
 
-These tools work together to provide secure, encrypted storage of sensitive environment variables with easy loading into shell sessions.
+These tools use OpenBao OIDC authentication and load secrets from the `kv/env` namespace.
 
 ## Tmux Plugin Manager
 

@@ -7,7 +7,7 @@ REMOTE_HOST="${SYNC_ENV_HOST:-$REMOTE_HOST_DEFAULT}"
 REMOTE_USER="rfhold"
 DOT_DIR="$HOME/dot"
 ENV_DIR="$DOT_DIR/env"
-SYNC_DIRS=("encrypted" "kubeconfig")
+SYNC_DIRS=("kubeconfig")
 
 DRY_RUN=false
 VERBOSE=false
