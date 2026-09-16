@@ -8,6 +8,13 @@
       }
     }
   },
+  "mcp": {
+    "sk-context": {
+      "type": "remote",
+      "url": "https://context.skysquid.net/mcp",
+      "enabled": true
+    }
+  },
   "plugin": [
     "@stablekernel/opencode-bifrost",
     "@franlol/opencode-md-table-formatter@0.0.3",

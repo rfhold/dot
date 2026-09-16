@@ -8,6 +8,13 @@
       }
     }
   },
+  "mcp": {
+    "sk-context": {
+      "type": "remote",
+      "url": "https://context.skysquid.net/mcp",
+      "enabled": true
+    }
+  },
   "plugin": [
     "@stablekernel/opencode-bifrost",
     "cfaintl-skills@git+ssh://git@github.com/cfaintl/skills.git#main",
