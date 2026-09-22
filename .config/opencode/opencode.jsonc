@@ -178,6 +178,13 @@
           "reasoning": true,
           "tool_call": true,
         },
+        "opus-5.5": {
+          "id": "claude/claude-opus-5-5",
+          "name": "Claude Opus 5.5",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+        },
         "fable-5.1": {
           "id": "claude/claude-fable-5-1",
           "name": "Claude Fable 5.1",
@@ -263,6 +270,36 @@
         "gpt-6-astra-fast": {
           "id": "codex/gpt-6-astra",
           "name": "GPT-6 Astra Fast",
+          "reasoning": true,
+          "tool_call": true,
+          "options": {
+            "serviceTier": "priority",
+          },
+        },
+        "gpt-6-sol": {
+          "id": "codex/gpt-6-sol",
+          "name": "GPT-6 Sol",
+          "reasoning": true,
+          "tool_call": true,
+        },
+        "gpt-6-sol-fast": {
+          "id": "codex/gpt-6-sol",
+          "name": "GPT-6 Sol Fast",
+          "reasoning": true,
+          "tool_call": true,
+          "options": {
+            "serviceTier": "priority",
+          },
+        },
+        "gpt-6-luna": {
+          "id": "codex/gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "reasoning": true,
+          "tool_call": true,
+        },
+        "gpt-6-luna-fast": {
+          "id": "codex/gpt-6-luna",
+          "name": "GPT-6 Luna Fast",
           "reasoning": true,
           "tool_call": true,
           "options": {
