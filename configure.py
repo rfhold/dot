@@ -102,7 +102,6 @@ PACKAGES = {
         "brew": [
             "bash-language-server",
             "buf",
-            "clangd",
             "dockerfile-language-server",
             "gopls",
             "lua-language-server",
@@ -135,7 +134,7 @@ PACKAGES = {
         ],
     },
     "tools": {
-        "brew": ["pulumi", "gh", "argon2"],
+        "brew": ["pulumi", "gh", "argon2", "openbao"],
         "pacman": [
             "github-cli",
             "tea",
