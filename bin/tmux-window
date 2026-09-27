@@ -5,7 +5,7 @@
 #
 # This script creates a standardized tmux window with:
 #   - A single pane
-#   - Window default path set to the requested directory
+#   - A pane started in the requested directory
 #
 # If the window already exists, it switches to it.
 
@@ -21,15 +21,6 @@ window_exists() {
     local session_name="$1"
     local window_name="$2"
     tmux list-windows -t "$session_name" -F "#{window_name}" 2>/dev/null | grep -q "^${window_name}$"
-}
-
-# Function to set a window's default path
-set_window_path() {
-    local session_name="$1"
-    local window_name="$2"
-    local directory_path="$3"
-
-    tmux set-option -t "$session_name:$window_name" default-path "$directory_path"
 }
 
 # Function to move the active pane to the requested directory
@@ -51,7 +42,6 @@ create_window() {
     
     # Create new window with the requested working directory
     tmux new-window -t "$session_name" -n "$window_name" -c "$directory_path"
-    set_window_path "$session_name" "$window_name" "$directory_path"
 }
 
 # Function to attach to session and select window
@@ -97,8 +87,6 @@ main() {
     # Check if window already exists
     if window_exists "$session_name" "$window_name"; then
         echo -e "${GREEN}Window '$window_name' already exists in session '$session_name'${NC}" >&2
-        echo -e "${GREEN}Updating window default path to '$directory_path'${NC}" >&2
-        set_window_path "$session_name" "$window_name" "$directory_path"
         set_active_pane_path "$session_name" "$window_name" "$directory_path"
         echo -e "${GREEN}Switching to existing window...${NC}" >&2
         attach_session "$session_name" "$window_name"
