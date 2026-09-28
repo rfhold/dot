@@ -685,18 +685,7 @@ if has_tag("tpm"):
 # Managed app repos (clone + make install)
 # -----------------------------------------------------------------------------
 
-MANAGED_APPS = [
-    {
-        "name": "axol-query",
-        "src": "git@git.holdenitdown.net:rfhold/axol.git",
-        "dest": f"{home}/repos/rfhold/axol",
-    },
-    {
-        "name": "atlassian-query",
-        "src": "git@git.holdenitdown.net:rfhold/atlassian-query.git",
-        "dest": f"{home}/repos/rfhold/atlassian-query",
-    },
-]
+MANAGED_APPS = []
 
 if has_tag("apps"):
     files.directory(
