@@ -156,6 +156,7 @@ PACKAGES = {
     "bare_metal": {
         "brew": [],  # Docker Desktop installed via cask
         "pacman": [
+            "alacritty",
             "docker",
             "docker-buildx",
             "docker-compose",
@@ -180,7 +181,7 @@ PACKAGES = {
 SYSTEM_DEPS = {}
 
 CASKS = [
-    "ghostty",
+    "alacritty",
     "hammerspoon",
     "slack",
     "spotify",
