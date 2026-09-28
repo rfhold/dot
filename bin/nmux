@@ -1,10 +1,12 @@
 #!/bin/bash
 
 # nmux - Fuzzy search repos and open in tmux
-# Usage: nmux [--create] [category/repo-name]
+# Usage: nmux [--create] [--worktree [name]] [category/repo-name]
 #   nmux                               - Interactive mode with fuzzy search
 #   nmux stablekernel/github-token-bot - Direct mode with specific repo
 #   nmux --create rfhold/new-repo      - Create remote repo if missing, then open
+#   nmux --worktree rfhold/dot         - Pick a worktree
+#   nmux --worktree feature rfhold/dot - Open an existing named worktree
 
 # Configuration
 REPOS_DIR="$HOME/repos"
@@ -72,17 +74,93 @@ ensure_repo() {
     fi
 }
 
+open_worktree() {
+    local repo_path="$1" name="$2" selected="" path="" branch="" entry="" choice=""
+    local -a paths=() labels=()
+    while IFS= read -r entry; do
+        case "$entry" in
+            'worktree '*) path="${entry#worktree }"; branch="" ;;
+            'branch '*) branch="${entry#branch refs/heads/}" ;;
+            '')
+                if [ -n "$path" ] && [ "$path" != "$repo_path" ] && [ -d "$path" ]; then
+                    paths+=("$path")
+                    labels+=("$(basename "$path") ($branch)")
+                fi
+                path=""
+                ;;
+        esac
+    done < <(git -C "$repo_path" worktree list --porcelain; printf '\n')
+
+    if [ -n "$name" ]; then
+        local i
+        for i in "${!paths[@]}"; do
+            if [ "$(basename "${paths[i]}")" = "$name" ] || [ "$repo_path/.worktrees/$name" = "${paths[i]}" ]; then
+                selected="${paths[i]}"
+                break
+            fi
+        done
+        if [ -z "$selected" ]; then
+            echo -e "${RED}Worktree '$name' not found.${NC}" >&2
+            return 1
+        fi
+    else
+        choice=$(printf '%s\n' "Main checkout" "${labels[@]}" "+ Create worktree" | gum filter --prompt 'worktree >' --placeholder '')
+        case "$choice" in
+            'Main checkout') selected="$repo_path" ;;
+            '+ Create worktree')
+                name=$(gum input --prompt 'Worktree name > ' --placeholder 'feature-name')
+                if [[ ! "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] || [ "$name" = . ] || [ "$name" = .. ]; then
+                    echo -e "${RED}Invalid worktree name.${NC}" >&2
+                    return 1
+                fi
+                selected="$repo_path/.worktrees/$name"
+                if [ -e "$selected" ]; then
+                    echo -e "${RED}Path already exists: $selected${NC}" >&2
+                    return 1
+                fi
+                local base
+                base=$(git -C "$repo_path" symbolic-ref --short HEAD) || return 1
+                local exclude
+                exclude=$(git -C "$repo_path" rev-parse --path-format=absolute --git-path info/exclude) || return 1
+                if ! grep -Fxq '/.worktrees/' "$exclude" 2>/dev/null; then
+                    printf '\n/.worktrees/\n' >> "$exclude" || return 1
+                fi
+                mkdir -p "$repo_path/.worktrees" || return 1
+                git -C "$repo_path" worktree add -b "$name" "$selected" "$base" || return 1
+                ;;
+            '') return 1 ;;
+            *)
+                local i
+                for i in "${!labels[@]}"; do
+                    if [ "$choice" = "${labels[i]}" ]; then
+                        selected="${paths[i]}"
+                        break
+                    fi
+                done
+                [ -n "$selected" ] || return 1
+                ;;
+        esac
+    fi
+    WORKTREE_PATH="$selected"
+}
+
 # Main function
 main() {
     check_repos_dir
 
     local create=0
-    local repo_arg
+    local repo_arg worktree=0 worktree_name=""
 
     # Parse flags
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --create) create=1; shift ;;
+            --worktree)
+                worktree=1; shift
+                if [ $# -ge 2 ] && [[ "$1" != --* ]]; then
+                    worktree_name="$1"; shift
+                fi
+                ;;
             *) repo_arg="$1"; shift ;;
         esac
     done
@@ -119,6 +197,15 @@ main() {
     category=$(echo "$selected_repo" | cut -d'/' -f1)
     repo_name=$(echo "$selected_repo" | cut -d'/' -f2)
     repo_path="$REPOS_DIR/$selected_repo"
+
+    local window_name="$repo_name"
+    if [ "$worktree" -eq 1 ] || [ -z "$repo_arg" ]; then
+        open_worktree "$repo_path" "$worktree_name" || exit 1
+        if [ "$WORKTREE_PATH" != "$repo_path" ]; then
+            repo_path="$WORKTREE_PATH"
+            window_name="$repo_name|$(basename "$repo_path")"
+        fi
+    fi
     
     echo -e "${YELLOW}Selected: $selected_repo${NC}" >&2
     echo -e "${YELLOW}Category: $category${NC}" >&2
@@ -137,7 +224,7 @@ main() {
         exit 1
     fi
     
-    "$script_dir/tmux-window" "$session_name" "$repo_name" "$repo_path"
+    "$script_dir/tmux-window" "$session_name" "$window_name" "$repo_path"
 }
 
 # Run main function
