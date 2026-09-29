@@ -81,7 +81,7 @@ This single command will:
 - **pinentry-mac** - macOS GPG passphrase entry
 
 ### Applications (GUI)
-- **Alacritty** - GPU-accelerated terminal
+- **Alacritty** - GPU-accelerated terminal (built from pinned upstream source on macOS because the Homebrew cask is disabled)
 - **Slack** - Team communication
 - **Spotify** - Music streaming
 - **Obsidian** - Note-taking and knowledge management

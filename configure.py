@@ -181,7 +181,7 @@ PACKAGES = {
 SYSTEM_DEPS = {}
 
 CASKS = [
-    "alacritty",
+    "font-meslo-lg-nerd-font",
     "hammerspoon",
     "slack",
     "spotify",
@@ -662,6 +662,34 @@ if has_tag("packages"):
 # GUI apps (macOS only)
 if has_tag("packages") and pkg_manager == "brew":
     brew.casks(name="Install GUI applications", casks=CASKS)
+
+    alacritty_source = f"{home}/.cache/dot/alacritty"
+    files.directory(name="Ensure Alacritty source parent exists", path=f"{home}/.cache/dot")
+    git.repo(
+        name="Clone Alacritty 0.17.0 source",
+        src="https://github.com/alacritty/alacritty.git",
+        dest=alacritty_source,
+        branch="v0.17.0",
+        pull=False,
+    )
+    server.shell(
+        name="Build and install Alacritty for macOS",
+        commands=[
+            'case "$(/Applications/Alacritty.app/Contents/MacOS/alacritty --version 2>/dev/null)" in '
+            '"alacritty 0.17.0"*) ;; *) '
+            f'make -C "{alacritty_source}" app && '
+            f'ditto "{alacritty_source}/target/release/osx/Alacritty.app" /Applications/Alacritty.app ;; '
+            'esac',
+        ],
+    )
+    server.shell(
+        name="Install Alacritty terminfo",
+        commands=[
+            'if ! infocmp alacritty >/dev/null 2>&1; then '
+            f'tic -x -e alacritty,alacritty-direct "{alacritty_source}/extra/alacritty.info"; '
+            'fi',
+        ],
+    )
 
 # -----------------------------------------------------------------------------
 # Tmux Plugin Manager (TPM)

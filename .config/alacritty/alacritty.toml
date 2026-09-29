@@ -33,6 +33,9 @@ color = "#db4b4b"
 [font]
 size = 16
 
+[font.normal]
+family = "MesloLGM Nerd Font"
+
 [window]
 option_as_alt = "OnlyLeft"
 
