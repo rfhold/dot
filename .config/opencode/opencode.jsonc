@@ -313,6 +313,21 @@
             "serviceTier": "priority",
           },
         },
+        "gpt-6.1-sol": {
+          "id": "codex/gpt-6.1-sol",
+          "name": "GPT-6.1 Sol",
+          "reasoning": true,
+          "tool_call": true,
+        },
+        "gpt-6.1-sol-fast": {
+          "id": "codex/gpt-6.1-sol",
+          "name": "GPT-6.1 Sol Fast",
+          "reasoning": true,
+          "tool_call": true,
+          "options": {
+            "serviceTier": "priority",
+          },
+        },
       },
     },
     "homelab": {
