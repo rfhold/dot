@@ -206,6 +206,13 @@
           "reasoning": true,
           "tool_call": true,
         },
+        "sonnet-5.5": {
+          "id": "claude/claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+        },
       },
     },
     "codex": {
