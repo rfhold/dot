@@ -24,7 +24,7 @@
     "smarthome": {
       "type": "remote",
       "url": "https://smarthome-mcp.holdenitdown.net/mcp",
-      "enabled": true
+      "enabled": false
     },
     "re-search": {
       "type": "remote",
