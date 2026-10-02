@@ -44,7 +44,7 @@
     "kuri": {
       "type": "remote",
       "url": "https://kuri.holdenitdown.net/mcp",
-      "enabled": true
+      "enabled": false
     }
   }
 }
