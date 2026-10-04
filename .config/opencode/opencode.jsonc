@@ -168,6 +168,10 @@
           "id": "claude/claude-opus-4-6",
           "name": "Claude Opus 4.6",
           "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
@@ -175,6 +179,10 @@
           "id": "claude/claude-opus-4-8",
           "name": "Claude Opus 4.8",
           "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
@@ -182,6 +190,10 @@
           "id": "claude/claude-opus-5-5",
           "name": "Claude Opus 5.5",
           "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
@@ -189,6 +201,10 @@
           "id": "claude/claude-fable-5-1",
           "name": "Claude Fable 5.1",
           "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
@@ -196,6 +212,10 @@
           "id": "claude/claude-sonnet-4-6",
           "name": "Claude Sonnet 4.6",
           "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
@@ -203,6 +223,10 @@
           "id": "claude/claude-sonnet-5",
           "name": "Claude Sonnet 5",
           "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
@@ -210,6 +234,10 @@
           "id": "claude/claude-sonnet-5-5",
           "name": "Claude Sonnet 5.5",
           "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
@@ -226,12 +254,22 @@
         "gpt-5.6-sol": {
           "id": "codex/gpt-5.6-sol",
           "name": "GPT-5.6 Sol",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
         "gpt-5.6-sol-fast": {
           "id": "codex/gpt-5.6-sol",
           "name": "GPT-5.6 Sol Fast",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
           "options": {
@@ -241,12 +279,22 @@
         "gpt-5.6-terra": {
           "id": "codex/gpt-5.6-terra",
           "name": "GPT-5.6 Terra",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
         "gpt-5.6-terra-fast": {
           "id": "codex/gpt-5.6-terra",
           "name": "GPT-5.6 Terra Fast",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
           "options": {
@@ -256,12 +304,22 @@
         "gpt-5.6-luna": {
           "id": "codex/gpt-5.6-luna",
           "name": "GPT-5.6 Luna",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
         "gpt-5.6-luna-fast": {
           "id": "codex/gpt-5.6-luna",
           "name": "GPT-5.6 Luna Fast",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
           "options": {
@@ -271,12 +329,22 @@
         "gpt-6-astra": {
           "id": "codex/gpt-6-astra",
           "name": "GPT-6 Astra",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
         "gpt-6-astra-fast": {
           "id": "codex/gpt-6-astra",
           "name": "GPT-6 Astra Fast",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
           "options": {
@@ -286,12 +354,22 @@
         "gpt-6-sol": {
           "id": "codex/gpt-6-sol",
           "name": "GPT-6 Sol",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
         "gpt-6-sol-fast": {
           "id": "codex/gpt-6-sol",
           "name": "GPT-6 Sol Fast",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
           "options": {
@@ -301,12 +379,22 @@
         "gpt-6-luna": {
           "id": "codex/gpt-6-luna",
           "name": "GPT-6 Luna",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
         "gpt-6-luna-fast": {
           "id": "codex/gpt-6-luna",
           "name": "GPT-6 Luna Fast",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
           "options": {
@@ -316,12 +404,22 @@
         "gpt-6.1-sol": {
           "id": "codex/gpt-6.1-sol",
           "name": "GPT-6.1 Sol",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
         },
         "gpt-6.1-sol-fast": {
           "id": "codex/gpt-6.1-sol",
           "name": "GPT-6.1 Sol Fast",
+          "attachment": true,
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+          },
           "reasoning": true,
           "tool_call": true,
           "options": {
