@@ -17,6 +17,7 @@ from pyinfra.facts.server import Command, Home, Os, Which
 from pyinfra_fisher import operations as fisher
 from pyinfra_paru import operations as paru
 from pyinfra_bun import operations as bun
+from pyinfra_bun.facts import BunGlobalPackages
 from pyinfra_go import operations as go
 from pyinfra_git.facts import (
     GitSigningConfigCurrent,
@@ -828,13 +829,24 @@ if has_tag("node"):
 # -----------------------------------------------------------------------------
 
 if has_tag("bun"):
+    bun.project_dependencies(
+        name="Install locked dot dependencies",
+        path=f"{home}/dot",
+    )
+    legacy_opencode = "opencode-ai" in (host.get_fact(BunGlobalPackages) or {})
+    bun.packages(
+        name="Remove legacy OpenCode package",
+        packages=["opencode-ai"],
+        present=False,
+    )
     bun.packages(
         name="Install global Bun packages",
         packages=[
-            "opencode-ai",
+            "@opencode/cli@2.0.31",
         ],
         present=True,
-        update=upgrade_mode,
+        update=upgrade_mode or legacy_opencode,
+        trust=True,
     )
 
 # -----------------------------------------------------------------------------
@@ -956,7 +968,7 @@ if has_tag("aur") and pkg_manager == "pacman" and not is_container():
     )
 
 # -----------------------------------------------------------------------------
-# Org-scoped AI tool configuration (.agents for Claude Code + OpenCode)
+# Org-scoped AI tool configuration (.agents and root OpenCode config)
 # -----------------------------------------------------------------------------
 
 STATIC_ORG_AGENT_DIRS = ["rfhold", "cfaintl", "stablekernel"]
@@ -973,7 +985,14 @@ if has_tag("skills"):
             present=True,
         )
 
-        link_config_dir(source_dir, org_dir)
+        link_config_dir(source_dir, org_dir, exclude=["opencode.jsonc"])
+        files.link(
+            name=f"Link OpenCode config for {org}",
+            path=f"{org_dir}/opencode.jsonc",
+            target=f"{source_dir}/opencode.jsonc",
+            force=True,
+            force_backup=True,
+        )
 
         server.shell(
             name=f"Allow direnv for {org}",

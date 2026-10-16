@@ -9,6 +9,8 @@ last-change: plugin-based-opencode
 
 # rfhold MCP Configuration
 
+This historical draft does not describe the current OpenCode configuration. For OpenCode v2 installation, org-root discovery, skills, plugins, and MCP wiring, use the active [OpenCode configuration spec](../opencode-config/spec.md). The v1 paths, plugin lists, and cache-refresh requirements below are not current operating instructions.
+
 ## Goal
 
 Define how `configure.py` generates org-scoped AI tool configuration for `rfhold/*` repos so those repos rely on standalone preview MCP servers for GitOps, Slack, and Grafana instead of Walter-managed local installs, scope the `superspec` OpenCode plugin to rfhold only, and add a per-org shared-skill allowlist with filtered exposure so each org only surfaces curated skills.

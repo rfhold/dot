@@ -26,5 +26,9 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": [".config/opencode/tool/**/*.ts"]
+  "include": [
+    ".config/opencode/plugins/**/*.ts",
+    ".config/opencode/providers/**/*.ts",
+    "scripts/opencode-v2*.ts"
+  ]
 }

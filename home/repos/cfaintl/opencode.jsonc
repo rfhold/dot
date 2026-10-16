@@ -1,0 +1,45 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["{env:HOME}/repos/cfaintl/.agents/AGENTS.md"],
+  "mcp": {
+    "servers": {
+      "sk-context": {
+        "type": "remote",
+        "url": "https://context.skysquid.net/mcp",
+        "disabled": false,
+        "protocol": "2026-07-28"
+      },
+      "chikin": {
+        "type": "remote",
+        "url": "https://chikin.ai/api/mcp",
+        "disabled": false,
+        "protocol": "2026-07-28",
+        "oauth": {}
+      }
+    }
+  },
+  "providers": {
+    "amazon-bedrock": {
+      "settings": {
+        "region": "us-east-1",
+        "profile": "stablekernel-shrine"
+      }
+    }
+  },
+  "plugins": [
+    "@stablekernel/opencode-bifrost@0.8.0",
+    {
+      "package": "{env:HOME}/.config/opencode/providers/cfa-skills",
+      "options": {
+        "configFile": "~/repos/cfaintl/.agents/cfa-skills.json"
+      }
+    },
+    "@tarquinen/opencode-dcp@3.2.0"
+  ],
+  "commands": {
+    "cfa-skills-update": {
+      "description": "Explain how to update the locked cfa-skills dependency",
+      "template": "cfa-skills is acquired by the dotfiles Bun lockfile, not OpenCode's plugin cache. Updating requires an explicit dependency update in ~/dot and a restart of OpenCode. Explain this without deleting caches, changing dependencies, or executing any update command."
+    }
+  }
+}

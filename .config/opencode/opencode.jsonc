@@ -1,492 +1,637 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
-  "disabled_providers": ["opencode", "amazon-bedrock"],
   "mcp": {
-    "playwright": {
-      "type": "local",
-      "command": [
-        "bunx",
-        "@playwright/mcp@latest",
-        "--isolated",
-        "--browser",
-        "chromium",
-      ],
-      "enabled": false,
-    },
+    "servers": {
+      "playwright": {
+        "type": "local",
+        "command": [
+          "bunx",
+          "@playwright/mcp@latest",
+          "--isolated",
+          "--browser",
+          "chromium"
+        ],
+        "disabled": true
+      }
+    }
   },
-  "permission": {
-    "websearch": "deny",
-    "external_directory": {
-      "~/Library/pnpm/store/**": "allow",
-      "~/.local/share/pnpm/store/**": "allow",
-      "~/.bun/install/cache/**": "allow",
-      "~/.npm/**": "allow",
-      "~/go/pkg/mod/**": "allow",
-      "~/Library/Caches/go-build/**": "allow",
-      "~/.cache/go-build/**": "allow",
-      "~/.cargo/registry/**": "allow",
-      "~/.cargo/git/**": "allow",
-      "~/Library/Caches/pip/**": "allow",
-      "~/.cache/pip/**": "allow",
-      "~/.cache/uv/**": "allow",
-    },
-    "bash": {
-      "*": "allow",
-      "pkexe *": "ask",
-      "kill *": "ask",
-      "pkill *": "ask",
-      "gh *": "ask",
-      "kubectl *": "ask",
-      "pyinfra *": "ask",
-      "uv run pyinfra *": "ask",
-      "pulumi *": "ask",
-      "helm *": "ask",
-      "scp *": "ask",
-      "ssh *": "ask",
-      "aws *": "ask",
-      "aws sts get-caller-identity*": "allow",
-      "aws account get*": "allow",
-      "aws account list*": "allow",
-      "aws apigateway get*": "allow",
-      "aws apigatewayv2 get*": "allow",
-      "aws autoscaling describe*": "allow",
-      "aws cloudformation describe*": "allow",
-      "aws cloudformation list*": "allow",
-      "aws cloudformation get-template*": "allow",
-      "aws cloudfront describe*": "allow",
-      "aws cloudfront get*": "allow",
-      "aws cloudfront list*": "allow",
-      "aws cloudtrail describe*": "allow",
-      "aws cloudtrail get*": "allow",
-      "aws cloudtrail list*": "allow",
-      "aws cloudwatch describe*": "allow",
-      "aws cloudwatch get*": "allow",
-      "aws cloudwatch list*": "allow",
-      "aws dynamodb describe*": "allow",
-      "aws dynamodb list*": "allow",
-      "aws ec2 describe*": "allow",
-      "aws ecr describe*": "allow",
-      "aws ecr get-authorization-token*": "ask",
-      "aws ecr list*": "allow",
-      "aws ecs describe*": "allow",
-      "aws ecs list*": "allow",
-      "aws eks describe*": "allow",
-      "aws eks list*": "allow",
-      "aws elasticache describe*": "allow",
-      "aws elasticache list*": "allow",
-      "aws elasticloadbalancing describe*": "allow",
-      "aws events describe*": "allow",
-      "aws events list*": "allow",
-      "aws iam get*": "allow",
-      "aws iam list*": "allow",
-      "aws kms describe*": "allow",
-      "aws kms get*": "allow",
-      "aws kms list*": "allow",
-      "aws lambda get*": "allow",
-      "aws lambda list*": "allow",
-      "aws logs describe*": "allow",
-      "aws logs filter-log-events*": "allow",
-      "aws logs get*": "allow",
-      "aws logs list*": "allow",
-      "aws organizations describe*": "allow",
-      "aws organizations list*": "allow",
-      "aws rds describe*": "allow",
-      "aws rds list*": "allow",
-      "aws route53 get*": "allow",
-      "aws route53 list*": "allow",
-      "aws s3 ls*": "allow",
-      "aws s3api get-bucket*": "allow",
-      "aws s3api get-public-access-block*": "allow",
-      "aws s3api head-bucket*": "allow",
-      "aws s3api head-object*": "allow",
-      "aws s3api list*": "allow",
-      "aws sns get*": "allow",
-      "aws sns list*": "allow",
-      "aws sqs get*": "allow",
-      "aws sqs list*": "allow",
-      "aws ssm describe*": "allow",
-      "aws ssm get*": "allow",
-      "aws ssm list*": "allow",
-      "aws ssm get-parameter*": "ask",
-      "aws ssm get-parameters*": "ask",
-      "az *": "ask",
-      "gcp *": "ask",
-      "git commit*--amend*": "ask",
-      "git commit*--no-verify*": "ask",
-      "git rebase*": "ask",
-      "git push*": "ask",
-      "git stash*": "ask",
-      "git -C* commit*--amend*": "ask",
-      "git -C* commit*--no-verify*": "ask",
-      "git -C* rebase*": "ask",
-      "git -C* push*": "ask",
-      "git -C* stash*": "ask",
-      "gh pull*": "allow",
-      "gh push*": "allow",
-      "gh push*-f": "ask",
-      "gh push*--force": "ask",
-      "gh pr list*": "allow",
-      "gh pr checks*": "allow",
-      "gh pr view*": "allow",
-      "gh pr status*": "allow",
-      "gh issue list*": "allow",
-      "gh issue view*": "allow",
-      "gh repo view*": "allow",
-      "gh repo list*": "allow",
-      "gh release list*": "allow",
-      "gh release view*": "allow",
-      "gh run list*": "allow",
-      "gh run view*": "allow",
-      "gh run watch*": "allow",
-      "gh workflow list*": "allow",
-      "gh workflow view*": "allow",
-      "gh auth status*": "allow",
-      "kubectl get *": "allow",
-      "kubectl describe *": "allow",
-      "kubectl logs *": "allow",
-      "kubectl top *": "allow",
-      "kubectl api-resources *": "allow",
-      "kubectl explain *": "allow",
-      "kubectl version *": "allow",
-      "kubectl cluster-info *": "allow",
-      "kubectl wait *": "allow",
-      "kubectl diff *": "allow",
-      "sudo *": "deny",
-    },
-  },
-  "provider": {
+  "permissions": [
+    { "action": "websearch", "resource": "*", "effect": "deny" },
+    { "action": "external_directory", "resource": "*", "effect": "ask" },
+    { "action": "external_directory", "resource": "~/Library/pnpm/store/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.local/share/pnpm/store/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.bun/install/cache/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.npm/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/go/pkg/mod/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/Library/Caches/go-build/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.cache/go-build/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.cargo/registry/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.cargo/git/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/Library/Caches/pip/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.cache/pip/**", "effect": "allow" },
+    { "action": "external_directory", "resource": "~/.cache/uv/**", "effect": "allow" },
+    { "action": "shell", "resource": "*", "effect": "allow" },
+    { "action": "shell", "resource": "pkexe *", "effect": "ask" },
+    { "action": "shell", "resource": "kill *", "effect": "ask" },
+    { "action": "shell", "resource": "pkill *", "effect": "ask" },
+    { "action": "shell", "resource": "gh *", "effect": "ask" },
+    { "action": "shell", "resource": "kubectl *", "effect": "ask" },
+    { "action": "shell", "resource": "pyinfra *", "effect": "ask" },
+    { "action": "shell", "resource": "uv run pyinfra *", "effect": "ask" },
+    { "action": "shell", "resource": "pulumi *", "effect": "ask" },
+    { "action": "shell", "resource": "helm *", "effect": "ask" },
+    { "action": "shell", "resource": "scp *", "effect": "ask" },
+    { "action": "shell", "resource": "ssh *", "effect": "ask" },
+    { "action": "shell", "resource": "aws *", "effect": "ask" },
+    { "action": "shell", "resource": "aws sts get-caller-identity*", "effect": "allow" },
+    { "action": "shell", "resource": "aws account get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws account list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws apigateway get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws apigatewayv2 get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws autoscaling describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudformation describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudformation list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudformation get-template*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudfront describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudfront get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudfront list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudtrail describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudtrail get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudtrail list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudwatch describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudwatch get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws cloudwatch list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws dynamodb describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws dynamodb list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ec2 describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ecr describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ecr get-authorization-token*", "effect": "ask" },
+    { "action": "shell", "resource": "aws ecr list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ecs describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ecs list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws eks describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws eks list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws elasticache describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws elasticache list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws elasticloadbalancing describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws events describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws events list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws iam get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws iam list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws kms describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws kms get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws kms list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws lambda get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws lambda list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws logs describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws logs filter-log-events*", "effect": "allow" },
+    { "action": "shell", "resource": "aws logs get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws logs list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws organizations describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws organizations list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws rds describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws rds list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws route53 get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws route53 list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws s3 ls*", "effect": "allow" },
+    { "action": "shell", "resource": "aws s3api get-bucket*", "effect": "allow" },
+    { "action": "shell", "resource": "aws s3api get-public-access-block*", "effect": "allow" },
+    { "action": "shell", "resource": "aws s3api head-bucket*", "effect": "allow" },
+    { "action": "shell", "resource": "aws s3api head-object*", "effect": "allow" },
+    { "action": "shell", "resource": "aws s3api list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws sns get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws sns list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws sqs get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws sqs list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ssm describe*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ssm get*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ssm list*", "effect": "allow" },
+    { "action": "shell", "resource": "aws ssm get-parameter*", "effect": "ask" },
+    { "action": "shell", "resource": "aws ssm get-parameters*", "effect": "ask" },
+    { "action": "shell", "resource": "az *", "effect": "ask" },
+    { "action": "shell", "resource": "gcp *", "effect": "ask" },
+    { "action": "shell", "resource": "git commit*--amend*", "effect": "ask" },
+    { "action": "shell", "resource": "git commit*--no-verify*", "effect": "ask" },
+    { "action": "shell", "resource": "git rebase*", "effect": "ask" },
+    { "action": "shell", "resource": "git push*", "effect": "ask" },
+    { "action": "shell", "resource": "git stash*", "effect": "ask" },
+    { "action": "shell", "resource": "git -C* commit*--amend*", "effect": "ask" },
+    { "action": "shell", "resource": "git -C* commit*--no-verify*", "effect": "ask" },
+    { "action": "shell", "resource": "git -C* rebase*", "effect": "ask" },
+    { "action": "shell", "resource": "git -C* push*", "effect": "ask" },
+    { "action": "shell", "resource": "git -C* stash*", "effect": "ask" },
+    { "action": "shell", "resource": "gh pull*", "effect": "allow" },
+    { "action": "shell", "resource": "gh push*", "effect": "allow" },
+    { "action": "shell", "resource": "gh push*-f", "effect": "ask" },
+    { "action": "shell", "resource": "gh push*--force", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr list*", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr checks*", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr view*", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr status*", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue list*", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue view*", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo view*", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo list*", "effect": "allow" },
+    { "action": "shell", "resource": "gh release list*", "effect": "allow" },
+    { "action": "shell", "resource": "gh release view*", "effect": "allow" },
+    { "action": "shell", "resource": "gh run list*", "effect": "allow" },
+    { "action": "shell", "resource": "gh run view*", "effect": "allow" },
+    { "action": "shell", "resource": "gh run watch*", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow list*", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow view*", "effect": "allow" },
+    { "action": "shell", "resource": "gh auth status*", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl get *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl describe *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl logs *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl top *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl api-resources *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl explain *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl version *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl cluster-info *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl wait *", "effect": "allow" },
+    { "action": "shell", "resource": "kubectl diff *", "effect": "allow" },
+    { "action": "shell", "resource": "sudo *", "effect": "deny" }
+  ],
+  "policies": [
+    { "action": "provider.use", "resource": "opencode", "effect": "deny" },
+    { "action": "provider.use", "resource": "amazon-bedrock", "effect": "deny" }
+  ],
+  "update": "disable",
+  "providers": {
     "claude": {
-      "npm": "@ai-sdk/anthropic",
       "name": "Claude",
-      "options": {
-        "apiKey": "unused",
-        "baseURL": "https://agent-gateway.holdenitdown.net/v1",
-      },
       "models": {
         "opus-4.6": {
-          "id": "claude/claude-opus-4-6",
           "name": "Claude Opus 4.6",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "claude/claude-opus-4-6",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "opus-4.8": {
-          "id": "claude/claude-opus-4-8",
           "name": "Claude Opus 4.8",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "claude/claude-opus-4-8",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "opus-5.5": {
-          "id": "claude/claude-opus-5-5",
           "name": "Claude Opus 5.5",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "claude/claude-opus-5-5",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "fable-5.1": {
-          "id": "claude/claude-fable-5-1",
           "name": "Claude Fable 5.1",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "claude/claude-fable-5-1",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "sonnet-4.6": {
-          "id": "claude/claude-sonnet-4-6",
           "name": "Claude Sonnet 4.6",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "claude/claude-sonnet-4-6",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "sonnet-5": {
-          "id": "claude/claude-sonnet-5",
           "name": "Claude Sonnet 5",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "claude/claude-sonnet-5",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "sonnet-5.5": {
-          "id": "claude/claude-sonnet-5-5",
           "name": "Claude Sonnet 5.5",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
-        },
+          "modelID": "claude/claude-sonnet-5-5",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
+        }
       },
+      "package": "@opencode/ai/providers/anthropic",
+      "settings": {
+        "apiKey": "unused",
+        "baseURL": "https://agent-gateway.holdenitdown.net/v1"
+      }
     },
     "codex": {
-      "npm": "@ai-sdk/openai",
       "name": "Codex",
-      "options": {
-        "apiKey": "unused",
-        "baseURL": "https://agent-gateway.holdenitdown.net/v1",
-      },
       "models": {
         "gpt-5.6-sol": {
-          "id": "codex/gpt-5.6-sol",
           "name": "GPT-5.6 Sol",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "codex/gpt-5.6-sol",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-5.6-sol-fast": {
-          "id": "codex/gpt-5.6-sol",
           "name": "GPT-5.6 Sol Fast",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
+          "modelID": "codex/gpt-5.6-sol",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
           },
-          "reasoning": true,
-          "tool_call": true,
-          "options": {
-            "serviceTier": "priority",
-          },
+          "settings": {
+            "serviceTier": "priority"
+          }
         },
         "gpt-5.6-terra": {
-          "id": "codex/gpt-5.6-terra",
           "name": "GPT-5.6 Terra",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "codex/gpt-5.6-terra",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-5.6-terra-fast": {
-          "id": "codex/gpt-5.6-terra",
           "name": "GPT-5.6 Terra Fast",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
+          "modelID": "codex/gpt-5.6-terra",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
           },
-          "reasoning": true,
-          "tool_call": true,
-          "options": {
-            "serviceTier": "priority",
-          },
+          "settings": {
+            "serviceTier": "priority"
+          }
         },
         "gpt-5.6-luna": {
-          "id": "codex/gpt-5.6-luna",
           "name": "GPT-5.6 Luna",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "codex/gpt-5.6-luna",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-5.6-luna-fast": {
-          "id": "codex/gpt-5.6-luna",
           "name": "GPT-5.6 Luna Fast",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
+          "modelID": "codex/gpt-5.6-luna",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
           },
-          "reasoning": true,
-          "tool_call": true,
-          "options": {
-            "serviceTier": "priority",
-          },
+          "settings": {
+            "serviceTier": "priority"
+          }
         },
         "gpt-6-astra": {
-          "id": "codex/gpt-6-astra",
           "name": "GPT-6 Astra",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "codex/gpt-6-astra",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-6-astra-fast": {
-          "id": "codex/gpt-6-astra",
           "name": "GPT-6 Astra Fast",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
+          "modelID": "codex/gpt-6-astra",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
           },
-          "reasoning": true,
-          "tool_call": true,
-          "options": {
-            "serviceTier": "priority",
-          },
+          "settings": {
+            "serviceTier": "priority"
+          }
         },
         "gpt-6-sol": {
-          "id": "codex/gpt-6-sol",
           "name": "GPT-6 Sol",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "codex/gpt-6-sol",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-6-sol-fast": {
-          "id": "codex/gpt-6-sol",
           "name": "GPT-6 Sol Fast",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
+          "modelID": "codex/gpt-6-sol",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
           },
-          "reasoning": true,
-          "tool_call": true,
-          "options": {
-            "serviceTier": "priority",
-          },
+          "settings": {
+            "serviceTier": "priority"
+          }
         },
         "gpt-6-luna": {
-          "id": "codex/gpt-6-luna",
           "name": "GPT-6 Luna",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "codex/gpt-6-luna",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-6-luna-fast": {
-          "id": "codex/gpt-6-luna",
           "name": "GPT-6 Luna Fast",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
+          "modelID": "codex/gpt-6-luna",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
           },
-          "reasoning": true,
-          "tool_call": true,
-          "options": {
-            "serviceTier": "priority",
-          },
+          "settings": {
+            "serviceTier": "priority"
+          }
         },
         "gpt-6.1-sol": {
-          "id": "codex/gpt-6.1-sol",
           "name": "GPT-6.1 Sol",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
-          "reasoning": true,
-          "tool_call": true,
+          "modelID": "codex/gpt-6.1-sol",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-6.1-sol-fast": {
-          "id": "codex/gpt-6.1-sol",
           "name": "GPT-6.1 Sol Fast",
-          "attachment": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
+          "modelID": "codex/gpt-6.1-sol",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
           },
-          "reasoning": true,
-          "tool_call": true,
-          "options": {
-            "serviceTier": "priority",
-          },
-        },
+          "settings": {
+            "serviceTier": "priority"
+          }
+        }
       },
+      "package": "@opencode/ai/providers/openai",
+      "settings": {
+        "apiKey": "unused",
+        "baseURL": "https://agent-gateway.holdenitdown.net/v1"
+      }
     },
     "homelab": {
-      "npm": "@ai-sdk/openai-compatible",
       "name": "Homelab",
-      "options": {
-        "baseURL": "https://agent-gateway.holdenitdown.net/v1",
-      },
       "models": {
         "gemma-4-e2b": {
           "name": "Gemma 4 E2B",
-          "tool_call": true,
-          "temperature": true,
           "limit": {
             "context": 131072,
-            "output": 8192,
+            "output": 8192
           },
+          "capabilities": {
+            "tools": true,
+            "temperature": true
+          }
         },
         "local-small": {
           "name": "Local Small",
-          "attachment": true,
-          "reasoning": true,
-          "tool_call": true,
-          "temperature": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
           "limit": {
             "context": 262144,
-            "output": 8192,
+            "output": 8192
           },
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "temperature": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "local-fast": {
           "name": "Local Fast",
-          "attachment": true,
-          "reasoning": true,
-          "tool_call": true,
-          "temperature": true,
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"],
-          },
           "limit": {
             "context": 262144,
-            "output": 8192,
+            "output": 8192
           },
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "temperature": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
         },
         "gpt-oss-120b": {
           "name": "GPT-OSS-120B",
           "headers": {
-            "x-model-name": "gpt-oss-120b",
+            "x-model-name": "gpt-oss-120b"
           },
-          "reasoning": true,
-        },
+          "capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          }
+        }
       },
-    },
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://agent-gateway.holdenitdown.net/v1"
+      }
+    }
   },
-  "autoupdate": false,
-  "plugin": [
-    "@franlol/opencode-md-table-formatter@0.0.3",
-    "@tarquinen/opencode-dcp@3.2.8-beta0",
-  ],
+  "plugins": [
+    "@tarquinen/opencode-dcp@3.2.0"
+  ]
 }

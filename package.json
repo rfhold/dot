@@ -6,12 +6,18 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@opencode-ai/plugin": "^1.0.10",
-    "@opencode-ai/sdk": "^1.0.10",
+    "@opencode/plugin": "2.0.31",
+    "rfhold-skills": "git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.5",
     "playwright": "^1.58.2"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "jsonc-parser": "^3.3.1"
+  },
+  "optionalDependencies": {
+    "cfa-skills": "git+ssh://git@github.com/cfaintl/skills.git#main"
   },
   "peerDependencies": {
     "typescript": "^5"

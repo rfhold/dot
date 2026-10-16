@@ -8,10 +8,11 @@ Example usage in configure.py:
     bun.packages(
         name="Install global Bun packages",
         packages=[
-            'opencode-ai',
+            '@opencode/cli@2.0.31',
             'typescript',
         ],
         present=True,
+        trust=True,
     )
 """
 

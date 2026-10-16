@@ -1,0 +1,25 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "sk-context": {
+        "type": "remote",
+        "url": "https://context.skysquid.net/mcp",
+        "disabled": false,
+        "protocol": "2026-07-28"
+      }
+    }
+  },
+  "providers": {
+    "amazon-bedrock": {
+      "settings": {
+        "region": "us-east-1",
+        "profile": "stablekernel-shrine"
+      }
+    }
+  },
+  "plugins": [
+    "@stablekernel/opencode-bifrost@0.8.0",
+    "@tarquinen/opencode-dcp@3.2.0"
+  ]
+}

@@ -53,16 +53,6 @@ if test (uname) = "Darwin"; and test -d "$HOME/.lmstudio/bin"
     set -gx PATH $PATH "$HOME/.lmstudio/bin"
 end
 
-# Fix opencode on musl/Alpine - npm wrapper doesn't detect musl correctly
-# OPENCODE_BIN_PATH is checked first in the wrapper, bypassing broken detection
-if test -f /etc/alpine-release
-    set -l arch (uname -m | string replace 'aarch64' 'arm64' | string replace 'x86_64' 'x64')
-    set -l musl_bin "$HOME/.bun/install/global/node_modules/opencode-linux-$arch-musl/bin/opencode"
-    if test -x "$musl_bin"
-        set -gx OPENCODE_BIN_PATH "$musl_bin"
-    end
-end
-
 # Source runtime environment (container entrypoint vars like OPENCODE_SERVER_PASSWORD)
 if test -f "$HOME/.env.runtime"
     while read -l line
