@@ -106,6 +106,44 @@ This dotfiles system includes several custom utilities for configuration and env
 - **`adopt-dot`** - Interactive tool to adopt existing config files from `~` or `~/.config` into your dotfiles repository
 - **`edit-env`** - Create and edit environment variable groups in OpenBao KV
 
+### Development Cleanup
+
+Run `./bin/dev-clean` for an interactive, size-sorted cleanup list. Go 1.25.5 or newer builds a cached binary on first use.
+The launcher works from any directory. `./bin/dev-clean --help` lists options without a scan or cleanup.
+
+- Default search roots: `~/repos` and this checkout. Add roots with repeatable `--root /path` options.
+- Discovery includes registered Git worktrees outside those roots and nested Cargo/JavaScript projects.
+- No target starts selected. Space toggles a target; `a` selects filtered targets; `n` clears the selection.
+- `/` filters; arrows navigate; `p` previews commands; `r` refreshes and clears the selection.
+- `w` shows all scan warnings.
+- Teal marks focus and selection; amber marks warnings. Red marks destructive actions and confirmation.
+- The list aligns size, type, and project columns. Short paths use `~` or this checkout's name.
+- The focused-target panel shows the path and cleanup command. `d` opens full details; arrows scroll long paths and commands.
+- The selection summary combines known logical bytes and a separate count for unknown sizes.
+- The scan indicator animates until discovery completes. Cleanup reports the active target and completed count, one target at a time.
+- Small panes use a compact layout; `?` shows all keys and the full size summary.
+- If the pane cannot show review text and confirmation controls, cleanup stays blocked until you enlarge it.
+- Set `NO_COLOR` for plain text; focus and selection retain text markers.
+- Enter opens the final review. Type `CLEAN` to execute, or press Escape to return.
+- Cargo uses `cargo clean` for each distinct target directory, including shared or external targets shown in the review.
+- Selected `node_modules` directories permit direct deletion. Path checks reject symlink ancestors and protected directories.
+- Global operations use `pnpm store prune`, `bun pm cache rm`, and `go clean -cache`. Go modules remain intact.
+- Docker removes all stopped containers, unused images, build cache, and unused volumes, **including named volumes**.
+  Docker preserves containers that run and their referenced resources. Cleanup can delete local databases and test data.
+  The review shows the Docker context or `DOCKER_HOST`, endpoint, and TLS settings.
+  Docker cleanup requires the exact phrase `DELETE DOCKER DATA`.
+  Commands retain the initial endpoint selection; a context definition change blocks further cleanup until refresh.
+- Ctrl+C cancels the active subprocess group. Completed operations have no undo.
+
+Scans run asynchronously and report unavailable tools or daemons as warnings.
+Cargo discovery uses offline, locked metadata; unresolved projects produce warnings instead of dependency downloads.
+Sizes and recovered-space estimates use logical file bytes, not exact free disk space.
+Shared files, hard links, and concurrent writes affect accuracy.
+Docker's pre-clean estimate sums the reclaimable categories from `docker system df` at the pinned destination,
+with a 15-second timeout. Shared image layers and build-cache accounting can overlap, so this is approximate,
+not a promise of free disk space. If the estimate is unavailable or incomplete, the Docker size stays unknown
+and the scan shows a warning. Docker recovery after cleanup still reports an unknown size.
+
 ### Environment Variable Management
 - **`envl`** - Fish function to load OpenBao environment variables into your shell session
   - Includes related commands: `envs` and `envls`

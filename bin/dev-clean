@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_path="${BASH_SOURCE[0]}"
+while [[ -L "$source_path" ]]; do
+  source_dir="$(cd -P -- "$(dirname -- "$source_path")" && pwd)"
+  source_path="$(readlink -- "$source_path")"
+  [[ "$source_path" = /* ]] || source_path="$source_dir/$source_path"
+done
+repo="$(cd -P -- "$(dirname -- "$source_path")/.." && pwd)"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/dev-clean"
+mkdir -p -- "$cache"
+# Include the checkout path so separate worktrees never reuse one another's binary.
+key="$(printf '%s' "$repo" | shasum -a 256 | cut -c1-16)"
+binary="$cache/dev-clean-$key"
+stale=false
+[[ -x "$binary" ]] || stale=true
+if [[ "$stale" = false ]]; then
+  newer="$(find "$repo/cmd/dev-clean" "$repo/internal/devclean" "$repo/go.mod" "$repo/go.sum" -type f -newer "$binary" -print -quit)"
+  [[ -z "$newer" ]] || stale=true
+fi
+if [[ "$stale" = true ]]; then
+  temporary="$(mktemp "$cache/.dev-clean.XXXXXXXX")"
+  trap 'rm -f -- "$temporary"' EXIT
+  (cd "$repo" && go build -o "$temporary" ./cmd/dev-clean)
+  chmod 755 "$temporary"
+  mv -f -- "$temporary" "$binary"
+  trap - EXIT
+fi
+exec "$binary" --repo-root "$repo" "$@"
