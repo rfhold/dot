@@ -86,6 +86,36 @@ describe("pluginUpdateCommitSubject", () => {
 });
 
 describe("updateOpenCodePluginPins", () => {
+  test("advances the global Bao pin without changing CLI or provider configuration", async () => {
+    const root = makeRoot();
+    const file = join(root, ".config/opencode/opencode.jsonc");
+    const cli = join(dirname(file), "cli.json");
+    mkdirSync(dirname(file), { recursive: true });
+    const pin = "opencode-vault@git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git#opencode/v0.1.2";
+    const config = `{
+  // Preserve unrelated configuration and formatting.
+  "providers": { "example": { "settings": { "baseURL": "https://example.invalid" } } },
+  "update": "disable",
+  "plugins": ["@tarquinen/opencode-dcp@3.2.0", "${pin}"]
+}\n`;
+    const cliConfig = '{"theme":{"name":"aura"},"tabs":[],"plugins":["unchanged"]}\n';
+    writeFileSync(file, config);
+    writeFileSync(cli, cliConfig);
+
+    const updates = await updateOpenCodePluginPins({
+      root,
+      tagLookup: (repoUrl) => {
+        expect(repoUrl).toBe("git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git");
+        return ["refs/tags/opencode/v0.1.2", "refs/tags/opencode/v0.2.0"];
+      },
+    });
+
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toMatchObject({ plugin: "opencode-vault", from: "opencode/v0.1.2", to: "opencode/v0.2.0" });
+    expect(readFileSync(file, "utf8")).toBe(config.replace(pin, pin.replace("v0.1.2", "v0.2.0")));
+    expect(readFileSync(cli, "utf8")).toBe(cliConfig);
+  });
+
   test("leaves current pins unchanged", async () => {
     const root = makeRoot();
     const file = writeConfig(root, "opencode.jsonc", [

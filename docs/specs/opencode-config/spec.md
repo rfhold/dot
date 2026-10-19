@@ -3,7 +3,7 @@ feature: opencode-config
 title: OpenCode Configuration (Skills, Agents, MCP)
 status: active
 created: 2026-04-19
-updated: 2026-10-16
+updated: 2026-10-19
 last-change: opencode-v2-migration
 ---
 
@@ -33,6 +33,7 @@ The ownership requirements below describe the intended source-repository contrac
 | Contract | Source |
 | --- | --- |
 | Global service configuration | [`.config/opencode/opencode.jsonc`](../../../.config/opencode/opencode.jsonc) |
+| Nonsecret Bao configuration | [`.config/opencode-bao/config.json`](../../../.config/opencode-bao/config.json) |
 | CLI theme and plugins | [`.config/opencode/cli.json`](../../../.config/opencode/cli.json) |
 | Dot project activation | [`opencode.jsonc`](../../../opencode.jsonc) |
 | Org configuration | [`home/repos/rfhold/opencode.jsonc`](../../../home/repos/rfhold/opencode.jsonc), [`home/repos/cfaintl/opencode.jsonc`](../../../home/repos/cfaintl/opencode.jsonc), [`home/repos/stablekernel/opencode.jsonc`](../../../home/repos/stablekernel/opencode.jsonc) |
@@ -225,6 +226,44 @@ When the plugin runs `setup(ctx)`
 Then it MUST register `ctx.shell.hook("create.before", ...)`
 And the hook MUST set `event.env.GIT_EDITOR` to `true`
 
+### Requirement: Global Bao Integration
+
+The system MUST activate `opencode-vault` globally through the service `plugins` array after DCP.
+The global release pin is `opencode-vault@git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git#opencode/v0.1.2`.
+The plugin source repository owns the service and TUI implementations.
+
+#### Scenario: One package supplies service and TUI capabilities
+
+Given the global service config declares the release-tagged Bao package
+When OpenCode starts on macOS
+Then OpenCode MUST load the package's service plugin
+And OpenCode MUST automatically discover its TUI entry from the same package
+And dot MUST NOT add a separate Bao entry to `cli.json`
+And the plugin MUST use macOS Keychain for authentication state
+
+#### Scenario: Trusted configuration uses normal dot symlinks
+
+Given dot declares nonsecret connection settings in `.config/opencode-bao/config.json`
+When `configure.py` applies the core configuration on any platform
+Then the generic config linker MUST link the Bao config through the normal dot symlink mechanism
+And dot MUST NOT add Bao-specific copy or exclusion logic
+And the macOS plugin MUST accept config symlinks that resolve to owned, secure targets
+And the macOS plugin MUST reject targets that fail its ownership or permission checks
+And the source MUST contain only nonsecret connection settings and the workstation's absolute Bao executable path
+And dot MUST NOT track tokens, Keychain data, or session state
+
+Dot uses the same generic config linker for Bao as for other configuration.
+The plugin source repository owns config target trust checks on macOS.
+Optional legacy `parentTokenPolicies` and `parentIdentityPolicies` fields remain accepted but do not enforce parent policies.
+
+#### Scenario: Shared dot configuration reaches another platform
+
+Given the shared global config declares Bao on a non-macOS host
+When OpenCode loads the package
+Then the Bao plugin MUST perform no work on that platform
+And both its service and TUI entry points MUST remain no-ops even if the Bao config link exists
+And the generic linker MUST treat `opencode-bao` like other configuration
+
 ### Requirement: Scheduled Plugin Pin Updates
 
 The scheduled updater MUST reconcile supported rfhold Git plugin specifiers in dot-owned `opencode.jsonc` files through the hourly PAC-triggered pipeline.
@@ -232,6 +271,9 @@ The pipeline commits changed pins directly to `main`.
 
 The updater scans `opencode.jsonc` files only. It does not update root dependencies, `bun.lock`, registry package versions, or CLI plugins in `cli.json`.
 The locked `rfhold-skills` dependency therefore requires an explicit dependency update; this pipeline does not reconcile it automatically.
+Bao's global Git release pin follows this hourly remote workflow without a separate timer.
+Normal local dot refresh acquires the updated remote pin; the scheduled workflow does not refresh workstation files itself.
+OpenCode's built-in `update: auto` controls application updates, not plugin release pins.
 These requirements describe the scheduled system, not authorization for a local agent to commit, push, trigger pipelines, or deploy resources.
 
 #### Scenario: Latest rfhold release tag applied

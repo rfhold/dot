@@ -1,5 +1,10 @@
 {
   "$schema": "https://opencode.ai/v2/cli.json",
   "theme": { "name": "aura" },
-  "plugins": ["@tarquinen/opencode-dcp@3.2.0"]
+  "plugins": [
+    "@tarquinen/opencode-dcp@3.2.0"
+  ],
+  "tabs": {
+    "mode": "auto"
+  }
 }

@@ -1,0 +1,13 @@
+{
+  "address": "https://openbao.holdenitdown.net",
+  "mount": "kv",
+  "prefix": "env",
+  "oidc": "oidc",
+  "catalogRole": "opencode-env-catalog",
+  "readRole": "opencode-env-read",
+  "parentTokenPolicies": [
+    "opencode-parent"
+  ],
+  "parentIdentityPolicies": [],
+  "bao": "/opt/homebrew/bin/bao"
+}

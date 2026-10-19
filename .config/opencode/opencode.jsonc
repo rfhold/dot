@@ -632,6 +632,7 @@
     }
   },
   "plugins": [
-    "@tarquinen/opencode-dcp@3.2.0"
+    "@tarquinen/opencode-dcp@3.2.0",
+    "opencode-vault@git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git#opencode/v0.1.2"
   ]
 }
