@@ -573,14 +573,34 @@
         },
         "local-small": {
           "name": "Local Small",
+          "body": {
+            "chat_template_kwargs": { "enable_thinking": false }
+          },
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "variants": [
+            {
+              "id": "thinking",
+              "body": {
+                "chat_template_kwargs": { "enable_thinking": true }
+              }
+            },
+            {
+              "id": "thinking-1024",
+              "body": {
+                "chat_template_kwargs": { "enable_thinking": true },
+                "reasoning_budget_tokens": 1024
+              }
+            }
+          ],
           "limit": {
             "context": 262144,
             "output": 8192
           },
           "capabilities": {
             "input": [
-              "text",
-              "image"
+              "text"
             ],
             "output": [
               "text"
