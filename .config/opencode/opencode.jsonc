@@ -560,6 +560,42 @@
     "homelab": {
       "name": "Homelab",
       "models": {
+        "dreamer": {
+          "name": "Dreamer",
+          "modelID": "dreamer",
+          "capabilities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
+        },
+        "workhorse": {
+          "name": "Workhorse",
+          "modelID": "workhorse",
+          "capabilities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
+        },
+        "turbo": {
+          "name": "Turbo",
+          "modelID": "turbo",
+          "capabilities": {
+            "input": ["text", "image"],
+            "output": ["text"],
+            "tools": true,
+            "reasoning": {
+              "supported": true
+            }
+          }
+        },
         "gemma-4-e2b": {
           "name": "Gemma 4 E2B",
           "limit": {
@@ -645,8 +681,9 @@
           }
         }
       },
-      "package": "@opencode/ai/providers/openai-compatible",
+      "package": "@opencode/ai/providers/openai",
       "settings": {
+        "apiKey": "unused",
         "baseURL": "https://agent-gateway.holdenitdown.net/v1"
       }
     }
