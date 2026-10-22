@@ -636,7 +636,8 @@
           },
           "capabilities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
