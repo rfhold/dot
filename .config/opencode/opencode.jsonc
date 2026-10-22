@@ -609,6 +609,7 @@
         },
         "local-small": {
           "name": "Local Small",
+          "package": "@opencode/ai/providers/openai-compatible",
           "body": {
             "chat_template_kwargs": { "enable_thinking": false }
           },
@@ -649,8 +650,9 @@
             }
           }
         },
-        "local-fast": {
-          "name": "Local Fast",
+        "local-medium": {
+          "name": "Local Medium",
+          "package": "@opencode/ai/providers/openai-compatible",
           "limit": {
             "context": 262144,
             "output": 8192
