@@ -19,6 +19,7 @@
   "permissions": [
     { "action": "websearch", "resource": "*", "effect": "deny" },
     { "action": "external_directory", "resource": "*", "effect": "ask" },
+    { "action": "external_directory", "resource": "~/dot/node_modules/**", "effect": "allow" },
     { "action": "external_directory", "resource": "~/Library/pnpm/store/**", "effect": "allow" },
     { "action": "external_directory", "resource": "~/.local/share/pnpm/store/**", "effect": "allow" },
     { "action": "external_directory", "resource": "~/.bun/install/cache/**", "effect": "allow" },
@@ -575,6 +576,9 @@
         "workhorse": {
           "name": "Workhorse",
           "modelID": "workhorse",
+          "limit": {
+            "context": 300000
+          },
           "capabilities": {
             "input": ["text", "image"],
             "output": ["text"],
