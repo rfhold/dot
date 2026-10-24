@@ -34,9 +34,9 @@
         "disabled": false,
         "protocol": "2026-07-28"
       },
-      "kuri": {
+      "waltr": {
         "type": "remote",
-        "url": "https://kuri.holdenitdown.net/mcp",
+        "url": "https://waltr.holdenitdown.net/mcp",
         "disabled": true,
         "protocol": "2026-07-28"
       }
