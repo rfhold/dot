@@ -12,5 +12,6 @@
 .librewolf/
 .opencode/plans
 .opencode/package-lock.json
+.worktrees/
 
 **/.claude/settings.local.json
