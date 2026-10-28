@@ -1,6 +1,7 @@
 # Global Personal Instructions
 
 ## Commits and Pull Requests
+- Use Conventional Commits format for commit messages and PR titles.
 - Do not add "Co-authored-by" trailers to commits or PRs.
 
 ## Communication Style
