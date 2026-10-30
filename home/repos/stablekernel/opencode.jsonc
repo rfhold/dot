@@ -1,7 +1,16 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "instructions": ["{env:HOME}/repos/stablekernel/.agents/AGENTS.md"],
   "mcp": {
     "servers": {
+      "automations": {
+        "type": "remote",
+        "url": "https://automations.staging.skysquid.net/mcp"
+      },
+      "grayboard": {
+        "type": "remote",
+        "url": "https://grayboard.nolnoch.com/mcp"
+      },
       "sk-context": {
         "type": "remote",
         "url": "https://context.skysquid.net/mcp",
@@ -20,6 +29,9 @@
   },
   "plugins": [
     "@stablekernel/opencode-bifrost@0.8.0",
-    "@tarquinen/opencode-dcp@3.2.0"
+    "@tarquinen/opencode-dcp@3.2.0",
+    {
+      "package": "github:nolnoch/grayboard#v2.2.0::path:adapters/opencode-v2"
+    }
   ]
 }

@@ -3,6 +3,10 @@
   "instructions": ["{env:HOME}/repos/cfaintl/.agents/AGENTS.md"],
   "mcp": {
     "servers": {
+      "grayboard": {
+        "type": "remote",
+        "url": "https://grayboard.nolnoch.com/mcp"
+      },
       "sk-context": {
         "type": "remote",
         "url": "https://context.skysquid.net/mcp",
@@ -34,7 +38,10 @@
         "configFile": "~/repos/cfaintl/.agents/cfa-skills.json"
       }
     },
-    "@tarquinen/opencode-dcp@3.2.0"
+    "@tarquinen/opencode-dcp@3.2.0",
+    {
+      "package": "github:nolnoch/grayboard#v2.2.0::path:adapters/opencode-v2"
+    }
   ],
   "commands": {
     "cfa-skills-update": {
