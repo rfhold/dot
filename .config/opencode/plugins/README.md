@@ -138,3 +138,29 @@ Tests never contact the gateway or an OpenCode service.
 - [Agentgateway v1.5.0 authorization location](https://github.com/agentgateway/agentgateway/blob/v1.5.0/crates/agentgateway/src/http/auth/mod.rs): default bearer header and single-header removal.
 - [Agentgateway v1.5.0 APIKeyHash](https://github.com/agentgateway/agentgateway/blob/v1.5.0/crates/agentgateway/src/http/apikey.rs): SHA-256 bytes, hex encoding, and required `sha256:` prefix.
 - [Config resources](https://agentgateway.dev/docs/standalone/1.5.x/documentation/operations/config-resources/): collection create, list response, hybrid storage, and asynchronous propagation.
+
+## Session reminders
+
+`reminders/index.ts` adds exactly two tools:
+
+- `set_reminder({seconds: 60, message: "Check progress."})` sets or replaces the caller session's interval.
+- `unset_reminder({})` cancels only the caller session's interval; repeated calls do nothing.
+
+Plugin instances share one in-memory registry across locations, so a session has at most one interval per service process.
+Seconds accept finite values from `0.001` through `2147483.647`; messages require nonblank text.
+The first reminder follows one full interval.
+Each tick submits the exact message as a new user prompt with `delivery: "steer"` to that same session.
+Busy sessions receive reminders at a step boundary; idle sessions resume model activity and can spend tokens.
+No interval starts until a session calls `set_reminder`.
+
+Ticks skip prompt admission while the previous admission remains unresolved; they do not wait for the model's response.
+Any admission failure stops that interval and emits a fixed warning, including when the session no longer exists.
+Cancellation and replacement prevent future admissions but cannot retract a prompt call that already started or a reminder that OpenCode already admitted.
+Each plugin instance clears its own intervals on unload.
+Reload and service shutdown also clear intervals; nothing persists.
+
+From the dot repository root, run deterministic tests with no live reminders:
+
+```sh
+bun test ./.config/opencode/plugins/reminders
+```
