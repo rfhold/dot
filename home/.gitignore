@@ -15,3 +15,6 @@
 .worktrees/
 
 **/.claude/settings.local.json
+/.claude/*
+!/.claude/CLAUDE.md
+/.claude.json*
