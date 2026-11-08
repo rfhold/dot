@@ -5,19 +5,22 @@
     "servers": {
       "grayboard": {
         "type": "remote",
-        "url": "https://grayboard.nolnoch.com/mcp"
+        "url": "https://grayboard.nolnoch.com/mcp",
+        "pool": true
       },
       "sk-context": {
         "type": "remote",
         "url": "https://context.skysquid.net/mcp",
         "disabled": false,
-        "protocol": "2026-07-28"
+        "protocol": "2026-07-28",
+        "pool": true
       },
       "chikin": {
         "type": "remote",
         "url": "https://chikin.ai/api/mcp",
         "disabled": false,
         "protocol": "2026-07-28",
+        "pool": true,
         "oauth": {}
       }
     }
@@ -40,7 +43,7 @@
     },
     "@tarquinen/opencode-dcp@3.2.0",
     {
-      "package": "github:nolnoch/grayboard#v2.2.0::path:adapters/opencode-v2"
+      "package": "github:nolnoch/grayboard#v2.4.2::path:adapters/opencode-v2"
     }
   ],
   "commands": {

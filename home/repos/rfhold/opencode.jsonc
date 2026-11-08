@@ -7,38 +7,44 @@
         "type": "remote",
         "url": "https://homelab-mcp.holdenitdown.net/mcp",
         "disabled": false,
-        "protocol": "2026-07-28"
+        "protocol": "2026-07-28",
+        "pool": true
       },
       "smarthome": {
         "type": "remote",
         "url": "https://smarthome-mcp.holdenitdown.net/mcp",
         "disabled": true,
-        "protocol": "2026-07-28"
+        "protocol": "2026-07-28",
+        "pool": true
       },
       "re-search": {
         "type": "remote",
         "url": "https://re-search.holdenitdown.net/mcp",
         "disabled": false,
         "protocol": "2026-07-28",
+        "pool": true,
         "codemode": false
       },
       "faktory": {
         "type": "remote",
         "url": "https://faktory.holdenitdown.net/mcp",
         "disabled": true,
-        "protocol": "2026-07-28"
+        "protocol": "2026-07-28",
+        "pool": true
       },
       "axol": {
         "type": "remote",
         "url": "https://axol.holdenitdown.net/mcp",
         "disabled": false,
-        "protocol": "2026-07-28"
+        "protocol": "2026-07-28",
+        "pool": true
       },
       "waltr": {
         "type": "remote",
         "url": "https://waltr.holdenitdown.net/mcp",
         "disabled": true,
-        "protocol": "2026-07-28"
+        "protocol": "2026-07-28",
+        "pool": true
       }
     }
   },
