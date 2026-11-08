@@ -7,6 +7,10 @@
   "share": "disabled",
   "mcp": {
     "servers": {
+      "grayboard": {
+        "type": "remote",
+        "url": "https://grayboard.nolnoch.com/mcp"
+      },
       "playwright": {
         "type": "local",
         "command": [
@@ -701,6 +705,7 @@
     }
   },
   "plugins": [
+    { "package": "github:nolnoch/grayboard#v2.3.1::path:adapters/opencode-v2" },
     "@tarquinen/opencode-dcp@3.2.0",
     "opencode-vault@git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git#opencode/v0.1.2"
   ]
