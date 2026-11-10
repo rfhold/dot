@@ -100,9 +100,13 @@ export function createController(directory: string, registry: Registry, deps: De
     })().catch(() => { log(state, "Supervisor cleanup failed; monitoring remains stopped.") })
   }
   const signal = (state: State) => AbortSignal.any([state.abort.signal, AbortSignal.timeout(timeout)])
-  async function announce(state: State, client: OpenCodeClient) {
-    if (closed || registry.get(state.worker) !== state) return
-    await client.session.synthetic({ sessionID: state.worker, text: `Autopilot: ${state.status}. ${state.log.at(-1) ?? ""}`, resume: false }, { signal: AbortSignal.timeout(timeout) })
+  async function escalate(state: State, client: OpenCodeClient, snapshot: Snapshot) {
+    const status = state.status
+    const signal = AbortSignal.timeout(timeout)
+    const fresh = await (deps.snapshot ?? ((s, c, sig) => readSnapshot(directory, s, c, sig, deps.now())))(state, client, signal)
+    if (closed || registry.get(state.worker) !== state || state.status !== status || fingerprint(fresh) !== fingerprint(snapshot)) return
+    if (fresh.queued || (fresh.running && !fresh.forms.length && !fresh.permissions.length)) return
+    await client.session.synthetic({ sessionID: state.worker, text: `Autopilot: ${state.status}. ${state.log.at(-1) ?? ""}`, resume: false }, { signal })
   }
   async function start(worker: string, request: Request) {
     if (closed) throw new Error("Autopilot is unloaded.")
@@ -121,8 +125,7 @@ export function createController(directory: string, registry: Registry, deps: De
       state.supervisor = supervisor.id
       state.supervisorBridge = bridge
       if (!current(state)) { disposeSupervisor(state); return }
-      log(state, "Started; worker agent unchanged.")
-      await bridge.client.session.synthetic({ sessionID: worker, text: `Autopilot goal: ${request.goal}`, resume: true, delivery: "steer" }, { signal: signal(state) })
+      log(state, "Started; instructions apply only to the supervisor. Worker agent and instructions unchanged.")
     } catch (error) {
       if (current(state)) finish(state, "paused: bridge or startup failed")
       throw error
@@ -158,7 +161,7 @@ export function createController(directory: string, registry: Registry, deps: De
       if (before.running && !before.forms.length && !before.permissions.length && !longShells.length) return
       if (!before.forms.length && !before.permissions.length && !longShells.length && (before.queued || before.reminder || before.children.length || before.shells.length || before.tools.length)) return
       if (before.forms.some((form) => form.fields.some((field) => field.type === "external"))) {
-        finish(state, "paused: external form needs human input"); await announce(state, client); return
+        finish(state, "paused: external form needs human input"); return
       }
       if (longShells.length && !before.forms.length && !before.permissions.length && deps.now() - state.lastShellReview < quiet) return
       const mark = fingerprint(before)
@@ -178,17 +181,15 @@ export function createController(directory: string, registry: Registry, deps: De
       state.failures = 0
       if (["answer", "approve", "cancel"].includes(decision.action) && !state.request.goal.includes(decision.authorization!)) {
         finish(state, "paused: proxy authorization is not grounded in the trusted goal")
-        await announce(state, client)
         return
       }
       if (decision.action === "complete" && prepared.incompleteEvidence) {
         const indices = decision.evidenceIndices
         if (!indices || indices.some((index) => !after.messages[index])) {
           finish(state, "paused: required completion evidence is unavailable")
-          await announce(state, client)
           return
         }
-        if (state.calls >= maxCalls || deps.now() - state.started > lifetime) { finish(state, "paused: budget exhausted"); await announce(state, client); return }
+        if (state.calls >= maxCalls || deps.now() - state.started > lifetime) { finish(state, "paused: budget exhausted"); return }
         const verification = completionPrompt(state.request, after, indices)
         completionReview = true
         state.calls++
@@ -202,21 +203,21 @@ export function createController(directory: string, registry: Registry, deps: De
         if (decision.action !== "complete" || decision.verifiedGoal !== true || JSON.stringify(decision.evidenceIndices) !== JSON.stringify(indices)) {
           finish(state, "paused: selected evidence did not verify the full goal")
           log(state, decision.reason)
-          await announce(state, client)
+          if (decision.action === "escalate") await escalate(state, client, final)
           return
         }
       }
       if (decision.action === "wait") {
         if (after.forms.length || after.permissions.length || (!after.running && !after.queued && !after.reminder && !after.children.length && !after.shells.length && !after.tools.length)) {
           finish(state, "paused: supervisor cannot justify idle wait")
-          await announce(state, client)
+          if (after.forms.length || after.permissions.length) { log(state, decision.reason); await escalate(state, client, after) }
         } else log(state, `Wait: ${decision.reason}`)
         return
       }
       if (decision.action === "complete" || decision.action === "escalate") {
         finish(state, decision.action === "complete" ? "complete" : "paused: human input required")
         log(state, decision.reason)
-        await announce(state, client)
+        if (decision.action === "escalate") await escalate(state, client, after)
         return
       }
       if (state.interventions >= maxInterventions) return
@@ -227,10 +228,10 @@ export function createController(directory: string, registry: Registry, deps: De
         state.lastNudge = deps.now()
         mutationStarted = true
         operation = "worker nudge"
-        await client.session.synthetic({ sessionID: worker, text: `Autopilot: continue the unfinished local task, or state completion/blocker. Goal: ${state.request.goal}\n${boundary}`, resume: true, delivery: "steer" }, { signal: signal(state) })
+        await client.session.synthetic({ sessionID: worker, text: "Autopilot: continue your unfinished task, or state completion/blocker.", resume: true, delivery: "steer" }, { signal: signal(state) })
       } else if (decision.action === "answer") {
         const form = after.forms.find((form) => form.id === decision.id && form.sessionID === worker && form.state.status === "pending")
-        if (!form || form.fields.some((field) => field.type === "external") || Object.keys(decision.answer!).some((key) => !form.fields.some((field) => "key" in field && field.key === key))) { finish(state, "paused: invalid question target or answer"); await announce(state, client); return }
+        if (!form || form.fields.some((field) => field.type === "external") || Object.keys(decision.answer!).some((key) => !form.fields.some((field) => "key" in field && field.key === key))) { finish(state, "paused: invalid question target or answer"); return }
         operation = "question freshness check"
         const fresh = await client.session.form.get({ sessionID: worker, formID: form.id }, { signal: signal(state) })
         if (!current(state) || JSON.stringify(fresh) !== JSON.stringify(form) || fresh.state.status !== "pending") return
@@ -240,7 +241,7 @@ export function createController(directory: string, registry: Registry, deps: De
         await client.session.form.reply({ sessionID: worker, formID: form.id, answer: decision.answer! }, { signal: signal(state) })
       } else if (decision.action === "approve") {
         const request = after.permissions.find((request) => request.id === decision.id && request.sessionID === worker)
-        if (!request) { finish(state, "paused: permission is not pending in this worker"); await announce(state, client); return }
+        if (!request) { finish(state, "paused: permission is not pending in this worker"); return }
         operation = "permission freshness check"
         const fresh = await client.permission.get({ sessionID: worker, requestID: request.id }, { signal: signal(state) })
         const pending = await client.permission.list({ sessionID: worker }, { signal: signal(state) })
@@ -252,7 +253,7 @@ export function createController(directory: string, registry: Registry, deps: De
       } else if (decision.action === "cancel") {
         const shell = after.shells.find((shell) => shell.info.id === decision.id)
         const original = before.shells.find((shell) => shell.info.id === decision.id)
-        if (!shell || !original || shell.info.status !== "running" || deps.now() - shell.info.time.started < quiet || (decision.problem === "stuck" && (!original.stagnant || !shell.stagnant)) || !original.output.includes(decision.evidence!) || !shell.output.includes(decision.evidence!)) { finish(state, "paused: shell cancellation lacks current execution evidence"); await announce(state, client); return }
+        if (!shell || !original || shell.info.status !== "running" || deps.now() - shell.info.time.started < quiet || (decision.problem === "stuck" && (!original.stagnant || !shell.stagnant)) || !original.output.includes(decision.evidence!) || !shell.output.includes(decision.evidence!)) { finish(state, "paused: shell cancellation lacks current execution evidence"); return }
         state.interventions++
         mutationStarted = true
         operation = "shell cancellation"
@@ -264,23 +265,20 @@ export function createController(directory: string, registry: Registry, deps: De
         const diagnostic = error instanceof SnapshotFailure ? error.message : `${operation} failed`
         if (error instanceof PromptBudgetError) {
           finish(state, "paused: supervisor data exceeds safe budget")
-          if (client) await announce(state, client).catch(() => {})
           return
         }
         if (completionReview) {
           finish(state, `paused: completion verification failed (${diagnostic})`)
-          if (client) await announce(state, client).catch(() => {})
           return
         }
         if (mutationStarted) {
           finish(state, `paused: mutation outcome unknown (${diagnostic})`)
-          if (client) await announce(state, client).catch(() => {})
           return
         }
         state.fingerprint = undefined
         state.failures++
         log(state, `Review failed: ${diagnostic}; no inferred approval.`)
-        if (state.failures >= 2) { finish(state, `paused: repeated failure (${diagnostic})`); if (client) await announce(state, client).catch(() => {}) }
+        if (state.failures >= 2) finish(state, `paused: repeated failure (${diagnostic})`)
       }
     } finally { state.pending = false }
   }

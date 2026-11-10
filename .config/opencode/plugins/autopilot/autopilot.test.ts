@@ -25,6 +25,7 @@ function harness(registry: Registry = new Map(), observe?: () => Promise<Snapsho
   let fail = false
   let getForm: (() => Promise<FormDetail>) | undefined
   let getPermission: (() => Promise<PermissionRequest>) | undefined
+  let bridgeCalls = 0
   const actions: { method: string; input: any }[] = []
   const record = (method: string, output: unknown) => async (input: unknown) => { actions.push({ method, input }); return output }
   const client = {
@@ -43,11 +44,11 @@ function harness(registry: Registry = new Map(), observe?: () => Promise<Snapsho
     shell: { remove: record("cancel", undefined) },
   } as unknown as OpenCodeClient
   const controller = createController(directory, registry, {
-    bridge: () => ({ client, verify: async () => { if (fail) throw new Error("bridge failed") } }),
+    bridge: () => { bridgeCalls++; return { client, verify: async () => { if (fail) throw new Error("bridge failed") } } },
     now: () => now, snapshot: async () => observe ? observe() : structuredClone(state),
   })
   return {
-    controller, registry, actions, client,
+    controller, registry, actions, client, bridgeCalls: () => bridgeCalls,
     state: (next: Snapshot) => { state = next }, decision: (value: object) => { result = JSON.stringify(value) },
     generate: (fn: () => Promise<{ text: string }>) => { generate = fn },
     formGet: (fn: () => Promise<FormDetail>) => { getForm = fn }, permissionGet: (fn: () => Promise<PermissionRequest>) => { getPermission = fn },
@@ -212,16 +213,44 @@ describe("authenticated bridge", () => {
 })
 
 describe("human proxy", () => {
+  test("start creates a supervisor silently; only a later review can nudge without goal instructions", async () => {
+    const h = harness()
+    await h.controller.start("worker", request())
+    expect(h.controller.status("worker")).toStartWith("active")
+    expect(h.actions.map((a) => a.method)).toEqual(["create"])
+    h.decision({ action: "nudge", reason: "Unfinished task" })
+    await h.controller.tick("worker")
+    expect(h.actions.find((a) => a.method === "generate")?.input.prompt).toContain(request().goal)
+    expect(h.actions.find((a) => a.method === "synthetic")?.input.text).not.toContain(request().goal)
+    await h.controller.close()
+  })
+  test("stop or unload during startup discards late startup and cleans up its supervisor", async () => {
+    for (const how of ["stop", "unload"] as const) {
+      const h = harness()
+      let resolve!: (value: SessionInfo) => void
+      let entered!: () => void
+      const creating = new Promise<void>((done) => { entered = done })
+      h.client.session.create = async () => { entered(); return new Promise((done) => { resolve = done }) }
+      const pending = h.controller.start("worker", request())
+      await creating
+      if (how === "stop") h.controller.stop("worker"); else await h.controller.close()
+      resolve({ ...worker, id: "late-supervisor", agent: "autopilot" })
+      await pending
+      await h.controller.close()
+      expect(h.actions.some((a) => ["synthetic", "generate"].includes(a.method))).toBe(false)
+      expect(h.actions.find((a) => a.method === "removeSupervisor")?.input).toEqual({ sessionID: "late-supervisor" })
+    }
+  })
   test("plain goals inherit the worker model without changing worker agent or permissions", async () => {
     const h = harness()
     expect(h.controller.status("worker")).toBe("inactive")
     await h.controller.start("worker", request())
     expect(h.actions[0]?.input).toMatchObject({ parentID: "worker", agent: "autopilot", model: worker.model, permissions: [{ action: "*", resource: "*", effect: "deny" }] })
-    expect(h.actions[1]?.input).toMatchObject({ sessionID: "worker", resume: true, text: `Autopilot goal: ${request().goal}` })
+    expect(h.actions.some((a) => a.method === "synthetic")).toBe(false)
     await expect(h.controller.start("worker", request())).rejects.toThrow("already active")
     expect(h.controller.stop("worker")).toContain("untouched")
     await h.controller.tick("worker")
-    expect(h.actions.filter((a) => a.method === "synthetic")).toHaveLength(1)
+    expect(h.actions.filter((a) => a.method === "synthetic")).toHaveLength(0)
     expect(h.actions.find((a) => a.method === "removeSupervisor")?.input).toEqual({ sessionID: "supervisor" })
     expect(() => parseRequest('Fix --scope {"files":["a.ts"]}')).toThrow("no longer supported")
     expect(() => parseRequest(" ")).toThrow()
@@ -320,7 +349,7 @@ describe("idle and shell supervision", () => {
     const h = harness(); await h.controller.start("worker", request())
     h.decision({ action: "nudge", reason: "Unfinished without any pending wakeup" })
     await h.controller.tick("worker")
-    expect(h.actions.filter((a) => a.method === "synthetic" && a.input.resume)).toHaveLength(2)
+    expect(h.actions.filter((a) => a.method === "synthetic" && a.input.resume)).toHaveLength(1)
   })
   test("concrete stuck or suboptimal execution evidence permits owned-shell cancellation", async () => {
     for (const problem of ["stuck", "suboptimal"] as const) {
@@ -378,13 +407,58 @@ describe("idle and shell supervision", () => {
 })
 
 describe("bounded lifecycle", () => {
+  test("supervisor escalation speaks only for a fresh paused worker or a question/permission wait", async () => {
+    for (const mode of ["idle", "form", "permission", "running", "queued"] as const) {
+      const h = harness(); await h.controller.start("worker", request())
+      h.state({ ...snapshot(), running: mode !== "idle", queued: mode === "queued", forms: mode === "form" ? [form] : [], permissions: mode === "permission" ? [permission] : [], shells: ["running", "queued"].includes(mode) ? [shell] : [] })
+      h.decision({ action: "escalate", reason: "Human decision needed" })
+      await h.controller.tick("worker")
+      const notices = h.actions.filter((a) => a.method === "synthetic")
+      expect(notices).toHaveLength(["running", "queued"].includes(mode) ? 0 : 1)
+      expect(notices.every((a) => a.input.resume === false)).toBe(true)
+    }
+  })
+  test("uncertain proxy choices return to the human without a resumed worker turn", async () => {
+    for (const pending of ["form", "permission"] as const) {
+      const h = harness(); await h.controller.start("worker", request())
+      h.state({ ...snapshot(), running: true, forms: pending === "form" ? [form] : [], permissions: pending === "permission" ? [permission] : [] })
+      h.decision({ action: "wait", reason: "Goal does not settle this choice" })
+      await h.controller.tick("worker")
+      expect(h.actions.filter((a) => a.method === "synthetic").map((a) => a.input.resume)).toEqual([false])
+      expect(h.actions.some((a) => ["answer", "approve"].includes(a.method))).toBe(false)
+    }
+  })
+  test("stop, unload, and fresh activity suppress a late human escalation", async () => {
+    for (const mode of ["stop", "unload", "running"] as const) {
+      let reads = 0
+      let release!: (value: Snapshot) => void
+      let entered!: () => void
+      const awaitingEscalation = new Promise<void>((done) => { entered = done })
+      const h = harness(new Map(), async () => {
+        if (++reads < 3) return snapshot()
+        entered()
+        return new Promise((done) => { release = done })
+      })
+      await h.controller.start("worker", request())
+      h.decision({ action: "escalate", reason: "Need human input" })
+      const review = h.controller.tick("worker")
+      await awaitingEscalation
+      if (mode === "stop") h.controller.stop("worker")
+      if (mode === "unload") await h.controller.close()
+      release({ ...snapshot(), running: mode === "running" })
+      await review
+      expect(h.actions.some((a) => a.method === "synthetic")).toBe(false)
+    }
+  })
   test("completion and idle uncertainty stop monitoring without waking the worker", async () => {
     for (const action of ["complete", "escalate", "wait"]) {
       const h = harness(); await h.controller.start("worker", request())
       h.decision({ action, reason: "Reviewed goal" })
       await h.controller.tick("worker")
       expect(h.controller.active("worker")).toBeUndefined()
-      expect(h.actions.filter((a) => a.method === "synthetic").at(-1)?.input.resume).toBe(false)
+      const notices = h.actions.filter((a) => a.method === "synthetic")
+      expect(notices).toHaveLength(action === "escalate" ? 1 : 0)
+      if (action === "escalate") expect(notices[0]?.input.resume).toBe(false)
     }
   })
   test("non-cancellation actions retain full current-snapshot freshness", async () => {
@@ -399,7 +473,7 @@ describe("bounded lifecycle", () => {
       await h.controller.tick("worker")
       expect(h.controller.status("worker").startsWith("active")).toBe(true)
       expect(h.actions.filter((a) => ["answer", "approve"].includes(a.method))).toHaveLength(0)
-      expect(h.actions.filter((a) => a.method === "synthetic")).toHaveLength(1)
+      expect(h.actions.filter((a) => a.method === "synthetic")).toHaveLength(0)
     }
   })
   test("duplicate triggers and late decisions after stop/unload cannot mutate", async () => {
@@ -414,7 +488,7 @@ describe("bounded lifecycle", () => {
       if (how === "stop") h.controller.stop("worker"); else await h.controller.close()
       resolve({ text: JSON.stringify({ action: "nudge", reason: "Late" }) })
       await pending
-      expect(h.actions.filter((a) => a.method === "synthetic")).toHaveLength(1)
+      expect(h.actions.filter((a) => a.method === "synthetic")).toHaveLength(0)
       expect(h.actions.filter((a) => a.method === "removeSupervisor")).toHaveLength(1)
     }
   })
@@ -442,7 +516,7 @@ describe("bounded lifecycle", () => {
     await h.controller.tick("worker"); await h.controller.tick("worker")
     expect(h.actions.filter((a) => a.method === "generate")).toHaveLength(2)
     h.advance(120_000); await h.controller.tick("worker")
-    expect(h.actions.filter((a) => a.method === "synthetic" && a.input.resume)).toHaveLength(3)
+    expect(h.actions.filter((a) => a.method === "synthetic" && a.input.resume)).toHaveLength(2)
   })
   test("locations share one supervisor, unload owns only its resources, and no guard persists", async () => {
     const registry: Registry = new Map(), a = harness(registry), b = harness(registry)
@@ -531,7 +605,7 @@ describe("native observations and evidence budgets", () => {
     await expect(records.read()).rejects.toThrow("child pagination record limit exceeded (256)")
     expect(records.calls).toHaveLength(3)
   })
-  test("review status and pause announcement name controlled failures without exposing cursor or API payloads", async () => {
+  test("review status names controlled failures without exposing payloads or automatic pause announcements", async () => {
     const secret = "Bearer secret-cursor-and-payload"
     for (const kind of ["repeat", "request", "snapshot", "model"] as const) {
       const fixture = inventory(async () => {
@@ -548,9 +622,7 @@ describe("native observations and evidence budgets", () => {
       expect(h.controller.status("worker")).not.toContain(secret)
       await h.controller.tick("worker")
       expect(h.controller.status("worker")).toContain(`paused: repeated failure (${detail})`)
-      const announcement = h.actions.filter((action) => action.method === "synthetic" && !action.input.resume).at(-1)?.input.text
-      expect(announcement).toContain(detail)
-      expect(announcement).not.toContain(secret)
+      expect(h.actions.filter((action) => action.method === "synthetic")).toEqual([])
       expect(h.actions.some((action) => ["answer", "approve", "cancel"].includes(action.method))).toBe(false)
     }
   })
@@ -702,6 +774,67 @@ describe("native observations and evidence budgets", () => {
 })
 
 describe("plugin commands leave worker behavior unchanged", () => {
+  test("command starts silently with no prompt hook, admission token, or immediate review", async () => {
+    const h = harness()
+    let snapshots = 0
+    let command: any, subscribed = false, wake: (() => void) | undefined
+    const hooks = new Map<string, (event: any) => void>()
+    const notices: any[] = []
+    const queue: { event: any; done: () => void }[] = []
+    const emit = (event: any) => new Promise<void>((done) => { queue.push({ event, done }); wake?.() })
+    const reg = () => ({ dispose: async () => {} })
+    const ctx = {
+      location: { directory }, rpc: { register: async () => reg() },
+      session: {
+        hook: async (kind: string, callback: (event: any) => void) => { hooks.set(kind, callback); return reg() },
+        synthetic: async (input: unknown) => { notices.push(input) },
+      },
+      command: { transform: async (callback: any) => {
+        expect(subscribed).toBe(true)
+        callback({ add: (value: unknown) => { command = value } }); return reg()
+      } },
+      event: { subscribe: async function* ({ signal }: { signal: AbortSignal }) {
+        subscribed = true
+        signal.addEventListener("abort", () => wake?.(), { once: true })
+        while (!signal.aborted) {
+          if (!queue.length) await new Promise<void>((done) => { wake = done })
+          const item = queue.shift()
+          if (!item) continue
+          yield item.event
+          item.done()
+        }
+      } },
+    } as unknown as Plugin.Context
+    const cleanup = await setupAutopilot(ctx, {
+      bridge: () => ({ client: h.client, verify: async () => {} }), now: () => 1_000_000,
+      snapshot: async () => { snapshots++; return { ...snapshot(), running: true } },
+    })
+    const invoke = (text: string) => command.execute({ sessionID: "command-worker", prompt: { text } })
+    await invoke(request().goal)
+    expect(snapshots).toBe(0)
+    await emit({ type: "session.created", data: { sessionID: "supervisor", metadata: { autopilotSupervisor: true } } })
+    expect(snapshots).toBe(0)
+    expect(notices).toEqual([])
+    await invoke("status")
+    expect(notices.at(-1).text).toContain("active")
+    expect(notices.every((n) => n.resume === false && !n.text.includes(request().goal))).toBe(true)
+    expect(h.actions.map((a) => a.method)).toEqual(["create"])
+    expect(hooks.has("prompt")).toBe(false)
+    await expect(invoke(request().goal)).rejects.toThrow("Stop it")
+    await emit({ type: "session.updated", data: { sessionID: "command-worker" } })
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    expect(snapshots).toBeGreaterThan(0)
+    expect(h.actions.map((a) => a.method)).toEqual(["create"])
+    await invoke("stop")
+    await emit({ type: "session.updated", data: { sessionID: "command-worker" } })
+    await invoke(request().goal)
+    await invoke("status")
+    expect(notices.at(-1).text).toContain("active")
+    expect(h.actions.map((a) => a.method)).toEqual(["create", "removeSupervisor", "create"])
+    await cleanup()
+    expect(h.actions.some((a) => a.method === "generate")).toBe(false)
+    await h.controller.close()
+  })
   test("registers no worker tool/permission hooks; status/stop do not wake worker", async () => {
     let command: any, disposed = 0
     let emit!: (event: unknown) => void, consumed!: () => void

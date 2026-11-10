@@ -167,8 +167,11 @@ bun test ./.config/opencode/plugins/reminders
 
 ## Autopilot
 
-`autopilot/index.ts` adds `/autopilot <goal>`, `/autopilot status`, and `/autopilot stop` for server-backed Desktop and TUI commands.
-Nothing starts automatically.
+`autopilot/index.ts` adds `/autopilot <instructions>`, `/autopilot status`, and `/autopilot stop` for server-backed Desktop and TUI commands.
+The command starts supervision immediately and silently, with no worker prompt, acknowledgment, or immediate supervisor review.
+Instructions guide only the supervisor; Autopilot never copies them into worker prompts, including later nudges.
+The worker's next turn occurs naturally; no special next-message gate applies.
+Status shows `active` after startup. Stop before a new command changes the supervisor instructions.
 The separate, tool-free `autopilot` agent inherits the worker model and acts on your behalf.
 If the worker has not selected a model, selection stays with OpenCode's native defaults.
 The worker keeps its agent, tools, permission configuration, and normal allowed operations.
@@ -186,7 +189,7 @@ The local manifest exports `index.ts` as the server entrypoint; its plugin ID re
 Keep this dependency tree local: repository-root dependencies do not reliably resolve through the config symlink.
 
 Normal local shared-background-server sessions need no connection environment variables.
-On an Autopilot start, `Service.discover()` finds an existing healthy, compatible local
+On startup, `Service.discover()` finds an existing healthy, compatible local
 service; `Service.headers(endpoint)` supplies its authentication when configured.
 Discovery never ensures, starts, or stops a service, and does not run while Autopilot is inactive.
 
@@ -211,12 +214,17 @@ discovery probe has no cancellation parameter: an already-started read-only prob
 finish later, but its late result cannot admit task-session operations.
 No global configuration changes are necessary.
 
-State the goal and limits in plain language:
+State supervisor instructions and limits, then send the worker's task as an ordinary message:
 
 ```text
-/autopilot Fix the parser and run its tests. Keep changes local; ask me about ambiguous behavior.
-/autopilot Finish the theme update using blue. Check background work; do not commit or publish.
+/autopilot Check the parser tests. Keep changes local; ask me about ambiguous behavior.
+Fix the parser bug and run its tests.
 ```
+
+Normal session events and the poll trigger reviews after startup; startup itself does not trigger a review.
+Lifecycle changes, completion, failures, reload, and unload produce no automatic worker messages.
+Only supervisor-judged intervention produces unsolicited main-session speech, after fresh evidence confirms an idle worker or a question/permission wait.
+Nudges resume only an idle worker. Human escalations do not resume it; explicit status and stop replies also do not resume it.
 
 The supervisor derives ordinary task answers and pending permission decisions from your goal.
 Permission approvals use `once`, never `always`; configured denials are not bypassed.
@@ -263,7 +271,7 @@ Pokes require two minutes between interventions.
 Completion, unclear authority, human rejection, repeated failures, and exhausted budgets end active supervision.
 An uncertain mutation outcome pauses immediately; the plugin never blindly repeats that mutation.
 `status` shows the latest eight log entries.
-Failed reviews report controlled operation or inventory-limit diagnostics in status and pause messages, not raw API errors or payloads.
+Failed reviews report controlled operation or inventory-limit diagnostics in status, not raw API errors or payloads.
 Reload or unload clears owned timers, subscriptions, supervisor records, and review authority; nothing resumes from storage.
 Supervisor-record cleanup is best effort if the bridge is unavailable.
 Stop blocks late decisions but cannot retract an API mutation that already began.

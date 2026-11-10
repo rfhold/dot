@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { Plugin, Rpc } from "@opencode/plugin"
 import { makeBridge } from "./bridge"
-import { createController, type Registry } from "./controller"
+import { createController, type Dependencies, type Registry } from "./controller"
 import { parseRequest } from "./policy"
 
 const key = Symbol.for("rfhold.autopilot.sessions")
@@ -13,9 +13,9 @@ const identity = Rpc.define({
   events: {},
 })
 
-export async function setupAutopilot(ctx: Plugin.Context) {
+export async function setupAutopilot(ctx: Plugin.Context, dependencies?: Dependencies) {
   const nonce = randomUUID()
-  const controller = createController(ctx.location.directory, registry, {
+  const controller = createController(ctx.location.directory, registry, dependencies ?? {
     bridge: (signal) => makeBridge(ctx.location.directory, nonce, undefined, undefined, undefined, signal), now: Date.now,
   })
   const abort = new AbortController()
@@ -24,6 +24,16 @@ export async function setupAutopilot(ctx: Plugin.Context) {
   const review = () => { for (const worker of controller.workers()) void controller.tick(worker) }
   let timer: ReturnType<typeof setInterval> | undefined
   try {
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
+          if (closed) break
+          if (event.type === "session.created" && event.data.metadata?.autopilotSupervisor) continue
+          if (event.type === "permission.replied" && event.data.reply === "reject") controller.reject(event.data.sessionID)
+          if (event.type.startsWith("session.") || event.type.startsWith("form.") || event.type.startsWith("shell.") || event.type.startsWith("permission.")) review()
+        }
+      } catch { /* Active reviews retain polling. */ }
+    })()
     registrations.push(await ctx.rpc.register(identity, { identity: async () => nonce }))
     for (const kind of ["generate", "context"] as const) {
       registrations.push(await ctx.session.hook(kind, (event) => {
@@ -38,7 +48,7 @@ export async function setupAutopilot(ctx: Plugin.Context) {
     }))
     registrations.push(await ctx.command.transform((editor) => {
       editor.add({
-        name: "autopilot", description: "Start bounded supervision, or show status / stop without waking the worker.",
+        name: "autopilot", description: "Start silent supervision, or show status / stop without waking the worker.",
         execute: async ({ sessionID, prompt }) => {
           if (closed) throw new Error("Autopilot is unloaded.")
           const text = prompt.text.trim()
@@ -49,19 +59,10 @@ export async function setupAutopilot(ctx: Plugin.Context) {
           }
           if (prompt.files?.length || prompt.agents?.length || prompt.skills?.length) throw new Error("Autopilot accepts text only; state your goal and limits in the command.")
           await controller.start(sessionID, parseRequest(text))
-          review()
         },
       })
     }))
     timer = setInterval(review, 15_000)
-    void (async () => {
-      try {
-        for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
-          if (event.type === "permission.replied" && event.data.reply === "reject") controller.reject(event.data.sessionID)
-          if (event.type.startsWith("session.") || event.type.startsWith("form.") || event.type.startsWith("shell.") || event.type.startsWith("permission.")) review()
-        }
-      } catch { /* Polling remains the bounded wakeup source if event delivery ends. */ }
-    })()
   } catch (error) {
     closed = true
     abort.abort()
