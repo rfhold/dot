@@ -232,6 +232,8 @@ The obsolete `--scope` JSON syntax is rejected.
 The plugin observes actual session activity, direct-child activity, tool state, inbox entries, and transcript-linked shells.
 Direct children in other worktrees count as wakeup sources; their shells are inspected read-only and never become cancellation targets.
 Inspection is bounded to 16 direct children and eight worker-owned running shells; larger inventories fail closed.
+Child inventory follows cursors, including short or empty pages, with limits of eight pages and 256 scanned records.
+Repeated cursors or real inventory limits fail closed; a next cursor alone does not indicate overflow.
 A 15-second poll supplies a wakeup after background activity ends; legitimate background work does not trigger an idle poke.
 Live intervals from the local `reminders` plugin are observed read-only through its shared registry.
 The native API does not inventory arbitrary future plugin timers; other undisclosed wakeups may be invisible.
@@ -261,6 +263,7 @@ Pokes require two minutes between interventions.
 Completion, unclear authority, human rejection, repeated failures, and exhausted budgets end active supervision.
 An uncertain mutation outcome pauses immediately; the plugin never blindly repeats that mutation.
 `status` shows the latest eight log entries.
+Failed reviews report controlled operation or inventory-limit diagnostics in status and pause messages, not raw API errors or payloads.
 Reload or unload clears owned timers, subscriptions, supervisor records, and review authority; nothing resumes from storage.
 Supervisor-record cleanup is best effort if the bridge is unavailable.
 Stop blocks late decisions but cannot retract an API mutation that already began.

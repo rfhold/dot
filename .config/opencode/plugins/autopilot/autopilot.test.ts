@@ -17,7 +17,7 @@ function snapshot(): Snapshot { return { worker, running: false, queued: false, 
 function proxy(action: "answer" | "approve" | "cancel", extra: object = {}) {
   return { action, reason: "Confidently represents the local task", authority: "local", risk: "local", authorization: "Fix the bug, test it", ...extra }
 }
-function harness(registry: Registry = new Map()) {
+function harness(registry: Registry = new Map(), observe?: () => Promise<Snapshot>) {
   let now = 1_000_000
   let state = snapshot()
   let result = JSON.stringify({ action: "wait", reason: "Need human clarification" })
@@ -44,7 +44,7 @@ function harness(registry: Registry = new Map()) {
   } as unknown as OpenCodeClient
   const controller = createController(directory, registry, {
     bridge: () => ({ client, verify: async () => { if (fail) throw new Error("bridge failed") } }),
-    now: () => now, snapshot: async () => structuredClone(state),
+    now: () => now, snapshot: async () => observe ? observe() : structuredClone(state),
   })
   return {
     controller, registry, actions, client,
@@ -458,6 +458,102 @@ describe("bounded lifecycle", () => {
 })
 
 describe("native observations and evidence budgets", () => {
+  function inventory(list: OpenCodeClient["session"]["list"]) {
+    const calls: unknown[] = []
+    const active: Record<string, { type: "running" }> = {}
+    const client = {
+      session: {
+        get: async () => worker, active: async () => active, context: async () => [],
+        form: { list: async () => [] }, inbox: { list: async () => [] },
+        list: async (input: Parameters<typeof list>[0], options: Parameters<typeof list>[1]) => {
+          calls.push(input)
+          const page = await list(input, options)
+          for (const child of page.data) active[child.id] = { type: "running" }
+          return page
+        },
+      }, permission: { list: async () => [permission] }, shell: { list: async () => ({ data: [] }) },
+    } as unknown as OpenCodeClient
+    return { client, calls, read: () => readSnapshot(directory, { worker: "worker", supervisor: "supervisor", samples: new Map() }, client, new AbortController().signal, 1_000_000) }
+  }
+  test("short child page with a next cursor then an empty page is not overflow and permits permission review", async () => {
+    const fixture = inventory(async (input) => input?.cursor
+      ? { data: [], cursor: {} }
+      : { data: [{ ...worker, id: "first-child", parentID: "worker" }, { ...worker, id: "second-child", parentID: "worker" }], cursor: { next: "next-page" } })
+    const state = await fixture.read()
+    expect(state.children).toEqual(["first-child", "second-child"])
+    expect(state.permissions).toEqual([permission])
+    expect(fixture.calls).toEqual([{ parentID: "worker", limit: 100 }, { cursor: "next-page", limit: 100 }])
+    const h = harness(new Map(), fixture.read)
+    await h.controller.start("worker", request())
+    h.state({ ...snapshot(), permissions: [permission] })
+    h.decision(proxy("approve", { id: permission.id }))
+    await h.controller.tick("worker")
+    expect(h.actions.find((action) => action.method === "approve")?.input).toEqual({ sessionID: "worker", requestID: "permission", decision: "once" })
+  })
+  test("later-page cross-location children are observed, while duplicate and supervisor records are ignored", async () => {
+    const child = { ...worker, id: "child", parentID: "worker", location: { directory: "/other-worktree" } }
+    const fixture = inventory(async (input) => input?.cursor
+      ? { data: [child, child, { ...worker, id: "marked-supervisor", metadata: { autopilotSupervisor: true } }], cursor: {} }
+      : { data: [{ ...worker, id: "supervisor" }], cursor: { next: "later" } })
+    expect((await fixture.read()).children).toEqual(["child"])
+    expect(fixture.calls).toHaveLength(2)
+  })
+  test("empty intermediate pages are followed rather than treated as the end", async () => {
+    const fixture = inventory(async (input) => input?.cursor === "last"
+      ? { data: [{ ...worker, id: "child", parentID: "worker" }], cursor: {} }
+      : { data: [], cursor: { next: input?.cursor ? "last" : "empty" } })
+    expect((await fixture.read()).children).toEqual(["child"])
+    expect(fixture.calls).toHaveLength(3)
+  })
+  test("sixteen actual children fit across pages; a seventeenth fails closed", async () => {
+    const children = Array.from({ length: 17 }, (_, i) => ({ ...worker, id: `child-${i}`, parentID: "worker" }))
+    for (const count of [16, 17]) {
+      const fixture = inventory(async (input) => input?.cursor
+        ? { data: children.slice(8, count), cursor: {} }
+        : { data: children.slice(0, 8), cursor: { next: "more" } })
+      if (count === 16) expect((await fixture.read()).children).toHaveLength(16)
+      else await expect(fixture.read()).rejects.toThrow("child activity inspection limit exceeded (16)")
+    }
+  })
+  test("child pagination caps pages and scanned records and detects repeated cursors", async () => {
+    let issued = 0
+    const pages = inventory(async () => ({ data: [], cursor: { next: `page-${++issued}` } }))
+    await expect(pages.read()).rejects.toThrow("child pagination page limit exceeded (8)")
+    expect(pages.calls).toHaveLength(8)
+    const repeated = inventory(async () => ({ data: [], cursor: { next: "repeat" } }))
+    await expect(repeated.read()).rejects.toThrow("child pagination repeated cursor")
+    expect(repeated.calls).toHaveLength(2)
+    const cycle = inventory(async (input) => ({ data: [], cursor: { next: input?.cursor === "a" ? "b" : "a" } }))
+    await expect(cycle.read()).rejects.toThrow("child pagination repeated cursor")
+    expect(cycle.calls).toHaveLength(3)
+    let scanned = 0
+    const records = inventory(async () => ({ data: Array.from({ length: 100 }, (_, i) => ({ ...worker, id: `supervisor-${scanned}-${i}`, metadata: { autopilotSupervisor: true } })), cursor: { next: `batch-${++scanned}` } }))
+    await expect(records.read()).rejects.toThrow("child pagination record limit exceeded (256)")
+    expect(records.calls).toHaveLength(3)
+  })
+  test("review status and pause announcement name controlled failures without exposing cursor or API payloads", async () => {
+    const secret = "Bearer secret-cursor-and-payload"
+    for (const kind of ["repeat", "request", "snapshot", "model"] as const) {
+      const fixture = inventory(async () => {
+        if (kind === "request") throw new Error(secret)
+        return { data: [], cursor: kind === "repeat" ? { next: secret } : {} }
+      })
+      if (kind === "snapshot") fixture.client.session.get = async () => { throw new Error(secret) }
+      const h = harness(new Map(), fixture.read)
+      await h.controller.start("worker", request())
+      if (kind === "model") h.generate(async () => { throw new Error(secret) })
+      const detail = kind === "repeat" ? "child pagination repeated cursor" : kind === "request" ? "child pagination request failed" : kind === "snapshot" ? "worker snapshot failed" : "supervisor generation failed"
+      await h.controller.tick("worker")
+      expect(h.controller.status("worker")).toContain(detail)
+      expect(h.controller.status("worker")).not.toContain(secret)
+      await h.controller.tick("worker")
+      expect(h.controller.status("worker")).toContain(`paused: repeated failure (${detail})`)
+      const announcement = h.actions.filter((action) => action.method === "synthetic" && !action.input.resume).at(-1)?.input.text
+      expect(announcement).toContain(detail)
+      expect(announcement).not.toContain(secret)
+      expect(h.actions.some((action) => ["answer", "approve", "cancel"].includes(action.method))).toBe(false)
+    }
+  })
   test("cross-location children and their shells justify idle without becoming cancellation targets", async () => {
     let running = true, background = false
     const child = { ...worker, id: "child", location: { directory: "/other-worktree" } }

@@ -30,6 +30,7 @@ const maxInterventions = 12
 const lifetime = 60 * 60_000
 const quiet = 120_000
 const timeout = 30_000
+class SnapshotFailure extends Error {}
 
 export function decode(text: string): Decision {
   if (text.length > 4000) throw new Error("Oversized supervisor decision.")
@@ -138,13 +139,18 @@ export function createController(directory: string, registry: Registry, deps: De
     let client: OpenCodeClient | undefined
     let mutationStarted = false
     let completionReview = false
+    let operation = "bridge connection"
     try {
       const bridge = state.supervisorBridge ?? await deps.bridge(signal(state))
       if (!current(state)) return
       client = bridge.client
+      operation = "bridge verification"
       await bridge.verify(signal(state))
       if (!current(state)) return
-      const read = () => (deps.snapshot ?? ((s, c, sig) => readSnapshot(directory, s, c, sig, deps.now())))(state, client!, signal(state))
+      const read = () => {
+        operation = "worker snapshot"
+        return (deps.snapshot ?? ((s, c, sig) => readSnapshot(directory, s, c, sig, deps.now())))(state, client!, signal(state))
+      }
       const before = await read()
       if (!current(state)) return
       if (before.worker.location.directory !== directory || before.worker.agent === "autopilot") { finish(state, "paused: worker moved or changed identity"); return }
@@ -162,8 +168,10 @@ export function createController(directory: string, registry: Registry, deps: De
       const prepared = decisionPrompt(state.request, before)
       state.calls++
       if (longShells.length) state.lastShellReview = deps.now()
+      operation = "supervisor generation"
       const result = await client.session.generate({ sessionID: state.supervisor!, prompt: prepared.text }, { signal: signal(state) })
       if (!current(state)) return
+      operation = "decision validation"
       let decision = decode(result.text)
       const after = await read()
       if (!current(state) || (decision.action === "cancel" ? !cancellationFresh(before, after, decision.id!) : fingerprint(after) !== mark)) return
@@ -184,8 +192,10 @@ export function createController(directory: string, registry: Registry, deps: De
         const verification = completionPrompt(state.request, after, indices)
         completionReview = true
         state.calls++
+        operation = "completion generation"
         const verified = await client.session.generate({ sessionID: state.supervisor!, prompt: verification }, { signal: signal(state) })
         if (!current(state)) return
+        operation = "completion decision validation"
         decision = decode(verified.text)
         const final = await read()
         if (!current(state) || fingerprint(final) !== fingerprint(after)) return
@@ -216,23 +226,28 @@ export function createController(directory: string, registry: Registry, deps: De
         state.interventions++
         state.lastNudge = deps.now()
         mutationStarted = true
+        operation = "worker nudge"
         await client.session.synthetic({ sessionID: worker, text: `Autopilot: continue the unfinished local task, or state completion/blocker. Goal: ${state.request.goal}\n${boundary}`, resume: true, delivery: "steer" }, { signal: signal(state) })
       } else if (decision.action === "answer") {
         const form = after.forms.find((form) => form.id === decision.id && form.sessionID === worker && form.state.status === "pending")
         if (!form || form.fields.some((field) => field.type === "external") || Object.keys(decision.answer!).some((key) => !form.fields.some((field) => "key" in field && field.key === key))) { finish(state, "paused: invalid question target or answer"); await announce(state, client); return }
+        operation = "question freshness check"
         const fresh = await client.session.form.get({ sessionID: worker, formID: form.id }, { signal: signal(state) })
         if (!current(state) || JSON.stringify(fresh) !== JSON.stringify(form) || fresh.state.status !== "pending") return
         state.interventions++
         mutationStarted = true
+        operation = "question reply"
         await client.session.form.reply({ sessionID: worker, formID: form.id, answer: decision.answer! }, { signal: signal(state) })
       } else if (decision.action === "approve") {
         const request = after.permissions.find((request) => request.id === decision.id && request.sessionID === worker)
         if (!request) { finish(state, "paused: permission is not pending in this worker"); await announce(state, client); return }
+        operation = "permission freshness check"
         const fresh = await client.permission.get({ sessionID: worker, requestID: request.id }, { signal: signal(state) })
         const pending = await client.permission.list({ sessionID: worker }, { signal: signal(state) })
         if (!current(state) || JSON.stringify(fresh) !== JSON.stringify(request) || !pending.some((item) => JSON.stringify(item) === JSON.stringify(request))) return
         state.interventions++
         mutationStarted = true
+        operation = "permission reply"
         await client.permission.reply({ sessionID: worker, requestID: request.id, decision: "once" }, { signal: signal(state) })
       } else if (decision.action === "cancel") {
         const shell = after.shells.find((shell) => shell.info.id === decision.id)
@@ -240,30 +255,32 @@ export function createController(directory: string, registry: Registry, deps: De
         if (!shell || !original || shell.info.status !== "running" || deps.now() - shell.info.time.started < quiet || (decision.problem === "stuck" && (!original.stagnant || !shell.stagnant)) || !original.output.includes(decision.evidence!) || !shell.output.includes(decision.evidence!)) { finish(state, "paused: shell cancellation lacks current execution evidence"); await announce(state, client); return }
         state.interventions++
         mutationStarted = true
+        operation = "shell cancellation"
         await client.shell.remove({ id: shell.info.id, location: { directory } }, { signal: signal(state) })
       }
       if (current(state)) log(state, `${decision.action}: ${decision.reason}`)
     } catch (error) {
       if (current(state)) {
+        const diagnostic = error instanceof SnapshotFailure ? error.message : `${operation} failed`
         if (error instanceof PromptBudgetError) {
           finish(state, "paused: supervisor data exceeds safe budget")
           if (client) await announce(state, client).catch(() => {})
           return
         }
         if (completionReview) {
-          finish(state, "paused: completion verification failed")
+          finish(state, `paused: completion verification failed (${diagnostic})`)
           if (client) await announce(state, client).catch(() => {})
           return
         }
         if (mutationStarted) {
-          finish(state, "paused: mutation outcome unknown")
+          finish(state, `paused: mutation outcome unknown (${diagnostic})`)
           if (client) await announce(state, client).catch(() => {})
           return
         }
         state.fingerprint = undefined
         state.failures++
-        log(state, "Review failed; no inferred approval.")
-        if (state.failures >= 2) { finish(state, "paused: repeated failure"); if (client) await announce(state, client).catch(() => {}) }
+        log(state, `Review failed: ${diagnostic}; no inferred approval.`)
+        if (state.failures >= 2) { finish(state, `paused: repeated failure (${diagnostic})`); if (client) await announce(state, client).catch(() => {}) }
       }
     } finally { state.pending = false }
   }
@@ -340,18 +357,44 @@ Evidence omissions are explicit. When historical evidence is excerpted or omitte
 DATA ${data()}` }
 }
 
+async function readChildren(state: { worker: string; supervisor?: string }, client: OpenCodeClient, signal: AbortSignal) {
+  const children = new Map<string, SessionInfo>()
+  const seen = new Set<string>()
+  let cursor: string | undefined
+  let records = 0
+  for (let pageNumber = 0; pageNumber < 8; pageNumber++) {
+    signal.throwIfAborted()
+    let page
+    try {
+      page = await client.session.list(cursor ? { cursor, limit: 100 } : { parentID: state.worker, limit: 100 }, { signal })
+    } catch {
+      throw new SnapshotFailure("child pagination request failed")
+    }
+    records += page.data.length
+    if (records > 256) throw new SnapshotFailure("child pagination record limit exceeded (256)")
+    for (const child of page.data) {
+      if (child.id === state.supervisor || child.metadata?.autopilotSupervisor) continue
+      children.set(child.id, child)
+      if (children.size > 16) throw new SnapshotFailure("child activity inspection limit exceeded (16)")
+    }
+    const next = page.cursor.next
+    if (!next) return [...children.values()]
+    if (seen.has(next)) throw new SnapshotFailure("child pagination repeated cursor")
+    seen.add(next)
+    cursor = next
+  }
+  throw new SnapshotFailure("child pagination page limit exceeded (8)")
+}
+
 export async function readSnapshot(directory: string, state: { worker: string; supervisor?: string; samples: State["samples"] }, client: OpenCodeClient, signal: AbortSignal, now: number): Promise<Snapshot> {
   const options = { signal }
   const [worker, active, messages, forms, permissions, inbox, children, listed] = await Promise.all([
     client.session.get({ sessionID: state.worker }, options), client.session.active(options), client.session.context({ sessionID: state.worker }, options),
     client.session.form.list({ sessionID: state.worker }, options), client.permission.list({ sessionID: state.worker }, options),
-    client.session.inbox.list({ sessionID: state.worker }, options), client.session.list({ parentID: state.worker, limit: 100 }, options), client.shell.list({ location: { directory } }, options),
+    client.session.inbox.list({ sessionID: state.worker }, options), readChildren(state, client, signal), client.shell.list({ location: { directory } }, options),
   ])
-  if (children.cursor.next) throw new Error("Child inventory exceeds safe bound.")
   const { shellIDs, tools } = transcriptActivity(messages)
-  const scopedChildren = children.data.filter((child) => child.id !== state.supervisor && !child.metadata?.autopilotSupervisor)
-  if (scopedChildren.length > 16) throw new Error("Child activity inspection exceeds safe bound.")
-  const childWakeups = await Promise.all(scopedChildren.map(async (child) => {
+  const childWakeups = await Promise.all(children.map(async (child) => {
     if (active[child.id] || hasLocalReminder(child.id)) return child.id
     const [messages, inbox] = await Promise.all([client.session.context({ sessionID: child.id }, options), client.session.inbox.list({ sessionID: child.id }, options)])
     const activity = transcriptActivity(messages)
@@ -363,7 +406,7 @@ export async function readSnapshot(directory: string, state: { worker: string; s
   const shells: Shell[] = []
   for (const info of listed.data) {
     if (info.status !== "running" || !shellIDs.has(info.id)) continue
-    if (shells.length >= 8) throw new Error("Shell inventory exceeds safe bound.")
+    if (shells.length >= 8) throw new SnapshotFailure("owned shell inspection limit exceeded (8)")
     let output = (await client.shell.output({ id: info.id, location: { directory }, cursor: 0, limit: 4000 }, options)).data
     if (output.size > 4000) output = (await client.shell.output({ id: info.id, location: { directory }, cursor: output.size - 4000, limit: 4000 }, options)).data
     const previous = state.samples.get(info.id)
