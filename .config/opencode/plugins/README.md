@@ -164,3 +164,115 @@ From the dot repository root, run deterministic tests with no live reminders:
 ```sh
 bun test ./.config/opencode/plugins/reminders
 ```
+
+## Autopilot
+
+`autopilot/index.ts` adds `/autopilot <goal>`, `/autopilot status`, and `/autopilot stop` for server-backed Desktop and TUI commands.
+Nothing starts automatically.
+The separate, tool-free `autopilot` agent inherits the worker model and acts on your behalf.
+If the worker has not selected a model, selection stays with OpenCode's native defaults.
+The worker keeps its agent, tools, permission configuration, and normal allowed operations.
+Autopilot adds no worker restrictions or persistent permission grants.
+Status and stop do not resume the worker.
+Stop preserves current foreground work and background processes.
+
+Install the pinned plugin-local dependencies after checkout, including when `~/.config/opencode` is a symlink:
+
+```sh
+bun install --cwd "$HOME/.config/opencode/plugins/autopilot" --frozen-lockfile --ignore-scripts --omit=peer
+```
+
+The local manifest exports `index.ts` as the server entrypoint; its plugin ID remains `rfhold.autopilot`.
+Keep this dependency tree local: repository-root dependencies do not reliably resolve through the config symlink.
+
+Normal local shared-background-server sessions need no connection environment variables.
+On an Autopilot start, `Service.discover()` finds an existing healthy, compatible local
+service; `Service.headers(endpoint)` supplies its authentication when configured.
+Discovery never ensures, starts, or stops a service, and does not run while Autopilot is inactive.
+
+Standalone/custom servers can override discovery with both server-environment variables:
+
+- `OPENCODE_AUTOPILOT_URL`: an HTTPS origin or loopback HTTP origin, without a path or credentials.
+- `OPENCODE_AUTOPILOT_AUTHORIZATION`: the complete authorization header value, supplied through your secret environment mechanism.
+
+Setting only one variable, or leaving an explicit value blank, fails closed; explicit and
+discovered credentials are never combined. Explicit overrides skip discovery entirely.
+Native discovery trusts the local service registration and performs its authenticated
+health probe before the plugin validates the returned URL. That SDK probe permits
+redirects and has no transport override; use the explicit pair to skip this discovery trust boundary.
+For requests after discovery, the bridge rejects unsafe origins and redirects and verifies an in-memory RPC nonce
+before task-session operations, every subsequent review, and supervisor cleanup.
+A second server with the same database does not satisfy this check.
+No discovered endpoint, discovery errors, a nonce mismatch, or API errors fail closed;
+the plugin never guesses an alternate server. A verified connection is retained for that
+run to avoid repeated health probes; a new run resolves its connection again.
+Discovery waits are bounded by the run's 30-second request/abort timeout. The native
+discovery probe has no cancellation parameter: an already-started read-only probe may
+finish later, but its late result cannot admit task-session operations.
+No global configuration changes are necessary.
+
+State the goal and limits in plain language:
+
+```text
+/autopilot Fix the parser and run its tests. Keep changes local; ask me about ambiguous behavior.
+/autopilot Finish the theme update using blue. Check background work; do not commit or publish.
+```
+
+The supervisor derives ordinary task answers and pending permission decisions from your goal.
+Permission approvals use `once`, never `always`; configured denials are not bypassed.
+Human rejection stops monitoring. Uncertain choices and unsupported external forms return to you.
+Local goal work is the default authorization. Commits, pushes, publication, deployments,
+destructive work, external decisions, and scope expansion need explicit human authority.
+Goal interpretation and risk classification are model judgments, not a security sandbox.
+Code validates decision structure, goal excerpts, exact pending request identity/content,
+worker ownership, freshness, and late/duplicate decisions before proxy actions.
+Transcript, form, permission, and shell content cannot supply additional human authority.
+The obsolete `--scope` JSON syntax is rejected.
+
+The plugin observes actual session activity, direct-child activity, tool state, inbox entries, and transcript-linked shells.
+Direct children in other worktrees count as wakeup sources; their shells are inspected read-only and never become cancellation targets.
+Inspection is bounded to 16 direct children and eight worker-owned running shells; larger inventories fail closed.
+A 15-second poll supplies a wakeup after background activity ends; legitimate background work does not trigger an idle poke.
+Live intervals from the local `reminders` plugin are observed read-only through its shared registry.
+The native API does not inventory arbitrary future plugin timers; other undisclosed wakeups may be invisible.
+The plugin never answers child requests or cancels unrelated shells.
+Shells without a transcript ownership link remain outside cancellation authority.
+Long shells are reviewed at most every two minutes. Cancellation needs a fresh snapshot,
+a goal-authorized supervisor decision, and concrete positive output evidence of stuck or suboptimal execution.
+Stuck decisions also require unchanged samples across two minutes; suboptimal execution may still produce output.
+Cancellation rechecks exact shell identity (ID, command, directory, start time), ownership,
+running status, and the diagnostic excerpt. Advancing logs do not invalidate a suboptimal
+decision when that execution and diagnostic remain current; other actions retain full snapshot checks.
+Age or silence alone never authorizes cancellation.
+
+Each run permits 24 supervisor reviews, 12 interventions, one hour, and two consecutive failures.
+Supervisor output permits at most 1,000 tokens per review; retries remain disabled.
+Supervisor data permits at most 48,000 characters of structured JSON.
+Goal, activity, pending forms/permissions, and owned-shell evidence remain complete; oversized critical data pauses without inference.
+The full transcript is retained when it fits. Budgeted excerpts and omitted messages are marked.
+A completion proposal with historical omissions selects 1–8 exact transcript indices for one
+extra review of those messages unabridged, the trusted goal, and fresh current critical state.
+Only an explicit full-goal verification acknowledging every selected index can finish;
+irrelevant older omissions do not permanently veto completion. Both reviews count toward the same budget.
+Missing, inconclusive, or oversized required evidence returns to the human. The selected
+whole messages and critical state must fit 48,000 characters; there is no further retrieval round.
+Duplicate triggers do not spend another review; a deferred poke is reconsidered after its cooldown.
+Pokes require two minutes between interventions.
+Completion, unclear authority, human rejection, repeated failures, and exhausted budgets end active supervision.
+An uncertain mutation outcome pauses immediately; the plugin never blindly repeats that mutation.
+`status` shows the latest eight log entries.
+Reload or unload clears owned timers, subscriptions, supervisor records, and review authority; nothing resumes from storage.
+Supervisor-record cleanup is best effort if the bridge is unavailable.
+Stop blocks late decisions but cannot retract an API mutation that already began.
+These controls constrain plugin authority, not the host shell or independent agents.
+Desktop/TUI end-to-end behavior requires a separate live check.
+
+From the dot repository root:
+
+```sh
+bun test ./.config/opencode/plugins/autopilot ./.config/opencode/plugins/reminders
+bunx tsc --project .config/opencode/plugins/autopilot/tsconfig.json --noEmit
+```
+
+The implementation targets installed `@opencode/plugin` and `@opencode/client` version `2.0.31`.
+See the [server plugin API](https://opencode.ai/docs/build/plugins/server) and [client API](https://opencode.ai/docs/build/client).
