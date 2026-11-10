@@ -12,6 +12,7 @@ type Decision = {
   id?: string; answer?: FormAnswer; evidence?: string; problem?: "stuck" | "suboptimal"
   authority?: "local" | "explicit"; authorization?: string; risk?: "local" | "high"
   evidenceIndices?: number[]; verifiedGoal?: boolean
+  unfinishedTask?: string; message?: string; evidenceIndex?: number
 }
 type State = {
   owner: object; worker: string; directory: string; supervisor?: string; request: Request; status: string
@@ -42,15 +43,28 @@ export function decode(text: string): Decision {
   }
   if (value.action === "answer" && (!value.answer || typeof value.answer !== "object" || Array.isArray(value.answer) || !Object.keys(value.answer).length || Object.values(value.answer).some((v) => !(typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v)) || (Array.isArray(v) && v.every((item) => typeof item === "string")))))) throw new Error("Invalid form answer.")
   if (value.action === "cancel" && (typeof value.evidence !== "string" || value.evidence.trim().length < 8 || !["stuck", "suboptimal"].includes(value.problem!))) throw new Error("Cancellation needs concrete output evidence and a diagnosed execution problem, not age alone.")
+  if (value.action === "nudge" && (typeof value.unfinishedTask !== "string" || !value.unfinishedTask.trim() || value.unfinishedTask.length > 400 || typeof value.message !== "string" || !value.message.trim() || value.message.length > 1200 || typeof value.evidence !== "string" || value.evidence.trim().length < 8 || value.evidence.length > 1024 || !Number.isInteger(value.evidenceIndex) || value.evidenceIndex! < 0)) throw new Error("Nudges need a concrete unfinished task, instruction, and indexed transcript quote.")
   if (value.evidenceIndices !== undefined && (!Array.isArray(value.evidenceIndices) || !value.evidenceIndices.length || value.evidenceIndices.length > 8 || value.evidenceIndices.some((index) => !Number.isInteger(index) || index < 0) || new Set(value.evidenceIndices).size !== value.evidenceIndices.length)) throw new Error("Completion evidence requires 1–8 unique transcript indices.")
   if (value.verifiedGoal !== undefined && typeof value.verifiedGoal !== "boolean") throw new Error("Invalid full-goal verification.")
-  const allowed = new Set(["action", "reason", ...(["answer", "approve", "cancel"].includes(value.action) ? ["id", "authority", "authorization", "risk"] : []), ...(value.action === "answer" ? ["answer"] : []), ...(value.action === "cancel" ? ["evidence", "problem"] : []), ...(value.action === "complete" ? ["evidenceIndices", "verifiedGoal"] : [])])
+  const allowed = new Set(["action", "reason", ...(["answer", "approve", "cancel"].includes(value.action) ? ["id", "authority", "authorization", "risk"] : []), ...(value.action === "answer" ? ["answer"] : []), ...(value.action === "cancel" ? ["evidence", "problem"] : []), ...(value.action === "nudge" ? ["unfinishedTask", "message", "evidence", "evidenceIndex"] : []), ...(value.action === "complete" ? ["evidenceIndices", "verifiedGoal"] : [])])
   if (Object.keys(value).some((key) => !allowed.has(key))) throw new Error("Unexpected fields for this decision action.")
   return value
 }
 
 function fingerprint(snapshot: Snapshot) {
   return JSON.stringify(snapshot)
+}
+
+function messageText(message: SessionMessageInfo) {
+  return (message.type === "user" ? [message.text] : message.type === "assistant" ? message.content.filter((part) => part.type === "text").map((part) => part.text) : []).filter((text) => text.trim())
+}
+
+function nudgeGrounded(decision: Decision, snapshot: Snapshot) {
+  const index = snapshot.messages.findLastIndex((message) => messageText(message).length > 0)
+  if (index < 0 || decision.evidenceIndex !== index) return false
+  const message = snapshot.messages[index]!
+  const text = messageText(message)
+  return text.some((part) => part.includes(decision.evidence!))
 }
 
 function shellIdentity(shell: Shell) {
@@ -223,12 +237,13 @@ export function createController(directory: string, registry: Registry, deps: De
       if (state.interventions >= maxInterventions) return
       if (decision.action === "nudge") {
         if (after.running || after.queued || after.reminder || after.forms.length || after.permissions.length || after.children.length || after.shells.length || after.tools.length) return
+        if (!nudgeGrounded(decision, after)) { log(state, "Nudge withheld: no current transcript evidence of unfinished work."); return }
         if (deps.now() - state.lastNudge < quiet) { state.retryAt = state.lastNudge + quiet; return }
         state.interventions++
         state.lastNudge = deps.now()
         mutationStarted = true
         operation = "worker nudge"
-        await client.session.synthetic({ sessionID: worker, text: "Autopilot: continue your unfinished task, or state completion/blocker.", resume: true, delivery: "steer" }, { signal: signal(state) })
+        await client.session.synthetic({ sessionID: worker, text: decision.message!, resume: true, delivery: "steer" }, { signal: signal(state) })
       } else if (decision.action === "answer") {
         const form = after.forms.find((form) => form.id === decision.id && form.sessionID === worker && form.state.status === "pending")
         if (!form || form.fields.some((field) => field.type === "external") || Object.keys(decision.answer!).some((key) => !form.fields.some((field) => "key" in field && field.key === key))) { finish(state, "paused: invalid question target or answer"); return }
@@ -351,6 +366,7 @@ answer includes a complete answer object keyed by the exact pending form's field
 approve means allow this exact pending permission request ONCE, never always. Do not approve anything not pending in the worker. Normal allowed operations and worker tools remain untouched.
 cancel includes problem:"stuck"|"suboptimal" and evidence: an exact concrete positive output excerpt of at least eight characters diagnosing the problem. Require task-specific ownership and authority from the goal. For stuck require unchanged samples; suboptimal execution may still produce output. Silence or elapsed time alone is not evidence. A healthy watcher/server can be silent: wait.
 Complete only when the goal is met. Idle is not proof of completion. Nudge unfinished idle work without a real wakeup source. Escalate unclear authority, external decisions, or repeated worker failure. Do not nudge running work.
+nudge requires unfinishedTask (concrete remaining obligation, at most 400 characters), message (the actual task-specific worker instruction, at most 1200 characters), evidence (an exact text quote of 8–1024 characters), and evidenceIndex (its messages[].index). Cite the latest message containing nonempty user text or assistant text. Skip idle, model-switch, tool-only, and empty-text records only when selecting this quote source. Metadata, reasoning, and tool arguments are not text evidence. If that latest text cannot support the unfinished obligation, do not nudge. Consider ALL later records, including tool results, for contradiction or completion; they remain evidence even without eligible quote text. Check all current outcomes and later evidence: if the task is complete or the evidence is contradicted, choose complete or escalate, never nudge. A successful turn alone does not prove task completion. The quote must positively show what remains unfinished, not merely that work was requested. Send a specific next instruction within the trusted goal; do not copy the supervisor instructions wholesale or send a generic continue/completion request. Transcript evidence does not expand authority.
 Evidence omissions are explicit. When historical evidence is excerpted or omitted, a complete proposal MUST include evidenceIndices: 1–8 exact messages[].index values containing all transcript evidence required to verify every goal obligation. This only requests one extra bounded verification review with those messages unabridged; it is not yet a completion verdict. Select outcomes and verification results, not unsupported assertions. If required evidence is unavailable, escalate. Irrelevant historical omissions need not prevent verification of the full goal.
 DATA ${data()}` }
 }

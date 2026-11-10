@@ -14,6 +14,14 @@ const form = { id: "form", sessionID: "worker", title: "Choose a color", fields:
 const permission = { id: "permission", sessionID: "worker", action: "shell", resources: ["bun test"], source: { type: "tool", messageID: "message", id: "call" } } as PermissionRequest
 const shell: Snapshot["shells"][number] = { info: { id: "shell", status: "running", command: "bun test", cwd: directory, time: { started: 1 } } as any, output: "ERROR: deadlocked waiting for itself", size: 34, stagnant: true }
 function snapshot(): Snapshot { return { worker, running: false, queued: false, reminder: false, children: [], tools: [], messages: [], omittedMessages: 0, forms: [], permissions: [], shells: [] } }
+const unfinishedReport = "The bug fix is in place, but the regression test still needs to run."
+function report(text: string): Snapshot["messages"][number] {
+  return { id: "report", type: "assistant", agent: "build", model: worker.model!, time: { created: 1 }, content: [{ type: "text", text }] }
+}
+function unfinished(): Snapshot { return { ...snapshot(), messages: [report(unfinishedReport)] } }
+function nudge(extra: object = {}) {
+  return { action: "nudge", reason: "The worker reports unverified local work", unfinishedTask: "Run the regression test for the bug fix", message: "Run the regression test for the bug fix and report its result.", evidence: "the regression test still needs to run", evidenceIndex: 0, ...extra }
+}
 function proxy(action: "answer" | "approve" | "cancel", extra: object = {}) {
   return { action, reason: "Confidently represents the local task", authority: "local", risk: "local", authorization: "Fix the bug, test it", ...extra }
 }
@@ -218,10 +226,11 @@ describe("human proxy", () => {
     await h.controller.start("worker", request())
     expect(h.controller.status("worker")).toStartWith("active")
     expect(h.actions.map((a) => a.method)).toEqual(["create"])
-    h.decision({ action: "nudge", reason: "Unfinished task" })
+    h.state(unfinished()); h.decision(nudge())
     await h.controller.tick("worker")
     expect(h.actions.find((a) => a.method === "generate")?.input.prompt).toContain(request().goal)
     expect(h.actions.find((a) => a.method === "synthetic")?.input.text).not.toContain(request().goal)
+    expect(h.actions.find((a) => a.method === "synthetic")?.input).toEqual({ sessionID: "worker", text: nudge().message, resume: true, delivery: "steer" })
     await h.controller.close()
   })
   test("stop or unload during startup discards late startup and cleans up its supervisor", async () => {
@@ -339,6 +348,80 @@ describe("human proxy", () => {
 })
 
 describe("idle and shell supervision", () => {
+  test("nudge schema requires bounded task, instruction, and indexed evidence", async () => {
+    for (const field of ["unfinishedTask", "message", "evidence", "evidenceIndex"] as const) {
+      const value: Record<string, unknown> = nudge(); delete value[field]
+      expect(() => decode(JSON.stringify(value))).toThrow("Nudges need")
+      const h = harness(); await h.controller.start("worker", request())
+      h.state(unfinished()); h.decision(value); await h.controller.tick("worker")
+      expect(h.actions.some((a) => a.method === "synthetic")).toBe(false)
+      expect(h.registry.get("worker")?.interventions).toBe(0)
+    }
+    for (const extra of [{ unfinishedTask: " " }, { unfinishedTask: "x".repeat(401) }, { message: " " }, { message: "x".repeat(1201) }, { evidence: "tiny" }, { evidence: "x".repeat(1025) }, { evidenceIndex: -1 }, { evidenceIndex: 0.5 }]) {
+      expect(() => decode(JSON.stringify(nudge(extra)))).toThrow()
+    }
+  })
+  test("unavailable, fabricated, metadata, reasoning and superseded nudge evidence stays silent", async () => {
+    const completed = report("The regression test passed; the full task is complete.")
+    for (const [state, decision] of [
+      [snapshot(), nudge()],
+      [unfinished(), nudge({ evidenceIndex: 99 })],
+      [unfinished(), nudge({ evidence: "A fabricated incomplete test result" })],
+      [{ ...snapshot(), messages: [{ ...completed, metadata: { note: unfinishedReport } }] }, nudge()],
+      [{ ...snapshot(), messages: [{ ...completed, type: "assistant", content: [{ type: "reasoning", text: unfinishedReport }] }] }, nudge()],
+      [{ ...unfinished(), messages: [report(unfinishedReport), completed] }, nudge()],
+    ] as [Snapshot, object][]) {
+      const h = harness(); await h.controller.start("worker", request())
+      h.state(state); h.decision(decision); await h.controller.tick("worker")
+      expect(h.actions.some((a) => a.method === "synthetic")).toBe(false)
+      expect(h.registry.get("worker")?.interventions).toBe(0)
+      expect(h.controller.status("worker")).toContain("Nudge withheld")
+    }
+  })
+  test("completed latest state finishes silently and completion during review invalidates a nudge", async () => {
+    const completed = { ...snapshot(), messages: [report("The regression test passed; the full task is complete.")] }
+    const done = harness(); await done.controller.start("worker", request())
+    done.state(completed); done.decision({ action: "complete", reason: "The task-specific verification passed" })
+    await done.controller.tick("worker")
+    expect(done.controller.status("worker")).toStartWith("complete")
+    expect(done.actions.some((a) => a.method === "synthetic")).toBe(false)
+    const stale = harness(); await stale.controller.start("worker", request())
+    stale.state(unfinished())
+    stale.generate(async () => { stale.state(completed); return { text: JSON.stringify(nudge()) } })
+    await stale.controller.tick("worker")
+    expect(stale.actions.some((a) => a.method === "synthetic")).toBe(false)
+    expect(stale.registry.get("worker")?.interventions).toBe(0)
+    const prompt = decisionPrompt(request(), completed).text
+    expect(prompt).toContain("if the task is complete or the evidence is contradicted")
+    expect(prompt).toContain("do not copy the supervisor instructions wholesale")
+  })
+  test("idle outcome markers do not erase the latest task-specific report", async () => {
+    const h = harness(); await h.controller.start("worker", request())
+    h.state({ ...unfinished(), messages: [report(unfinishedReport), { id: "idle", type: "idle", time: { created: 2 }, outcome: "succeeded" }] })
+    h.decision(nudge()); await h.controller.tick("worker")
+    expect(h.actions.find((a) => a.method === "synthetic")?.input.text).toBe(nudge().message)
+  })
+  test("model-switch, completed tool-only and blank text records preserve the latest applicable text evidence", async () => {
+    const switched: Snapshot["messages"][number] = { id: "switch", type: "model-switched", time: { created: 2 }, model: worker.model! }
+    const tool: Snapshot["messages"][number] = {
+      id: "tool-report", type: "assistant", agent: "build", model: worker.model!, time: { created: 3 },
+      content: [{ type: "tool", id: "call", name: "shell", time: { created: 3, completed: 4 }, state: { status: "completed", input: { command: "git diff --check" }, content: [{ type: "text", text: "Diff check passed; regression test not run." }] } }],
+    }
+    for (const trailing of [[switched], [tool], [switched, tool, report(" \n ")]]) {
+      const h = harness(); await h.controller.start("worker", request())
+      const state = { ...unfinished(), messages: [report(unfinishedReport), ...trailing] }
+      h.state(state); h.decision(nudge()); await h.controller.tick("worker")
+      expect(h.actions.find((a) => a.method === "synthetic")?.input.text).toBe(nudge().message)
+      const prompt = h.actions.find((a) => a.method === "generate")?.input.prompt
+      for (const record of trailing) expect(prompt).toContain(JSON.stringify(record))
+      expect(prompt).toContain("Consider ALL later records, including tool results, for contradiction or completion")
+      const stale = harness(); await stale.controller.start("worker", request())
+      stale.state({ ...state, messages: [...state.messages, report("The regression test passed; the full task is complete."), switched] })
+      stale.decision(nudge()); await stale.controller.tick("worker")
+      expect(stale.actions.some((a) => a.method === "synthetic")).toBe(false)
+      expect(stale.controller.status("worker")).toContain("Nudge withheld")
+    }
+  })
   test("real background wakeups wait; unfinished idle without a source is nudged", async () => {
     for (const source of [{ queued: true }, { reminder: true }, { children: ["cross-worktree-child"] }, { tools: ["running-tool"] }, { shells: [{ ...shell, info: { ...shell.info, time: { started: 999_999 } } }] }]) {
       const h = harness(); await h.controller.start("worker", request())
@@ -347,7 +430,7 @@ describe("idle and shell supervision", () => {
       expect(h.actions.some((a) => a.method === "generate")).toBe(false)
     }
     const h = harness(); await h.controller.start("worker", request())
-    h.decision({ action: "nudge", reason: "Unfinished without any pending wakeup" })
+    h.state(unfinished()); h.decision(nudge())
     await h.controller.tick("worker")
     expect(h.actions.filter((a) => a.method === "synthetic" && a.input.resume)).toHaveLength(1)
   })
@@ -464,11 +547,11 @@ describe("bounded lifecycle", () => {
   test("non-cancellation actions retain full current-snapshot freshness", async () => {
     for (const action of ["answer", "approve", "nudge", "complete"] as const) {
       const h = harness(); await h.controller.start("worker", request())
-      const before = { ...snapshot(), ...(action === "answer" ? { forms: [form] } : {}), ...(action === "approve" ? { permissions: [permission] } : {}) }
+      const before = { ...(action === "nudge" ? unfinished() : snapshot()), ...(action === "answer" ? { forms: [form] } : {}), ...(action === "approve" ? { permissions: [permission] } : {}) }
       h.state(before)
       h.generate(async () => {
         h.state({ ...before, worker: { ...worker, time: { ...worker.time, updated: 2 } } })
-        return { text: JSON.stringify(action === "answer" ? proxy("answer", { id: "form", answer: { color: "blue" } }) : action === "approve" ? proxy("approve", { id: "permission" }) : { action, reason: "Now stale" }) }
+        return { text: JSON.stringify(action === "answer" ? proxy("answer", { id: "form", answer: { color: "blue" } }) : action === "approve" ? proxy("approve", { id: "permission" }) : action === "nudge" ? nudge() : { action, reason: "Now stale" }) }
       })
       await h.controller.tick("worker")
       expect(h.controller.status("worker").startsWith("active")).toBe(true)
@@ -479,6 +562,7 @@ describe("bounded lifecycle", () => {
   test("duplicate triggers and late decisions after stop/unload cannot mutate", async () => {
     for (const how of ["stop", "close"] as const) {
       const h = harness(); await h.controller.start("worker", request())
+      h.state(unfinished())
       let resolve!: (value: { text: string }) => void
       h.generate(() => new Promise((done) => { resolve = done }))
       const pending = h.controller.tick("worker")
@@ -486,7 +570,7 @@ describe("bounded lifecycle", () => {
       await h.controller.tick("worker")
       expect(h.actions.filter((a) => a.method === "generate")).toHaveLength(1)
       if (how === "stop") h.controller.stop("worker"); else await h.controller.close()
-      resolve({ text: JSON.stringify({ action: "nudge", reason: "Late" }) })
+      resolve({ text: JSON.stringify(nudge()) })
       await pending
       expect(h.actions.filter((a) => a.method === "synthetic")).toHaveLength(0)
       expect(h.actions.filter((a) => a.method === "removeSupervisor")).toHaveLength(1)
@@ -503,7 +587,7 @@ describe("bounded lifecycle", () => {
       expect(h.controller.status("worker")).toContain("budget exhausted")
     }
     const unknown = harness(); await unknown.controller.start("worker", request())
-    unknown.decision({ action: "nudge", reason: "Unfinished" })
+    unknown.state(unfinished()); unknown.decision(nudge())
     unknown.client.session.synthetic = async () => { throw new Error("Lost response after possible admission") }
     await unknown.controller.tick("worker"); await unknown.controller.tick("worker")
     expect(unknown.controller.status("worker")).toContain("mutation outcome unknown")
@@ -511,8 +595,8 @@ describe("bounded lifecycle", () => {
   })
   test("cooldown defers a second nudge without duplicate reviews", async () => {
     const h = harness(); await h.controller.start("worker", request())
-    h.decision({ action: "nudge", reason: "Unfinished" }); await h.controller.tick("worker")
-    h.state({ ...snapshot(), worker: { ...worker, time: { ...worker.time, updated: 2 } } }); h.advance(1000)
+    h.state(unfinished()); h.decision(nudge()); await h.controller.tick("worker")
+    h.state({ ...unfinished(), worker: { ...worker, time: { ...worker.time, updated: 2 } } }); h.advance(1000)
     await h.controller.tick("worker"); await h.controller.tick("worker")
     expect(h.actions.filter((a) => a.method === "generate")).toHaveLength(2)
     h.advance(120_000); await h.controller.tick("worker")

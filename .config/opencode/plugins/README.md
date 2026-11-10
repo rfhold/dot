@@ -268,6 +268,13 @@ Missing, inconclusive, or oversized required evidence returns to the human. The 
 whole messages and critical state must fit 48,000 characters; there is no further retrieval round.
 Duplicate triggers do not spend another review; a deferred poke is reconsidered after its cooldown.
 Pokes require two minutes between interventions.
+Each poke requires a concrete unfinished task, a task-specific worker instruction, and an exact indexed transcript quote.
+The quote must occur in the latest message with nonempty user or assistant text; later completion text supersedes older unfinished reports.
+Idle, model-switch, tool-only, and empty-text records do not supersede that quote source.
+The supervisor still considers all later records, including tool results, for contradiction or completion; quote selection does not remove snapshot evidence.
+The supervisor checks whether current evidence still shows unfinished work; completed or contradicted tasks receive no poke.
+The controller checks the quote and the fresh snapshot before it sends the supervisor's specific instruction, not a generic continuation prompt.
+Supervisor-only instructions remain separate. These checks verify evidence references, not semantic task completion without supervisor judgment.
 Completion, unclear authority, human rejection, repeated failures, and exhausted budgets end active supervision.
 An uncertain mutation outcome pauses immediately; the plugin never blindly repeats that mutation.
 `status` shows the latest eight log entries.
