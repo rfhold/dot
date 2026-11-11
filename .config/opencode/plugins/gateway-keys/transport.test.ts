@@ -7,7 +7,7 @@ test("OpenCode 2.0.31 Effect conversion sends only consumable bearer auth throug
   for (const providerID of providers) {
     let calls = 0
     const key = "sk-agw-local-transport-fixture"
-    const request = new Request(`${gateway}/v1/${providerID === "claude" ? "messages" : "responses"}`, {
+    const request = new Request(`${gateway}/v1/${providerID === "claude" || providerID === "anthropic" ? "messages" : "responses"}`, {
       method: "POST", redirect: "error", body: "{}",
       headers: { Authorization: "Bearer unused", "X-Api-Key": "unused", "api-key": "unused", "x-keep": "yes" },
     })

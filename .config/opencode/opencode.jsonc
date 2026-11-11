@@ -241,6 +241,37 @@
             }
           }
         },
+        "fable-5.2": {
+          "name": "Claude Fable 5.2",
+          "modelID": "claude/claude-fable-5-2",
+          "family": "claude-fable",
+          "releaseDate": "2026-11-09",
+          "capabilities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ],
+            "tools": true,
+            "temperature": false,
+            "reasoning": {
+              "supported": true,
+              "effort": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          }
+        },
         "sonnet-4.6": {
           "name": "Claude Sonnet 4.6",
           "modelID": "claude/claude-sonnet-4-6",
@@ -297,6 +328,35 @@
       "settings": {
         "apiKey": "unused",
         "baseURL": "https://agent-gateway.holdenitdown.net/v1"
+      }
+    },
+    "anthropic": {
+      "settings": {
+        "apiKey": "unused",
+        "baseURL": "https://agent-gateway.holdenitdown.net/v1"
+      },
+      // Catalog models stay; the gateway routes on the claude/ prefix.
+      "models": {
+        "claude-fable-5-2": { "modelID": "claude/claude-fable-5-2" },
+        "claude-fable-5-2-fast": { "modelID": "claude/claude-fable-5-2" },
+        "claude-haiku-5-5": { "modelID": "claude/claude-haiku-5-5" },
+        "claude-sonnet-5-5": { "modelID": "claude/claude-sonnet-5-5" },
+        "claude-opus-5-5": { "modelID": "claude/claude-opus-5-5" },
+        "claude-opus-5-5-fast": { "modelID": "claude/claude-opus-5-5" },
+        "claude-fable-5-1": { "modelID": "claude/claude-fable-5-1" },
+        "claude-opus-5": { "modelID": "claude/claude-opus-5" },
+        "claude-opus-5-fast": { "modelID": "claude/claude-opus-5" },
+        "claude-sonnet-5": { "modelID": "claude/claude-sonnet-5" },
+        "claude-fable-5": { "modelID": "claude/claude-fable-5" },
+        "claude-opus-4-8": { "modelID": "claude/claude-opus-4-8" },
+        "claude-opus-4-8-fast": { "modelID": "claude/claude-opus-4-8" },
+        "claude-opus-4-7": { "modelID": "claude/claude-opus-4-7" },
+        "claude-sonnet-4-6": { "modelID": "claude/claude-sonnet-4-6" },
+        "claude-opus-4-6": { "modelID": "claude/claude-opus-4-6" },
+        "claude-opus-4-5": { "modelID": "claude/claude-opus-4-5" },
+        "claude-opus-4-5-20251101": { "modelID": "claude/claude-opus-4-5-20251101" },
+        "claude-haiku-4-5-20251001": { "modelID": "claude/claude-haiku-4-5-20251001" },
+        "claude-haiku-4-5": { "modelID": "claude/claude-haiku-4-5" }
       }
     },
     "codex": {

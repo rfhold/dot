@@ -8,9 +8,9 @@ OpenCode watches global plugin files; activation permits writes to the gateway's
 
 ## Repository gateway keys
 
-The plugin shares one repository key across the `homelab`, `codex`, `bifrost`, and `claude` provider IDs.
+The plugin shares one repository key across the `homelab`, `codex`, `bifrost`, `claude`, and `anthropic` provider IDs.
 It does not add providers or change provider configuration.
-The current configuration defines `homelab`, `codex`, and `claude`, but not `bifrost`.
+The current configuration defines `homelab`, `codex`, and `claude`, and points the built-in `anthropic` provider at the gateway, but does not define `bifrost`.
 
 The plugin uses `http.request` and `experimental.ws.handshake` hooks for every request kind:
 `primary`, `title`, `compaction`, and session `generate`.
@@ -67,7 +67,7 @@ The plugin attaches credentials only when the initial URL matches `https://agent
 - `/v1/messages`
 - `/v1/messages/count_tokens`
 
-The provider ID must also match the four-ID allowlist.
+The provider ID must also match the five-ID allowlist.
 Headers use the repository key only in `Authorization: Bearer`.
 The plugin removes `x-api-key` and `api-key`, and preserves unrelated headers.
 Agentgateway's default policy reads bearer authorization and removes that header after successful key validation.

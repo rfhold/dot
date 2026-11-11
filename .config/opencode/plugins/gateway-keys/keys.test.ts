@@ -124,7 +124,7 @@ test("pending absent remotely retries same hash; rejects redirect and throttles 
   expect(hashes[0]).toBe(hashes[1])
 })
 
-test("all four providers and request kinds use current session directory on HTTP and WS", async () => {
+test("all five providers and request kinds use current session directory on HTTP and WS", async () => {
   const root = await temporary()
   let puts = 0
   const keys = new RepositoryKeys(root, async () => { puts++; return Response.json({}) })
