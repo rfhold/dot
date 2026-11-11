@@ -148,7 +148,7 @@ test("all four providers and request kinds use current session directory on HTTP
     expect(ws.headers["x-keep"]).toBe("yes")
   }
   locations.a = "repo-b"
-  const moved = { sessionID: "a", model: { providerID: "codex" }, kind: "primary", request: new Request(`${gateway}/v1/responses`) }
+  const moved = { sessionID: "a", model: { providerID: "openai" }, kind: "primary", request: new Request(`${gateway}/v1/responses`) }
   await hooks.http(moved)
   const other = { ...moved, sessionID: "b", request: new Request(`${gateway}/v1/responses`) }
   await hooks.http(other)
@@ -158,7 +158,7 @@ test("all four providers and request kinds use current session directory on HTTP
 })
 
 test("destination allowlist excludes credential redirects and unrelated providers", async () => {
-  for (const url of [`${gateway}.evil/v1/responses`, `${gateway}/api/config/resources/llm.apiKey`, `${gateway}/v1/responses/evil`, "http://agent-gateway.holdenitdown.net/v1/responses", "https://user@agent-gateway.holdenitdown.net/v1/responses"]) expect(allowedDestination("codex", url)).toBe(false)
+  for (const url of [`${gateway}.evil/v1/responses`, `${gateway}/api/config/resources/llm.apiKey`, `${gateway}/v1/responses/evil`, "http://agent-gateway.holdenitdown.net/v1/responses", "https://user@agent-gateway.holdenitdown.net/v1/responses"]) expect(allowedDestination("openai", url)).toBe(false)
   expect(allowedDestination("unrelated", `${gateway}/v1/responses`)).toBe(false)
   let called = false
   const hooks = createHooks(async () => { called = true; throw new Error() })

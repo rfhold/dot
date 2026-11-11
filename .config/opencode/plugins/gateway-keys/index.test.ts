@@ -14,7 +14,7 @@ test("plugin registers native HTTP and WebSocket hooks for only the four gateway
     },
   } as never)
   expect(plugin.id).toBe("rfhold.gateway-keys")
-  expect(registrations).toEqual(["homelab", "codex", "bifrost", "anthropic"].flatMap((providerID) => [
+  expect(registrations).toEqual(["homelab", "openai", "bifrost", "anthropic"].flatMap((providerID) => [
     { hook: "http.request", providerID },
     { hook: "experimental.ws.handshake", providerID },
   ]))

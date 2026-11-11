@@ -8,9 +8,10 @@ OpenCode watches global plugin files; activation permits writes to the gateway's
 
 ## Repository gateway keys
 
-The plugin shares one repository key across the `homelab`, `codex`, `bifrost`, and `anthropic` provider IDs.
+The plugin shares one repository key across the `homelab`, `openai`, `bifrost`, and `anthropic` provider IDs.
 It does not add providers or change provider configuration.
-The current configuration defines `homelab` and `codex`, points the built-in `anthropic` provider at the gateway, but does not define `bifrost`.
+The current configuration defines `homelab` and points the built-in `openai` and `anthropic` providers at the gateway.
+It does not define `bifrost`.
 
 The plugin uses `http.request` and `experimental.ws.handshake` hooks for every request kind:
 `primary`, `title`, `compaction`, and session `generate`.
@@ -139,14 +140,21 @@ Tests never contact the gateway or an OpenCode service.
 - [Agentgateway v1.5.0 APIKeyHash](https://github.com/agentgateway/agentgateway/blob/v1.5.0/crates/agentgateway/src/http/apikey.rs): SHA-256 bytes, hex encoding, and required `sha256:` prefix.
 - [Config resources](https://agentgateway.dev/docs/standalone/1.5.x/documentation/operations/config-resources/): collection create, list response, hybrid storage, and asynchronous propagation.
 
-## Anthropic gateway
+## Gateway model prefixes
 
-`anthropic-gateway/index.ts` registers a model transform that prefixes every `anthropic` upstream model ID with `claude/`.
-The config points the built-in `anthropic` provider at the gateway, so catalog models route without a maintained alias list.
-IDs that already carry the prefix stay unchanged.
+`gateway-prefix/index.ts` registers a model transform for two built-in providers:
+
+- `anthropic` upstream model IDs receive `claude/`.
+- `openai` upstream model IDs receive `codex/`.
+
+The config points both providers at the gateway, so catalog models route without a custom model list.
+The `openai` provider uses HTTP transport for the gateway.
+Catalog IDs and variants stay intact; only upstream model IDs change.
+IDs that already carry their provider's prefix stay unchanged.
+Other providers stay unchanged.
 
 ```sh
-bun test ./.config/opencode/plugins/anthropic-gateway
+bun test ./.config/opencode/plugins/gateway-prefix
 ```
 
 ## Session reminders
