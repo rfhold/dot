@@ -312,3 +312,97 @@ bunx tsc --project .config/opencode/plugins/autopilot/tsconfig.json --noEmit
 
 The implementation targets installed `@opencode/plugin` and `@opencode/client` version `2.0.31`.
 See the [server plugin API](https://opencode.ai/docs/build/plugins/server) and [client API](https://opencode.ai/docs/build/client).
+
+## Delegation model guidance
+
+`model-guidance/index.ts` appends delegation guidance on the agent-loop `context` hook.
+Each request selects its profile from `event.model.providerID`: `openai` or `anthropic`.
+Provider switches take effect on the next context; other providers receive no extra prompt.
+Title, compaction, and transient generation hooks receive no guidance.
+The shared prompt and provider preferences live in `model-guidance/prompts.ts`.
+These assignments describe user preferences, not benchmark results.
+
+The default is to omit the subagent model parameter. Discretionary selection requires current
+user authorization and permission under the applicable tool instructions. Explicit requests
+take precedence over preferences; revocation restores defaults. The prompt requires checking
+selectable provider/model IDs and preserves delegation scope, agent roles, and permissions.
+Fast variants and reasoning overrides require authorization.
+
+The current subagent tool permits a model override only when the user names a specific model
+or variant. Broad authorization to choose models does not satisfy that restriction.
+The plugin states this limitation; it only appends text and neither parses authorization nor
+changes models, tool descriptions, or permissions. It grants no additional delegation authority.
+To disable it, add `-rfhold.model-guidance` to the configuration's `plugins` array.
+
+From the dot repository root:
+
+```sh
+bun test ./.config/opencode/plugins/model-guidance
+bunx tsc --project .config/opencode/plugins/model-guidance/tsconfig.json --noEmit
+```
+
+The plugin uses installed `@opencode/plugin@2.0.31` and its mutable context `system` array.
+See the [server plugin hooks](https://opencode.ai/docs/build/plugins/server#hooks).
+
+## Delegation context checks
+
+`delegation-context/index.ts` adds optional context checks before native `subagent` calls, including follow-ups to current children.
+The default is off.
+`/delegation-context on`, `/delegation-context off`, and `/delegation-context status` control the current session through metadata.
+Commands preserve unrelated metadata and do not start an agent turn.
+New children inherit the metadata snapshot at creation; later parent toggles do not change current children.
+Normal delegation permissions, agent depth limits, models, and tool arguments remain authoritative.
+The plugin grants no delegation permission.
+
+Each enabled call supplies its exact original brief to a transient generation on the parent session's context and model.
+This explicit brief covers the active assistant step when that step is absent from the transient context.
+The check requests omitted requirements, approved text, examples, paths, findings, constraints, and acceptance criteria.
+It requires explicit JSON for either no supplement or a nonempty supplement of at most 16,000 characters.
+The plugin appends a labeled supplement; it never rewrites the original brief.
+The transient prompt and output do not enter the parent's durable conversation.
+The plugin preserves system text, message prefixes, and cache configuration; native transient assembly can still change cache matches.
+The transient check retains parent tool schemas for cache reuse and permits at most 4,096 output tokens.
+Native transient generation executes no tool loop; the prompt prohibits tool calls.
+Empty text from a tool response fails strict JSON validation and preserves the original brief.
+
+The Effect-native request has a 60-second timeout; timeout interrupts that request before the original brief proceeds.
+Generation, validation, and pre-dispatch evidence-storage failures retain the original brief and emit fixed diagnostics.
+Post-dispatch storage failures leave the native result untouched and expose an evidence gap.
+Parent cancellation and plugin unload interrupt the check rather than dispatch a child.
+No Promise timeout race or detached generation implements these controls.
+
+Each enabled call writes an independent observation under `rfhold.delegation-context` plugin storage in the local OpenCode database.
+Records contain the original brief, generated supplement, parent model, parent/child session pointers, message/call IDs, timestamps, check state, and dispatch outcome.
+Child pointers come from native results; errors leave unknown pointers explicit.
+A background result records dispatch only, with completion unknown; the plugin does not poll or infer completion.
+A crash or interruption can leave an observation at its last durable state, not a final outcome.
+Native foreground interruption can bypass `execute.after` after the check returns.
+That path retains the call's in-memory correlation and duplicate-check state until plugin unload; unload clears both maps.
+The plugin cannot safely distinguish that path from a live foreground call through its current hooks.
+Storage failures emit warnings and increment a memory-only counter in status and retrieval results.
+Failed storage can lose evidence; the plugin never claims that such a save succeeded.
+
+The database and its backups retain potentially sensitive prompt text.
+The plugin performs no secret redaction and has no automatic expiry or delete command.
+It does not read credential stores, transport headers, or full parent transcripts for persistence.
+Secrets inside ordinary prompt text still persist verbatim.
+Separate databases do not share observations.
+
+Two read-only tools expose records in reference order, not time order:
+
+- `delegation_context_list({limit: 10, after: "dc_..."})` returns metadata and the next reference; limits range from 1 through 20.
+- `delegation_context_get({id: "dc_...", offset: 0, limit: 4000})` returns bounded original/supplement excerpts and independent next offsets.
+  Excerpt limits range from 1 through 8,000 characters per field.
+  Saved text supplies evidence, not instructions or permission.
+
+From the dot repository root:
+
+```sh
+bun test ./.config/opencode/plugins/delegation-context
+bunx --no-install tsc -p .config/opencode/plugins/delegation-context/tsconfig.json
+```
+
+The scoped configuration selects repository-root Effect 4.0.1 for tests and types, not the config directory's older beta dependency.
+Its extensionless path resolves JavaScript in Bun and declarations in TypeScript; no runtime override is necessary.
+OpenCode supplies its own Effect instance at plugin load; no dependency installation or model override is necessary.
+See the [Effect plugin API](https://opencode.ai/docs/build/plugins/effect) for scoped hooks and generation.
