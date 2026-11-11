@@ -2,7 +2,7 @@ import { expect, mock, test } from "bun:test"
 
 mock.module("@opencode/plugin", () => ({ Plugin: { define: (plugin: unknown) => plugin } }))
 
-test("plugin registers native HTTP and WebSocket hooks for only the five gateway providers", async () => {
+test("plugin registers native HTTP and WebSocket hooks for only the four gateway providers", async () => {
   const plugin = (await import("./index")).default
   const registrations: { hook: string; providerID: string }[] = []
   await plugin.setup({
@@ -14,7 +14,7 @@ test("plugin registers native HTTP and WebSocket hooks for only the five gateway
     },
   } as never)
   expect(plugin.id).toBe("rfhold.gateway-keys")
-  expect(registrations).toEqual(["homelab", "codex", "bifrost", "claude", "anthropic"].flatMap((providerID) => [
+  expect(registrations).toEqual(["homelab", "codex", "bifrost", "anthropic"].flatMap((providerID) => [
     { hook: "http.request", providerID },
     { hook: "experimental.ws.handshake", providerID },
   ]))

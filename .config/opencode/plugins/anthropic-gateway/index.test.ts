@@ -8,7 +8,7 @@ test("prefixes anthropic upstream model IDs once and leaves other providers alon
     { providerID: "anthropic", id: "claude-fable-5-2", modelID: "claude-fable-5-2" },
     { providerID: "anthropic", id: "claude-opus-5-5-fast", modelID: "claude-opus-5-5" },
     { providerID: "anthropic", id: "claude-sonnet-5-5", modelID: "claude/claude-sonnet-5-5" },
-    { providerID: "claude", id: "fable-5.2", modelID: "claude/claude-fable-5-2" },
+    { providerID: "codex", id: "gpt-5.6-sol", modelID: "codex/gpt-5.6-sol" },
   ]
   let transform: ((editor: unknown) => void) | undefined
   await plugin.setup({ model: { transform: async (callback: typeof transform) => { transform = callback } } } as never)
@@ -26,6 +26,6 @@ test("prefixes anthropic upstream model IDs once and leaves other providers alon
     "claude/claude-fable-5-2",
     "claude/claude-opus-5-5",
     "claude/claude-sonnet-5-5",
-    "claude/claude-fable-5-2",
+    "codex/gpt-5.6-sol",
   ])
 })

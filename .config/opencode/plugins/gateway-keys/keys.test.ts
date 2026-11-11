@@ -124,7 +124,7 @@ test("pending absent remotely retries same hash; rejects redirect and throttles 
   expect(hashes[0]).toBe(hashes[1])
 })
 
-test("all five providers and request kinds use current session directory on HTTP and WS", async () => {
+test("all four providers and request kinds use current session directory on HTTP and WS", async () => {
   const root = await temporary()
   let puts = 0
   const keys = new RepositoryKeys(root, async () => { puts++; return Response.json({}) })
@@ -167,7 +167,7 @@ test("destination allowlist excludes credential redirects and unrelated provider
   expect(called).toBe(false)
   let warnings = 0
   const failing = createHooks(async () => { throw new Error("secret path / key") }, undefined, undefined, () => { warnings++ })
-  event.model.providerID = "claude"
+  event.model.providerID = "anthropic"
   event.request.headers.set("authorization", "Bearer unused")
   await failing.http(event)
   await failing.http(event)

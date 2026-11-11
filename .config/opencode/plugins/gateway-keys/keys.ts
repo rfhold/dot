@@ -4,7 +4,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 
 export const gateway = "https://agent-gateway.holdenitdown.net"
-export const providers = ["homelab", "codex", "bifrost", "claude", "anthropic"] as const
+export const providers = ["homelab", "codex", "bifrost", "anthropic"] as const
 const resourceURL = `${gateway}/api/config/resources/llm.apiKey`
 const digest = (value: string): string => createHash("sha256").update(value).digest("hex")
 export const keyHash = (key: string): string => `sha256:${digest(key)}`
