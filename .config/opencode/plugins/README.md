@@ -313,6 +313,69 @@ bunx tsc --project .config/opencode/plugins/autopilot/tsconfig.json --noEmit
 The implementation targets installed `@opencode/plugin` and `@opencode/client` version `2.0.31`.
 See the [server plugin API](https://opencode.ai/docs/build/plugins/server) and [client API](https://opencode.ai/docs/build/client).
 
+## Feedback
+
+`feedback/index.ts` adds `/feedback [optional note]` for server-backed Desktop and TUI commands.
+The command saves the last message from the session's current context before its acknowledgment.
+Empty sessions create an explicit session-start anchor.
+The acknowledgment includes a short `fb_` reference and uses `resume: false`.
+The command never submits a prompt, calls a model, or starts a review.
+Every word after `/feedback` belongs to the note; no words act as subcommands.
+Notes permit 1,000 characters; the command rejects attachments.
+
+Anchors persist across sessions and projects that share one OpenCode database.
+The plugin uses durable `ctx.storage` under plugin ID `rfhold.feedback`, with one `anchors/<reference>` record per save.
+OpenCode 2.0.31 namespaces this global database storage by plugin ID, not by location.
+Separate databases, profiles, or remote servers do not share references.
+Independent records avoid a shared index that concurrent saves could overwrite.
+References use 96 random bits; a collision check rejects a reference that already exists.
+The schema records the exact message ID, session ID, session directory, save time, and optional note.
+
+Each record preserves up to 32 messages from the current active context, through the anchor only.
+Snapshots retain at most 24,000 text characters, with an 8,000-character limit per message.
+Only user text and assistant visible text enter the snapshot.
+Tool inputs/results, reasoning, attachments, system text, and compaction bodies never enter it.
+Snapshot metadata marks omitted messages and text truncation; truncated text retains its suffix.
+Earlier history before a compaction can be absent even when these limits do not apply.
+Snapshots can preserve partial assistant text if the session is busy.
+
+The local OpenCode database retains notes and conversation excerpts, which can contain sensitive data or credentials within ordinary text.
+The plugin performs no automatic secret redaction and reads no credential stores or service logs.
+Normal database backups also retain these records.
+No automatic expiry or delete command exists; database cleanup requires a separate user decision.
+
+Two read-only agent tools expose saved anchors:
+
+- `feedback_list({limit: 10, after: "fb_..."})` returns metadata, notes, and a `next` reference.
+  Both arguments are optional; limits range from 1 through 20.
+  Results use reference order, not chronological order.
+- `feedback_get({id: "fb_..."})` returns the anchor, saved snapshot, and current evidence availability.
+  Retrieval never substitutes a later message or returns post-anchor conversation.
+  Compaction, revert, deletion, and read failures leave the snapshot intact and produce an explicit availability notice.
+  Unsupported or corrupt records fail clearly; lists report them per reference.
+
+Unload rejects future operations and prevents late acknowledgments.
+An in-flight database write or acknowledgment can complete; unload does not retract it.
+If acknowledgment fails after a save, the command error preserves the reference.
+
+Invoke the separate `feedback-review` agent explicitly to investigate saved feedback.
+It uses the OpenCode skill and feedback tools, separates evidence from instructions, and reproduces defects before repairs.
+Only an explicit user request authorizes local repairs; saves grant no repair authority.
+Normal tool permissions remain in force.
+Commits, pushes, publication, deployments, and destructive actions require separate authority.
+
+From the dot repository root:
+
+```sh
+bun test ./.config/opencode/plugins/feedback ./.config/opencode/plugins/reminders ./.config/opencode/plugins/autopilot
+bunx tsc --project .config/opencode/plugins/feedback/tsconfig.json --noEmit
+```
+
+The plugin targets installed `@opencode/plugin@2.0.31` without an external client or extra dependencies.
+See the [server plugin API](https://opencode.ai/docs/build/plugins/server) for commands, storage, sessions, and tools.
+Pinned source defines the [plugin namespace](https://github.com/anomalyco/opencode/blob/v2.0.31/packages/core/src/plugin/host.ts) and [global database storage](https://github.com/anomalyco/opencode/blob/v2.0.31/packages/core/src/kv.ts).
+Desktop/TUI end-to-end behavior requires a separate live check.
+
 ## Delegation model guidance
 
 `model-guidance/index.ts` appends delegation guidance on the agent-loop `context` hook.
