@@ -139,6 +139,16 @@ Tests never contact the gateway or an OpenCode service.
 - [Agentgateway v1.5.0 APIKeyHash](https://github.com/agentgateway/agentgateway/blob/v1.5.0/crates/agentgateway/src/http/apikey.rs): SHA-256 bytes, hex encoding, and required `sha256:` prefix.
 - [Config resources](https://agentgateway.dev/docs/standalone/1.5.x/documentation/operations/config-resources/): collection create, list response, hybrid storage, and asynchronous propagation.
 
+## Anthropic gateway
+
+`anthropic-gateway/index.ts` registers a model transform that prefixes every `anthropic` upstream model ID with `claude/`.
+The config points the built-in `anthropic` provider at the gateway, so catalog models route without a maintained alias list.
+IDs that already carry the prefix stay unchanged.
+
+```sh
+bun test ./.config/opencode/plugins/anthropic-gateway
+```
+
 ## Session reminders
 
 `reminders/index.ts` adds exactly two tools:
