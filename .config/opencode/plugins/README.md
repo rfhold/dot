@@ -157,6 +157,29 @@ Other providers stay unchanged.
 bun test ./.config/opencode/plugins/gateway-prefix
 ```
 
+## Fast mode
+
+`fast-mode/index.ts` adds `/fast` for the current session, independently of `gateway-prefix`:
+
+- `/fast` selects the fastest available sibling: `ultrafast`, then `fast`.
+- `/fast fast` and `/fast ultrafast` select that exact mode, with no fallback.
+- `/fast off` selects the standard sibling.
+- `/fast status` reports the current mode and supported modes, with no model change.
+
+Sibling IDs must match the exact base catalog ID and upstream model ID on the same built-in provider.
+The command removes a current `-fast` or `-ultrafast` suffix before lookup.
+Only available, enabled catalog models qualify; the command never creates models or overrides request bodies.
+Unsupported selections stay unchanged, with an explanation.
+The command preserves the selected reasoning variant when the target supports it; otherwise, it clears the variant with an explanation.
+Unknown arguments, files, agent mentions, and skills reject the command before any model change.
+Acknowledgments use `resume: false`; the command starts no agent turn and changes no global defaults.
+An absent session model stays absent; the command never guesses a default or another family.
+Tests use mocks; Desktop/TUI behavior requires a separate live check.
+
+```sh
+bun test ./.config/opencode/plugins/fast-mode
+```
+
 ## Session reminders
 
 `reminders/index.ts` adds exactly two tools:
