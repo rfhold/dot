@@ -7,7 +7,7 @@
       "dependencies": {
         "@opencode/plugin": "2.0.31",
         "playwright": "^1.58.2",
-        "rfhold-skills": "git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.5",
+        "rfhold-skills": "git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.8",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -514,7 +514,7 @@
 
     "require-from-string": ["require-from-string@2.0.2", "", {}, "sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw=="],
 
-    "rfhold-skills": ["rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#c690be0290f228757c2c8fd0decc257e0a7553b9", { "dependencies": { "@opencode-ai/plugin": "1.17.20" } }, "c690be0290f228757c2c8fd0decc257e0a7553b9"],
+    "rfhold-skills": ["rfhold-skills@git+ssh://git@git.holdenitdown.net/rfhold/skills.git#6272b320ec6cc051a40c7be1900b8ecbca3c0a6c", { "dependencies": { "@opencode-ai/plugin": "1.17.20" } }, "6272b320ec6cc051a40c7be1900b8ecbca3c0a6c"],
 
     "rimraf": ["rimraf@5.0.10", "", { "dependencies": { "glob": "^10.3.7" }, "bin": { "rimraf": "dist/esm/bin.mjs" } }, "sha512-l0OE8wL34P4nJH/H2ffoaniAokM2qSmrtXHmlpvYr5AVVX8msAyW0l8NVJFDxlSK4u3Uh/f41cQheDVdnYijwQ=="],
 

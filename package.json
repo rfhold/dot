@@ -7,7 +7,7 @@
   "private": true,
   "dependencies": {
     "@opencode/plugin": "2.0.31",
-    "rfhold-skills": "git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.5",
+    "rfhold-skills": "git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.8",
     "playwright": "^1.58.2"
   },
   "devDependencies": {
