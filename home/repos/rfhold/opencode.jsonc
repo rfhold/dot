@@ -22,8 +22,7 @@
         "url": "https://re-search.holdenitdown.net/mcp",
         "disabled": false,
         "protocol": "2026-07-28",
-        "pool": true,
-        "codemode": false
+        "pool": true
       },
       "faktory": {
         "type": "remote",
