@@ -1,5 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "experimental": {
+    "subagent_depth": 2,
+    "schedules": true,
+    "mcp_events": true
+  },
   "worktree": {
     "directory": ".worktrees"
   },
@@ -7,6 +12,26 @@
   "share": "disabled",
   "mcp": {
     "servers": {
+      "inbox": {
+        "type": "remote",
+        "url": "https://inbox.holdenitdown.net/mcp",
+        "pool": true
+      },
+      "computer-use": {
+        "type": "remote",
+        "url": "http://127.0.0.1:8765/mcp",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {file:~/repos/rfhold/computer-use/.local/http-token}"
+        }
+      },
+      "re-search": {
+        "type": "remote",
+        "url": "https://re-search.holdenitdown.net/mcp",
+        "disabled": false,
+        "protocol": "2026-07-28",
+        "pool": true
+      },
       "grayboard": {
         "type": "remote",
         "url": "https://grayboard.nolnoch.com/mcp",
@@ -323,6 +348,7 @@
     }
   },
   "plugins": [
+    "durable-watch@git+ssh://git@git.holdenitdown.net/rfhold/durable-watch.git#opencode/v0.1.0",
     { "package": "github:nolnoch/grayboard#v2.4.2::path:adapters/opencode-v2" },
     "@tarquinen/opencode-dcp@3.2.0",
     "opencode-vault@git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git#opencode/v0.1.2"
