@@ -14,7 +14,9 @@ test("prefixes gateway-routed upstream model IDs once and leaves other providers
     { providerID: "homelab", id: "dreamer", modelID: "dreamer" },
   ]
   let transform: ((editor: unknown) => void) | undefined
-  await plugin.setup({ model: { transform: async (callback: typeof transform) => { transform = callback } } } as never)
+  await plugin.setup({
+    model: { transform: async (callback: typeof transform) => { transform = callback } },
+  } as never)
   const editor = {
     list: (providerID: string) => models.filter((model) => model.providerID === providerID),
     update: (providerID: string, id: string, update: (draft: { modelID: string }) => void) => {

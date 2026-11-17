@@ -12,9 +12,10 @@ export default Plugin.define({
     await ctx.model.transform((editor) => {
       for (const [providerID, prefix] of Object.entries(prefixes)) {
         for (const model of editor.list(providerID)) {
-          const modelID = prefixed(prefix, model.modelID)
-          if (modelID !== model.modelID) editor.update(providerID, model.id, (draft) => {
-            draft.modelID = modelID as typeof draft.modelID
+          const original = String(model.modelID)
+          const modelID = prefixed(prefix, original)
+          if (modelID !== original) editor.update(providerID, String(model.id), (draft) => {
+            draft.modelID = modelID as unknown as typeof draft.modelID
           })
         }
       }
