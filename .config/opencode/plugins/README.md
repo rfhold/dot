@@ -180,6 +180,78 @@ Tests use mocks; Desktop/TUI behavior requires a separate live check.
 bun test ./.config/opencode/plugins/fast-mode
 ```
 
+## Autopilot
+
+`autopilot/index.ts` registers `supervisor` and `worker`.
+`/autopilot onboard` asks the current agent to interview you about communication, responsibilities, and where to keep notes.
+It also explores project goals, inbox use, workstreams, and initiative.
+It does not switch agents or add automatic note storage.
+`autopilot/prompts.ts` holds the supervisor, worker, and onboarding prompts.
+The context hook appends role guidance to supervisor and worker agent-loop requests alongside the default base prompt.
+The supervisor prompt favors one worker session per workstream, with session reuse for follow-up work.
+Onboarding choices and later user instructions guide how both roles operate.
+It relays native subagent permission requests to the nearest ancestor with `supervisor` selected.
+Each durable synthetic notification includes the native request as evidence, not authority.
+Its short description labels the notification in the native Updates display; the full request remains model-visible.
+Notifications can resume an idle supervisor and spend model tokens.
+Native operator permission controls remain available.
+Ordinary session trees receive no notifications.
+
+The supervisor's ordered agent permissions allow the native `subagent` tool only with `agent: "worker"` and deny all other targets.
+The plugin relies on native permissions alone; session or global rules can override these agent permissions.
+No executor hook enforces a separate delegation restriction.
+A continuation with `agent: "worker"` can switch a child to worker, as the native tool permits.
+
+Worker uses subagent mode, broad default tool access, and no custom system prompt or model.
+It retains OpenCode's default base prompt and native model inheritance.
+Worker permits delegation to `general`, `explore`, and other configured subagents, subject to configured permissions and native limits.
+The plugin does not loosen General or Explore restrictions.
+The current `experimental.subagent_depth: 2` permits supervisor → worker → regular subagent.
+Native mode checks still reject primary-only targets.
+These rules cover the native `subagent` tool, not shell commands or session controls as an OS sandbox.
+
+The supervisor has exactly three decision tools:
+
+- `autopilot_allow_once({sessionID, requestID})`
+- `autopilot_allow_always({sessionID, requestID})`
+- `autopilot_reject({sessionID, requestID, message})`, with a nonblank message of at most 4,000 characters.
+
+Each executor verifies the caller's current supervisor selection, actual ancestry, nearest-supervisor scope, and the native request.
+Workers and unrelated supervisors cannot decide these requests.
+The plugin conceals these tools from non-supervisor model requests; executor checks also protect older tool snapshots.
+
+Always uses the native request's exact `save` patterns and action.
+OpenCode 2.0.31 persists these approvals in its database per project, across sessions and service restarts.
+They are not restricted to this supervisor or subtree.
+Empty save patterns create no persistent rule.
+Configured denies remain authoritative.
+Native always can also resolve other matching requests; native rejection applies feedback to other requests in the same session.
+See the pinned [permission implementation](https://github.com/anomalyco/opencode/blob/v2.0.31/packages/core/src/permission.ts)
+and [saved approvals](https://github.com/anomalyco/opencode/blob/v2.0.31/packages/core/src/permission/saved.ts).
+
+Audit records use `decisions/<random UUID>` under plugin storage `rfhold.autopilot` in the local OpenCode database.
+Each authorized attempt records the timestamp, trusted supervisor identity, target session, request ID, decision, message, and native request summary.
+The summary retains at most 12,000 JSON text characters; error details have the same limit.
+Intent writes precede native replies; final writes record success or error and the native reply's certainty.
+Stale requests also produce error records.
+An intent-storage failure prevents the reply.
+An outcome-storage failure reports uncertainty and prohibits automatic retries.
+Crashes can leave an intent record without a final outcome; no transaction joins storage and permission replies.
+Records can contain sensitive request details and feedback; no automatic expiry or secret redaction exists.
+The plugin has no audit viewer, polling, reconciliation, dispatch replacement, or automatic decision policy.
+Unload aborts the event subscription; events during downtime receive no replay.
+
+```sh
+bun test ./.config/opencode/plugins/autopilot
+bunx --no-install tsc -p .config/opencode/plugins/autopilot/tsconfig.json
+```
+
+Tests use native agent defaults and schema validation with mocked plugin callbacks.
+Rule tests reflect native last-match precedence and session-rule order; executor tests use the native hook fields and `agent` input.
+See the [v2.3.0 subagent tool](https://github.com/anomalyco/opencode/blob/v2.3.0/packages/core/src/tool/plugin/subagent.ts)
+and [permission evaluator](https://github.com/anomalyco/opencode/blob/v2.3.0/packages/core/src/permission.ts).
+Tests make no real permission decisions or inference requests.
+
 ## Session reminders
 
 `reminders/index.ts` adds exactly two tools:
@@ -205,136 +277,6 @@ From the dot repository root, run deterministic tests with no live reminders:
 ```sh
 bun test ./.config/opencode/plugins/reminders
 ```
-
-## Autopilot
-
-`autopilot/index.ts` adds `/autopilot <instructions>`, `/autopilot status`, and `/autopilot stop` for server-backed Desktop and TUI commands.
-The command starts supervision immediately and silently, with no worker prompt, acknowledgment, or immediate supervisor review.
-Instructions guide only the supervisor; Autopilot never copies them into worker prompts, including later nudges.
-The worker's next turn occurs naturally; no special next-message gate applies.
-Status shows `active` after startup. Stop before a new command changes the supervisor instructions.
-The separate, tool-free `autopilot` agent inherits the worker model and acts on your behalf.
-If the worker has not selected a model, selection stays with OpenCode's native defaults.
-The worker keeps its agent, tools, permission configuration, and normal allowed operations.
-Autopilot adds no worker restrictions or persistent permission grants.
-Status and stop do not resume the worker.
-Stop preserves current foreground work and background processes.
-
-Install the pinned plugin-local dependencies after checkout, including when `~/.config/opencode` is a symlink:
-
-```sh
-bun install --cwd "$HOME/.config/opencode/plugins/autopilot" --frozen-lockfile --ignore-scripts --omit=peer
-```
-
-The local manifest exports `index.ts` as the server entrypoint; its plugin ID remains `rfhold.autopilot`.
-Keep this dependency tree local: repository-root dependencies do not reliably resolve through the config symlink.
-
-Normal local shared-background-server sessions need no connection environment variables.
-On startup, `Service.discover()` finds an existing healthy, compatible local
-service; `Service.headers(endpoint)` supplies its authentication when configured.
-Discovery never ensures, starts, or stops a service, and does not run while Autopilot is inactive.
-
-Standalone/custom servers can override discovery with both server-environment variables:
-
-- `OPENCODE_AUTOPILOT_URL`: an HTTPS origin or loopback HTTP origin, without a path or credentials.
-- `OPENCODE_AUTOPILOT_AUTHORIZATION`: the complete authorization header value, supplied through your secret environment mechanism.
-
-Setting only one variable, or leaving an explicit value blank, fails closed; explicit and
-discovered credentials are never combined. Explicit overrides skip discovery entirely.
-Native discovery trusts the local service registration and performs its authenticated
-health probe before the plugin validates the returned URL. That SDK probe permits
-redirects and has no transport override; use the explicit pair to skip this discovery trust boundary.
-For requests after discovery, the bridge rejects unsafe origins and redirects and verifies an in-memory RPC nonce
-before task-session operations, every subsequent review, and supervisor cleanup.
-A second server with the same database does not satisfy this check.
-No discovered endpoint, discovery errors, a nonce mismatch, or API errors fail closed;
-the plugin never guesses an alternate server. A verified connection is retained for that
-run to avoid repeated health probes; a new run resolves its connection again.
-Discovery waits are bounded by the run's 30-second request/abort timeout. The native
-discovery probe has no cancellation parameter: an already-started read-only probe may
-finish later, but its late result cannot admit task-session operations.
-No global configuration changes are necessary.
-
-State supervisor instructions and limits, then send the worker's task as an ordinary message:
-
-```text
-/autopilot Check the parser tests. Keep changes local; ask me about ambiguous behavior.
-Fix the parser bug and run its tests.
-```
-
-Normal session events and the poll trigger reviews after startup; startup itself does not trigger a review.
-Lifecycle changes, completion, failures, reload, and unload produce no automatic worker messages.
-Only supervisor-judged intervention produces unsolicited main-session speech, after fresh evidence confirms an idle worker or a question/permission wait.
-Nudges resume only an idle worker. Human escalations do not resume it; explicit status and stop replies also do not resume it.
-
-The supervisor derives ordinary task answers and pending permission decisions from your goal.
-Permission approvals use `once`, never `always`; configured denials are not bypassed.
-Human rejection stops monitoring. Uncertain choices and unsupported external forms return to you.
-Local goal work is the default authorization. Commits, pushes, publication, deployments,
-destructive work, external decisions, and scope expansion need explicit human authority.
-Goal interpretation and risk classification are model judgments, not a security sandbox.
-Code validates decision structure, goal excerpts, exact pending request identity/content,
-worker ownership, freshness, and late/duplicate decisions before proxy actions.
-Transcript, form, permission, and shell content cannot supply additional human authority.
-The obsolete `--scope` JSON syntax is rejected.
-
-The plugin observes actual session activity, direct-child activity, tool state, inbox entries, and transcript-linked shells.
-Direct children in other worktrees count as wakeup sources; their shells are inspected read-only and never become cancellation targets.
-Inspection is bounded to 16 direct children and eight worker-owned running shells; larger inventories fail closed.
-Child inventory follows cursors, including short or empty pages, with limits of eight pages and 256 scanned records.
-Repeated cursors or real inventory limits fail closed; a next cursor alone does not indicate overflow.
-A 15-second poll supplies a wakeup after background activity ends; legitimate background work does not trigger an idle poke.
-Live intervals from the local `reminders` plugin are observed read-only through its shared registry.
-The native API does not inventory arbitrary future plugin timers; other undisclosed wakeups may be invisible.
-The plugin never answers child requests or cancels unrelated shells.
-Shells without a transcript ownership link remain outside cancellation authority.
-Long shells are reviewed at most every two minutes. Cancellation needs a fresh snapshot,
-a goal-authorized supervisor decision, and concrete positive output evidence of stuck or suboptimal execution.
-Stuck decisions also require unchanged samples across two minutes; suboptimal execution may still produce output.
-Cancellation rechecks exact shell identity (ID, command, directory, start time), ownership,
-running status, and the diagnostic excerpt. Advancing logs do not invalidate a suboptimal
-decision when that execution and diagnostic remain current; other actions retain full snapshot checks.
-Age or silence alone never authorizes cancellation.
-
-Each run permits 24 supervisor reviews, 12 interventions, one hour, and two consecutive failures.
-Supervisor output permits at most 1,000 tokens per review; retries remain disabled.
-Supervisor data permits at most 48,000 characters of structured JSON.
-Goal, activity, pending forms/permissions, and owned-shell evidence remain complete; oversized critical data pauses without inference.
-The full transcript is retained when it fits. Budgeted excerpts and omitted messages are marked.
-A completion proposal with historical omissions selects 1–8 exact transcript indices for one
-extra review of those messages unabridged, the trusted goal, and fresh current critical state.
-Only an explicit full-goal verification acknowledging every selected index can finish;
-irrelevant older omissions do not permanently veto completion. Both reviews count toward the same budget.
-Missing, inconclusive, or oversized required evidence returns to the human. The selected
-whole messages and critical state must fit 48,000 characters; there is no further retrieval round.
-Duplicate triggers do not spend another review; a deferred poke is reconsidered after its cooldown.
-Pokes require two minutes between interventions.
-Each poke requires a concrete unfinished task, a task-specific worker instruction, and an exact indexed transcript quote.
-The quote must occur in the latest message with nonempty user or assistant text; later completion text supersedes older unfinished reports.
-Idle, model-switch, tool-only, and empty-text records do not supersede that quote source.
-The supervisor still considers all later records, including tool results, for contradiction or completion; quote selection does not remove snapshot evidence.
-The supervisor checks whether current evidence still shows unfinished work; completed or contradicted tasks receive no poke.
-The controller checks the quote and the fresh snapshot before it sends the supervisor's specific instruction, not a generic continuation prompt.
-Supervisor-only instructions remain separate. These checks verify evidence references, not semantic task completion without supervisor judgment.
-Completion, unclear authority, human rejection, repeated failures, and exhausted budgets end active supervision.
-An uncertain mutation outcome pauses immediately; the plugin never blindly repeats that mutation.
-`status` shows the latest eight log entries.
-Failed reviews report controlled operation or inventory-limit diagnostics in status, not raw API errors or payloads.
-Reload or unload clears owned timers, subscriptions, supervisor records, and review authority; nothing resumes from storage.
-Supervisor-record cleanup is best effort if the bridge is unavailable.
-Stop blocks late decisions but cannot retract an API mutation that already began.
-These controls constrain plugin authority, not the host shell or independent agents.
-Desktop/TUI end-to-end behavior requires a separate live check.
-
-From the dot repository root:
-
-```sh
-bun test ./.config/opencode/plugins/autopilot ./.config/opencode/plugins/reminders
-bunx tsc --project .config/opencode/plugins/autopilot/tsconfig.json --noEmit
-```
-
-The implementation targets installed `@opencode/plugin` and `@opencode/client` version `2.0.31`.
-See the [server plugin API](https://opencode.ai/docs/build/plugins/server) and [client API](https://opencode.ai/docs/build/client).
 
 ## Delegation model guidance
 
