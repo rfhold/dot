@@ -7,8 +7,8 @@ The following assignments are user preferences, not benchmark facts.`
 const profiles: Record<string, string | undefined> = {
   openai: `OpenAI preferences:
 - openai/gpt-6.1-terra: bounded exploration and simple edits.
-- openai/gpt-6.1-sol: multi-file work, debugging, and repository reviews.
-- openai/gpt-6-astra: difficult architecture, persistent failures, and consequential reviews.`,
+- openai/gpt-6.2-sol: multi-file work, debugging, and repository reviews.
+- openai/gpt-6.2-astra: difficult architecture, persistent failures, and consequential reviews.`,
   anthropic: `Anthropic preferences:
 - anthropic/claude-sonnet-5-5: routine work.
 - anthropic/claude-opus-5-5: complex work.

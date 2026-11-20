@@ -45,6 +45,10 @@ test("selects the current request provider, including switches in one session", 
     expect(added.text).toContain("Default: omit the subagent model parameter")
     expect(added.text).toContain("broad permission to choose models is insufficient")
     expect(added.text).toContain(provider === "openai" ? "openai/gpt-6.1-terra" : "anthropic/claude-sonnet-5-5")
+    if (provider === "openai") {
+      expect(added.text).toContain("openai/gpt-6.2-sol")
+      expect(added.text).toContain("openai/gpt-6.2-astra")
+    }
     expect(added.text).not.toContain(provider === "openai" ? "anthropic/" : "openai/")
     apply(request)
     expect(request.system).toHaveLength(2)
