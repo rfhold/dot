@@ -220,6 +220,17 @@ Each executor verifies the caller's current supervisor selection, actual ancestr
 Workers and unrelated supervisors cannot decide these requests.
 The plugin conceals these tools from non-supervisor model requests; executor checks also protect older tool snapshots.
 
+Permission decisions require one shared managed OpenCode server.
+Autopilot uses official service discovery and authentication, then checks that `/api/info` identifies its own process.
+It never starts a service or searches locations.
+After durable intent, it rechecks the parent chain and sends one official client `permission.reply` with the worker session and request IDs.
+OpenCode selects the session's location, including its workspace; Autopilot supplies no location override or local reply fallback.
+The decision path performs no separate permission get.
+The event relay retains its location-local native get.
+OpenCode 2.3.2 validates request ownership and pending state through the session-scoped HTTP endpoint.
+See its [permission routes](https://github.com/anomalyco/opencode/blob/v2.3.2/packages/protocol/src/groups/permission.ts)
+and [session-location middleware](https://github.com/anomalyco/opencode/blob/v2.3.2/packages/server/src/middleware/session-location.ts).
+
 Always uses the native request's exact `save` patterns and action.
 OpenCode 2.0.31 persists these approvals in its database per project, across sessions and service restarts.
 They are not restricted to this supervisor or subtree.
@@ -230,10 +241,15 @@ See the pinned [permission implementation](https://github.com/anomalyco/opencode
 and [saved approvals](https://github.com/anomalyco/opencode/blob/v2.0.31/packages/core/src/permission/saved.ts).
 
 Audit records use `decisions/<random UUID>` under plugin storage `rfhold.autopilot` in the local OpenCode database.
-Each authorized attempt records the timestamp, trusted supervisor identity, target session, request ID, decision, message, and native request summary.
-The summary retains at most 12,000 JSON text characters; error details have the same limit.
+Each authorized attempt records the timestamp, trusted supervisor identity, target session, request ID, decision, and rejection message.
+New records omit the duplicate native request summary; shared session/request IDs correlate with the general permission evidence below.
+Historical records and their request summaries remain untouched.
+Error details retain at most 12,000 JSON text characters.
 Intent writes precede native replies; final writes record success or error and the native reply's certainty.
 Stale requests also produce error records.
+Native not-found replies record `nativeReply: "not-applied"`; transport and unrecognized failures retain `uncertain`.
+Native error records omit raw server responses and transport details.
+No failure triggers an automatic retry.
 An intent-storage failure prevents the reply.
 An outcome-storage failure reports uncertainty and prohibits automatic retries.
 Crashes can leave an intent record without a final outcome; no transaction joins storage and permission replies.
@@ -247,10 +263,56 @@ bunx --no-install tsc -p .config/opencode/plugins/autopilot/tsconfig.json
 ```
 
 Tests use native agent defaults and schema validation with mocked plugin callbacks.
+Permission tests exercise the official client with mock HTTP responses, including host identity, cross-location replies, cancellation, and uncertain outcomes.
 Rule tests reflect native last-match precedence and session-rule order; executor tests use the native hook fields and `agent` input.
 See the [v2.3.0 subagent tool](https://github.com/anomalyco/opencode/blob/v2.3.0/packages/core/src/tool/plugin/subagent.ts)
 and [permission evaluator](https://github.com/anomalyco/opencode/blob/v2.3.0/packages/core/src/permission.ts).
 Tests make no real permission decisions or inference requests.
+
+## Permission evidence
+
+`permission-log/index.ts` records observed native `permission.asked` and `permission.replied` events independently of Autopilot.
+It covers all agents and sessions where the plugin is active, not only supervisor descendants.
+Each location instance consumes its native location stream.
+Records share the `rfhold.permission-log` plugin namespace in the same OpenCode database across locations.
+Separate databases do not share evidence. Global configuration can be overridden or disabled per location.
+
+Version 1 records under `events/<native-event-ID>` contain the native event ID, type and creation time, session ID and request ID.
+Asked records also contain the action and optional native source tool-call/message IDs.
+Replied records contain `once`, `always`, or `reject`.
+Native directory/workspace pointers are retained when present.
+An explicit allowlist excludes resources, commands, arbitrary metadata, feedback and raw request text.
+Duplicate observations use the same key and deterministic fields; no observation timestamp or actor classification is added.
+Autopilot keeps its separate decision-attempt and outcome audit, not another copy of these events.
+
+The read-only tool submits no notification and starts no extra model turn:
+
+```js
+await tools.permission_log_list({ limit: 50, sessionID: "<session-ID>" })
+// Continue with the returned next cursor, repeating any desired filters:
+await tools.permission_log_list({ after: "events/<event-ID>", limit: 50, sessionID: "<session-ID>" })
+```
+
+The read-only tool accepts `after`, `limit` (default 50, range 1–100), and exact `sessionID`/`requestID` filters.
+It returns JSON text with `records`, `scanned`, and an optional `next` cursor.
+Each call scans one storage page, then filters that page and sanitizes its records.
+An empty result can still have `next`; continue with that cursor if needed.
+Ordering is storage key order, not a chronological guarantee. The tool does not scan other plugin namespaces.
+
+These native events identify no approving actor.
+An unmatched reply is not evidence of manual approval; an observed reply is not proof that applying it succeeded.
+One native decision can emit replies for several pending requests.
+Asked pointers can be absent when a reply is observed, and already-allowed actions can produce no request/reply event.
+Events are ephemeral: unloaded locations, reload gaps, stream failure and storage failure can leave missing evidence.
+Writes and stream failures emit fixed warnings without request contents; there is no retry, reconnect, replay or backfill.
+Logging failures do not decide permissions or change Autopilot relay behavior.
+Existing historical Autopilot audits remain in their original namespace; no migration or deletion occurs.
+Records have no automatic expiry. Live capture and runtime binary compatibility require separate verification.
+
+```sh
+bun test ./.config/opencode/plugins/permission-log ./.config/opencode/plugins/autopilot
+bunx --no-install tsc -p .config/opencode/plugins/permission-log/tsconfig.json --noEmit
+```
 
 ## Session reminders
 

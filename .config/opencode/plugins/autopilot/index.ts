@@ -1,4 +1,6 @@
 import { Plugin } from "@opencode/plugin"
+import { OpenCode } from "@opencode/client"
+import { Service } from "@opencode/client/service"
 import { prompts } from "./prompts"
 
 type Context = Pick<Plugin.Context, "agent" | "command" | "tool" | "session" | "permission" | "storage" | "event" | "location">
@@ -8,8 +10,26 @@ const decisions = {
   autopilot_reject: "reject",
 } as const
 const bounded = (value: unknown) => JSON.stringify(value)?.slice(0, 12_000) ?? "null"
+type NativePermission = Pick<ReturnType<typeof OpenCode.make>["permission"], "reply">
 
-export async function setupAutopilot(ctx: Context) {
+export async function managedPermissionClient(
+  signal: AbortSignal,
+  discover = Service.discover,
+  make = OpenCode.make,
+): Promise<NativePermission> {
+  try {
+    const endpoint = await discover()
+    if (!endpoint) throw new Error()
+    const client = make({ baseUrl: endpoint.url, headers: Service.headers(endpoint) })
+    const info = await client.server.info({ signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) })
+    if (info.pid !== process.pid) throw new Error()
+    return client.permission
+  } catch {
+    throw new Error("Autopilot requires its own shared managed OpenCode server.")
+  }
+}
+
+export async function setupAutopilot(ctx: Context, connect = managedPermissionClient) {
   const controller = new AbortController()
   const active = () => {
     if (controller.signal.aborted) throw new Error("Autopilot is unloaded.")
@@ -118,22 +138,29 @@ export async function setupAutopilot(ctx: Context) {
             id, timestamp: Date.now(), supervisorSessionID: context.sessionID,
             supervisorAgent: context.agent, sessionID: target, requestID: request,
             decision, message: typeof message === "string" ? message : null,
-            requestSummary: "unavailable", status: "intent", nativeReply: "not-called",
+            status: "intent", nativeReply: "not-called",
           }
           // A durable intent is mandatory even when a formerly pending request is now stale.
           await ctx.storage.set(key, record)
           try {
-            const pending = await ctx.permission.get({ sessionID: target, requestID: request })
-            if (!pending || pending.id !== request || pending.sessionID !== target) throw new Error("Permission request is no longer pending.")
-            record.requestSummary = bounded(pending)
-            await ctx.storage.set(key, record)
+            const signal = AbortSignal.any([context.signal, controller.signal])
+            const permission = await connect(signal)
             await authorize(context.sessionID, context.agent, target)
-            if (context.signal.aborted) throw new Error("Permission decision was cancelled.")
+            if (signal.aborted) throw new Error("Permission decision was cancelled.")
             record.nativeReply = "uncertain"
-            await ctx.permission.reply({
-              sessionID: target, requestID: request, decision,
-              ...(decision === "reject" ? { message: message as string } : {}),
-            })
+            try {
+              await permission.reply({
+                sessionID: target, requestID: request, decision,
+                ...(decision === "reject" ? { message: message as string } : {}),
+              }, { signal })
+            } catch (error) {
+              if (error && typeof error === "object" && "_tag" in error
+                && error._tag === "PermissionNotFoundError" && "requestID" in error && error.requestID === request) {
+                record.nativeReply = "not-applied"
+                throw new Error("Native permission request not found or not owned by target session.")
+              }
+              throw new Error("Native permission reply failed; result is uncertain.")
+            }
             record.nativeReply = "succeeded"
           } catch (error) {
             try {

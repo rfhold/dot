@@ -6,6 +6,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@opencode/client": "2.0.31",
     "@opencode/plugin": "2.0.31",
     "rfhold-skills": "git+ssh://git@git.holdenitdown.net/rfhold/skills.git#opencode/v1.2.8",
     "playwright": "^1.58.2"
