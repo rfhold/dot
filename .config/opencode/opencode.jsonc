@@ -18,12 +18,9 @@
         "pool": true
       },
       "computer-use": {
-        "type": "remote",
-        "url": "http://127.0.0.1:8765/mcp",
-        "oauth": false,
-        "headers": {
-          "Authorization": "Bearer {file:~/repos/rfhold/computer-use/.local/http-token}"
-        }
+        "type": "local",
+        "protocol": "2026-07-28",
+        "command": ["computer-use-mcp"]
       },
       "re-search": {
         "type": "remote",

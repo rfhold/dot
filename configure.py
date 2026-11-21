@@ -191,7 +191,10 @@ CASKS = [
     "bitwarden",
 ]
 
-BREW_TAPS = ["pulumi/tap"]
+BREW_TAPS = {
+    "pulumi/tap": None,
+    "rfhold/tap": "https://git.holdenitdown.net/rfhold/homebrew-tap.git",
+}
 
 BUN_LSP_PACKAGES = {
     "brew": ["sql-language-server"],
@@ -524,8 +527,8 @@ if has_tag("git"):
 # -----------------------------------------------------------------------------
 
 if has_tag("packages") and pkg_manager == "brew":
-    for tap in BREW_TAPS:
-        brew.tap(name=f"Add {tap} tap", src=tap)
+    for tap, url in BREW_TAPS.items():
+        brew.tap(name=f"Add {tap} tap", src=tap, url=url)
 
 # -----------------------------------------------------------------------------
 # Environment-specific packages
