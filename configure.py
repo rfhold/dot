@@ -1,4 +1,5 @@
 import os
+from shlex import quote
 
 from pyinfra import host
 from pyinfra.operations import (
@@ -13,7 +14,9 @@ from pyinfra.operations import (
     cargo,
 )
 from pyinfra.facts.files import FindFiles, FindDirectories, File, Link
-from pyinfra.facts.server import Command, Home, Os, Which
+from pyinfra.facts.deb import DebPackages
+from pyinfra.facts.pacman import PacmanPackages
+from pyinfra.facts.server import Arch, Command, Home, LinuxDistribution, Os, Which
 from pyinfra_fisher import operations as fisher
 from pyinfra_paru import operations as paru
 from pyinfra_bun import operations as bun
@@ -149,6 +152,7 @@ PACKAGES = {
             "bind-tools",
             "inetutils",
             "jq",
+            "openbao",
         ],
         "apk": ["github-cli", "argon2"],
         "apt": ["gh", "argon2"],
@@ -176,6 +180,10 @@ PACKAGES = {
         "pacman": ["docker", "docker-buildx", "docker-compose", "kubectl"],
         "apt": [],  # Added via add_apt_repo() below
     },
+    "repository": {
+        "apt": ["computer-use"],
+        "pacman": ["computer-use"],
+    },
 }
 
 # System-level build/runtime dependencies for specific apps (installed separately from PACKAGES)
@@ -194,6 +202,28 @@ CASKS = [
 BREW_TAPS = {
     "pulumi/tap": None,
     "rfhold/tap": "https://git.holdenitdown.net/rfhold/homebrew-tap.git",
+}
+
+FORGEJO_REGISTRY = "https://git.holdenitdown.net/api/packages/rfhold"
+APT_REPOS = {
+    ("debian", "trixie"): {
+        "forgejo-rfhold": (
+            f"{FORGEJO_REGISTRY}/debian/repository.key",
+            "079DAB356BC9ADAC153D0CA391CC5E7E0C22DBF9",
+            f"{FORGEJO_REGISTRY}/debian",
+            ("amd64", "arm64"),
+        ),
+    },
+}
+PACMAN_REPOS = {
+    "x86_64": {
+        "rfhold.computer-use.git.holdenitdown.net": (
+            f"{FORGEJO_REGISTRY}/arch/repository.key",
+            "CCB4720047B4EC562427C25900CE9E4919AD3CB3",
+            f"{FORGEJO_REGISTRY}/arch/computer-use/x86_64",
+            ("arch", "cachyos"),
+        ),
+    },
 }
 
 BUN_LSP_PACKAGES = {
@@ -304,12 +334,50 @@ def install_packages(name, key, present=True):
         apt.packages(name=name, packages=pkgs, present=present, _sudo=True)
 
 
-def add_apt_repo(name, key_url, keyring_name, repo_line, filename):
-    """Add an apt repository with modern keyring approach (Debian only)."""
+def ensure_repo_key(name, url, fingerprint, path):
+    script = r"""
+set -eu
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+verify_key() {
+    listing=$(gpg --no-options --batch --homedir "$tmp" --with-colons \
+        --show-keys "$1") || return 1
+    printf '%s\n' "$listing" | awk -F: -v expected="$fingerprint" '
+        $1 == "pub" { count++; primary = 1 }
+        $1 == "fpr" && primary { actual = $10; primary = 0 }
+        END { exit !(count == 1 && actual == expected) }
+    '
+}
+if [ -f "$path" ] && verify_key "$path"; then
+    exit 0
+fi
+curl --disable --fail --silent --show-error --location \
+    --proto '=https' --proto-redir '=https' --max-time 60 --output "$tmp/key.asc" "$url"
+if ! verify_key "$tmp/key.asc"; then
+    printf 'Unexpected repository key fingerprint for %s\n' "$url" >&2
+    exit 1
+fi
+case "$path" in
+    *.gpg)
+        gpg --no-options --batch --homedir "$tmp" --dearmor --output "$tmp/key.gpg" "$tmp/key.asc"
+        install -m 0644 "$tmp/key.gpg" "$path"
+        ;;
+    *) install -m 0644 "$tmp/key.asc" "$path" ;;
+esac
+"""
+    server.shell(
+        name=f"[{name}] Verify repository public key",
+        commands=[
+            f"url={quote(url)}; fingerprint={quote(fingerprint)}; path={quote(path)}\n{script}"
+        ],
+        _sudo=True,
+    )
+
+
+def add_apt_repo(name, key_url, fingerprint, keyring_name, repo_line, filename):
     keyring_dir = "/etc/apt/keyrings"
     keyring_path = f"{keyring_dir}/{keyring_name}"
 
-    # Ensure keyrings directory exists
     files.directory(
         name=f"[{name}] Create keyrings directory",
         path=keyring_dir,
@@ -320,16 +388,7 @@ def add_apt_repo(name, key_url, keyring_name, repo_line, filename):
         _sudo=True,
     )
 
-    # Download and convert GPG key if not present
-    keyring_exists = host.get_fact(File, path=keyring_path)
-    if not keyring_exists:
-        server.shell(
-            name=f"[{name}] Download and convert GPG key",
-            commands=[
-                f"curl -fsSL '{key_url}' | gpg --dearmor -o '{keyring_path}'",
-            ],
-            _sudo=True,
-        )
+    ensure_repo_key(name, key_url, fingerprint, keyring_path)
 
     # Ensure correct permissions on keyring
     files.file(
@@ -350,6 +409,102 @@ def add_apt_repo(name, key_url, keyring_name, repo_line, filename):
         present=True,
         _sudo=True,
     )
+
+
+def add_pacman_repo(repo, key_url, fingerprint, url, *, refresh=False):
+    key = f"/etc/pacman.d/{repo}.asc"
+    lines = [f"[{repo}]", "SigLevel = Required", f"Server = {url}"]
+    marker = f"# {{mark}} {repo}"
+    ensure_repo_key(repo, key_url, fingerprint, key)
+    server.shell(
+        name=f"[{repo}] Trust pacman signing key",
+        commands=[f"pacman-key --add {key} && pacman-key --lsign-key {fingerprint}"],
+        _sudo=True,
+    )
+    repos = host.get_fact(Command, command="pacman-conf --repo-list").splitlines()
+    managed = host.get_fact(
+        Command, command=f"grep -Fx '# BEGIN {repo}' /etc/pacman.conf || true"
+    )
+    if repo not in repos or managed:
+        files.block(
+            name=f"[{repo}] Add pacman repository",
+            path="/etc/pacman.conf",
+            marker=marker,
+            content=lines,
+            _sudo=True,
+        )
+    else:
+        configured = host.get_fact(
+            Command, command=f"pacman-conf --repo {repo} Server SigLevel"
+        ).splitlines()
+        if set(configured) != {
+            f"Server = {url}",
+            "SigLevel = PackageRequired",
+            "SigLevel = PackageTrustedOnly",
+            "SigLevel = DatabaseRequired",
+            "SigLevel = DatabaseTrustedOnly",
+        }:
+            raise ValueError(f"Check the existing {repo} section in pacman.conf")
+
+    # Populate this index without refreshing the official repositories.
+    repo_config = " ".join(f"'{line}'" for line in lines)
+    server.shell(
+        name=f"[{repo}] Refresh pacman repository",
+        commands=[
+            'set -eu; dbpath="$(pacman-conf DBPath)"; '
+            f'if {"true" if refresh else "false"} || [ ! -s "$dbpath/sync/{repo}.db" ]; then '
+            'cfg="$(mktemp)"; trap \'rm -f "$cfg"\' EXIT; '
+            'gpgdir="$(pacman-conf GPGDir)"; '
+            "printf '%s\\n' '[options]' 'Architecture = auto' "
+            f'"DBPath = $dbpath" "GPGDir = $gpgdir" {repo_config} > "$cfg"; '
+            'pacman -Sy --config "$cfg"; fi'
+        ],
+        _sudo=True,
+    )
+
+
+def configure_package_repos():
+    release = host.get_fact(LinuxDistribution)["release_meta"]
+    distro = release.get("ID")
+    if pkg_manager == "apt":
+        suite = release.get("VERSION_CODENAME")
+        repos = APT_REPOS.get((distro, suite))
+        if not repos:
+            return False
+        arch = host.get_fact(Command, command="dpkg --print-architecture").strip()
+        configured = False
+        for name, (key_url, fingerprint, url, arches) in repos.items():
+            if arch not in arches:
+                continue
+            key = f"{name}.asc"
+            add_apt_repo(
+                name=name,
+                key_url=key_url,
+                fingerprint=fingerprint,
+                keyring_name=key,
+                repo_line=f"deb [arch={arch} signed-by=/etc/apt/keyrings/{key}] {url} {suite} main",
+                filename=name,
+            )
+            configured = True
+        if configured and not set(PACKAGES["repository"]["apt"]).issubset(
+            host.get_fact(DebPackages)
+        ):
+            apt.update(name="Refresh APT repositories", _sudo=True)
+        return configured
+
+    if pkg_manager == "pacman":
+        repos = PACMAN_REPOS.get(host.get_fact(Arch), {})
+        configured = False
+        refresh = not set(PACKAGES["repository"]["pacman"]).issubset(
+            host.get_fact(PacmanPackages)
+        )
+        for repo, (key_url, fingerprint, url, distros) in repos.items():
+            if distro in distros:
+                add_pacman_repo(repo, key_url, fingerprint, url, refresh=refresh)
+                configured = True
+        return configured
+
+    return False
 
 
 # -----------------------------------------------------------------------------
@@ -530,6 +685,14 @@ if has_tag("packages") and pkg_manager == "brew":
     for tap, url in BREW_TAPS.items():
         brew.tap(name=f"Add {tap} tap", src=tap, url=url)
 
+if (
+    (has_tag("packages") or has_tag("repos"))
+    and pkg_manager in ("apt", "pacman")
+    and not is_container()
+    and configure_package_repos()
+):
+    install_packages("Install repository packages", "repository")
+
 # -----------------------------------------------------------------------------
 # Environment-specific packages
 # -----------------------------------------------------------------------------
@@ -543,6 +706,7 @@ if has_tag("packages"):
             add_apt_repo(
                 name="Docker",
                 key_url="https://download.docker.com/linux/debian/gpg",
+                fingerprint="9DC858229FC7DD38854AE2D88D81803C0EBFCD88",
                 keyring_name="docker.gpg",
                 repo_line=f"deb [arch={arch} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable",
                 filename="docker",
@@ -551,6 +715,7 @@ if has_tag("packages"):
             add_apt_repo(
                 name="Kubernetes",
                 key_url="https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key",
+                fingerprint="DE15B14486CD377B9E876E1A234654DA9A296436",
                 keyring_name="kubernetes-apt-keyring.gpg",
                 repo_line=f"deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /",
                 filename="kubernetes",
