@@ -845,7 +845,7 @@ if has_tag("bun"):
     bun.packages(
         name="Install global Bun packages",
         packages=[
-            "@opencode/cli@2.0.31",
+            "@opencode/cli@2.3.2",
         ],
         present=True,
         update=upgrade_mode or legacy_opencode,
