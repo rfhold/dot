@@ -348,6 +348,6 @@
     "durable-watch@git+ssh://git@git.holdenitdown.net/rfhold/durable-watch.git#cf3bad11021baa9276026b3a9927994dd0d9f38d",
     { "package": "github:nolnoch/grayboard#v2.4.2::path:adapters/opencode-v2" },
     "@tarquinen/opencode-dcp@3.2.0",
-    "opencode-vault@git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git#opencode/v0.1.2"
+    "opencode-vault@git+ssh://git@git.holdenitdown.net/rfhold/opencode-vault.git#opencode/v0.2.0"
   ]
 }
