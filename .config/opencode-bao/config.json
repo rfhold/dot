@@ -8,6 +8,5 @@
   "parentTokenPolicies": [
     "opencode-parent"
   ],
-  "parentIdentityPolicies": [],
-  "bao": "/opt/homebrew/bin/bao"
+  "parentIdentityPolicies": []
 }
