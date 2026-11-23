@@ -22,6 +22,12 @@
         "protocol": "2026-07-28",
         "command": ["computer-use-mcp"]
       },
+      "browser-use": {
+        "type": "local",
+        "protocol": "2026-07-28",
+        "command": ["browser-use-mcp"],
+        "disabled": true
+      },
       "re-search": {
         "type": "remote",
         "url": "https://re-search.holdenitdown.net/mcp",
