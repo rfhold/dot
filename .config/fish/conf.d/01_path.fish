@@ -20,6 +20,7 @@ export CUTHULU_MACHINE=(hostname -f)
 if test (uname) = "Darwin"
     export PATH="$PATH:/opt/homebrew/bin"
     fish_add_path --path --append "/Applications/Computer Use.app/Contents/Helpers"
+    fish_add_path --path --append "/Applications/Browser Use.app/Contents/Helpers"
 end
 export PATH="$PATH:/usr/local/go/bin"
 export PATH="$PATH:$GOPATH/bin"

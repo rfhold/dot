@@ -13,10 +13,11 @@ from pyinfra.operations import (
     server,
     cargo,
 )
+from pyinfra.facts.brew import BrewCasks
 from pyinfra.facts.files import FindFiles, FindDirectories, File, Link
 from pyinfra.facts.deb import DebPackages
 from pyinfra.facts.pacman import PacmanPackages
-from pyinfra.facts.server import Arch, Command, Home, LinuxDistribution, Os, Which
+from pyinfra.facts.server import Arch, Command, Home, LinuxDistribution, MacosVersion, Os, Which
 from pyinfra_fisher import operations as fisher
 from pyinfra_paru import operations as paru
 from pyinfra_bun import operations as bun
@@ -831,6 +832,12 @@ if has_tag("packages"):
 # GUI apps (macOS only)
 if has_tag("packages") and pkg_manager == "brew":
     brew.casks(name="Install GUI applications", casks=CASKS)
+    if (
+        host.get_fact(Arch) == "arm64"
+        and int(host.get_fact(MacosVersion).split(".", 1)[0]) >= 15
+        and "browser-use" not in host.get_fact(BrewCasks)
+    ):
+        brew.casks(name="Install Browser Use", casks=["rfhold/tap/browser-use"])
 
     alacritty_source = f"{home}/.cache/dot/alacritty"
     files.directory(name="Ensure Alacritty source parent exists", path=f"{home}/.cache/dot")
