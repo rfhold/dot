@@ -18,10 +18,20 @@ case "$(uname -s)" in
         try_pinentry /usr/local/bin/pinentry-mac "$@"
         ;;
     Linux)
+        # A background client can omit the desktop environment even on a logged-in machine.
+        if [[ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]] && command -v systemctl >/dev/null; then
+            while IFS='=' read -r name value; do
+                case "$name" in
+                    DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|DBUS_SESSION_BUS_ADDRESS|XDG_RUNTIME_DIR)
+                        if [[ -z "${!name:-}" ]]; then export "$name=$value"; fi
+                        ;;
+                esac
+            done < <(systemctl --user show-environment 2>/dev/null)
+        fi
         # Graphical environment (Hyprland/Wayland/X11) → try GUI pinentries
         if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]] || [[ -n "${DISPLAY:-}" ]]; then
+            if [[ -n "${DISPLAY:-}" ]]; then try_pinentry /usr/bin/pinentry-gtk "$@"; fi
             try_pinentry /usr/bin/pinentry-gnome3 "$@"
-            try_pinentry /usr/bin/pinentry-gtk "$@"
             try_pinentry /usr/bin/pinentry-qt "$@"
             try_pinentry /usr/bin/pinentry-qt5 "$@"
         fi
